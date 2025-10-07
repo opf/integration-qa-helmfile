@@ -1,3 +1,6 @@
+global:
+  security:
+    allowInsecureImages: true
 fullnameOverride: {{ .Values.nextcloud.fullnameOverride }}
 image:
   # Nextcloud version image tag
@@ -94,6 +97,8 @@ externalDatabase:
 postgresql:
   enabled: true
   fullnameOverride: {{ .Values.nextcloud.postgresql.host }}
+  image:
+    repository: bitnamilegacy/postgresql
   global:
     postgresql:
       auth:

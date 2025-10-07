@@ -1,9 +1,13 @@
+global:
+  security:
+    allowInsecureImages: true
 fullnameOverride: {{ .Values.keycloak.fullnameOverride }}
 service:
   ports:
     http: 8080
 image:
   tag: {{ .Values.keycloak.version | quote  }}
+  repository: bitnamilegacy/keycloak
 command: ['/scripts/entrypoint.sh']
 usePasswordFiles: false
 auth:
@@ -39,6 +43,8 @@ cache:
   enabled: false
 postgresql:
   fullnameOverride: {{ .Values.keycloak.postgresql.host }}
+  image:
+    repository: bitnamilegacy/postgresql
   primary:
     podLabels:
       app.kubernetes.io/name: {{ .Values.keycloak.postgresql.host }}
