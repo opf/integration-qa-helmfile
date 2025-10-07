@@ -65,6 +65,23 @@ echo "[INFO] OpenProject is ready."
 
 SCRIPT_URL="https://raw.githubusercontent.com/nextcloud/integration_openproject/master"
 
+# export configs
+export INTEGRATION_SETUP_DEBUG='true'
+export SETUP_PROJECT_FOLDER='true'
+export NC_HOST="https://$NEXTCLOUD_HOST"
+export NC_ADMIN_USERNAME='admin'
+export NC_ADMIN_PASSWORD='admin'
+export NC_INTEGRATION_ENABLE_NAVIGATION='false'
+export NC_INTEGRATION_ENABLE_SEARCH='false'
+export OP_HOST="https://$OPENPROJECT_HOST"
+export OP_ADMIN_USERNAME='admin'
+export OP_ADMIN_PASSWORD='admin'
+export OP_STORAGE_NAME='nextcloud'
+# for old script
+export OPENPROJECT_HOST="https://$OPENPROJECT_HOST"
+export NEXTCLOUD_HOST="https://$NEXTCLOUD_HOST"
+export OPENPROJECT_STORAGE_NAME='nextcloud'
+
 if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
     status=$(curl -s -w "%{http_code}" $SCRIPT_URL/integration_setup.sh -o integration_setup.sh)
     if [[ $status -ne 200 ]]; then
@@ -72,16 +89,7 @@ if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
         exit 1
     fi
 
-    INTEGRATION_SETUP_DEBUG=true \
-        SETUP_PROJECT_FOLDER=true \
-        NEXTCLOUD_HOST=https://$NEXTCLOUD_HOST \
-        NC_ADMIN_USERNAME=admin \
-        NC_ADMIN_PASSWORD=admin \
-        OPENPROJECT_HOST=https://$OPENPROJECT_HOST \
-        OP_ADMIN_USERNAME='admin' \
-        OP_ADMIN_PASSWORD='admin' \
-        OPENPROJECT_STORAGE_NAME='nextcloud' \
-        bash integration_setup.sh
+    bash integration_setup.sh
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
     status=$(curl -s -w "%{http_code}" $SCRIPT_URL/integration_oidc_setup.sh -o integration_oidc_setup.sh)
@@ -92,22 +100,11 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
     # patch for sort command compatibility
     sed -i 's/sort -VC/sort -Vc/g' integration_oidc_setup.sh
 
-    INTEGRATION_SETUP_DEBUG=true \
-        SETUP_PROJECT_FOLDER=true \
-        NC_INTEGRATION_PROVIDER_TYPE=nextcloud_hub \
-        NC_ADMIN_USERNAME=admin \
-        NC_ADMIN_PASSWORD=admin \
-        NC_INTEGRATION_OP_CLIENT_ID=$OIDC_OPENPROJECT_CLIENT_ID \
-        NC_INTEGRATION_OP_CLIENT_SECRET=$OIDC_OPENPROJECT_CLIENT_SECRET \
-        NC_INTEGRATION_ENABLE_NAVIGATION=false \
-        NC_INTEGRATION_ENABLE_SEARCH=false \
-        NC_HOST=https://$NEXTCLOUD_HOST \
-        OP_ADMIN_USERNAME=admin \
-        OP_ADMIN_PASSWORD=admin \
-        OP_STORAGE_NAME=nextcloud \
-        OP_HOST=https://$OPENPROJECT_HOST \
-        OP_USE_LOGIN_TOKEN=true \
-        bash integration_oidc_setup.sh
+    NC_INTEGRATION_PROVIDER_TYPE=nextcloud_hub \
+    NC_INTEGRATION_OP_CLIENT_ID=$OIDC_OPENPROJECT_CLIENT_ID \
+    NC_INTEGRATION_OP_CLIENT_SECRET=$OIDC_OPENPROJECT_CLIENT_SECRET \
+    OP_USE_LOGIN_TOKEN=true \
+    bash integration_oidc_setup.sh
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
     echo "[INFO] Waiting for Keycloak to be ready..."
@@ -123,22 +120,11 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
     # patch for sort command compatibility
     sed -i 's/sort -VC/sort -Vc/g' integration_oidc_setup.sh
 
-    INTEGRATION_SETUP_DEBUG=true \
-        SETUP_PROJECT_FOLDER=true \
-        NC_HOST=https://$NEXTCLOUD_HOST \
-        NC_ADMIN_USERNAME=admin \
-        NC_ADMIN_PASSWORD=admin \
-        NC_INTEGRATION_PROVIDER_TYPE=external \
-        NC_INTEGRATION_PROVIDER_NAME=$OIDC_KEYCLOAK_PROVIDER_NAME \
-        NC_INTEGRATION_OP_CLIENT_ID=$OIDC_OPENPROJECT_CLIENT_ID \
-        NC_INTEGRATION_TOKEN_EXCHANGE=true \
-        NC_INTEGRATION_ENABLE_NAVIGATION=false \
-        NC_INTEGRATION_ENABLE_SEARCH=false \
-        OP_HOST=https://$OPENPROJECT_HOST \
-        OP_ADMIN_USERNAME=admin \
-        OP_ADMIN_PASSWORD=admin \
-        OP_STORAGE_NAME=nextcloud \
-        OP_STORAGE_AUDIENCE=nextcloud \
-        OP_STORAGE_SCOPE=add-nc-aud \
-        bash integration_oidc_setup.sh
+    NC_INTEGRATION_PROVIDER_TYPE=external \
+    NC_INTEGRATION_PROVIDER_NAME=$OIDC_KEYCLOAK_PROVIDER_NAME \
+    NC_INTEGRATION_OP_CLIENT_ID=$OIDC_OPENPROJECT_CLIENT_ID \
+    NC_INTEGRATION_TOKEN_EXCHANGE=true \
+    OP_STORAGE_AUDIENCE=nextcloud \
+    OP_STORAGE_SCOPE=add-nc-aud \
+    bash integration_oidc_setup.sh
 fi
