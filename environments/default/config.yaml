@@ -9,6 +9,13 @@ integration:
   ############################################
   setupMethod: 'oauth2'
   ingressClassName: ''
+  oidcClients:
+    nextcloud:
+      id: nextcloud
+      secret: nextcloud-secret
+    openproject:
+      id: openproject
+      secret: openproject-secret
 
 openproject:
   fullnameOverride: openproject
@@ -54,7 +61,7 @@ nextcloud:
   # Pod container image tag                  #
   # Examples: 30, 31                         #
   ############################################
-  version: '31'
+  version: '32'
   ############################################
   # Git branch to use as the source          #
   # Example: master, stable30                #
@@ -97,13 +104,6 @@ keycloak:
   providerName: keycloak
   realm:
     name: opnc
-    clients:
-      nextcloud:
-        id: nextcloud
-        secret: nextcloud-secret
-      openproject:
-        id: openproject
-        secret: openproject-secret
   postgresql:
     host: kc-postgresql
 

@@ -32,9 +32,9 @@ nextcloud:
     - name: OVERWRITECLIURL
       value: https://{{ .Values.nextcloud.host }}
     - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID
-      value: {{ .Values.keycloak.realm.clients.nextcloud.id }}
+      value: {{ .Values.integration.oidcClients.nextcloud.id }}
     - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET
-      value: {{ .Values.keycloak.realm.clients.nextcloud.secret }}
+      value: {{ .Values.integration.oidcClients.nextcloud.secret }}
     - name: OIDC_KEYCLOAK_PROVIDER_NAME
       value: {{ .Values.keycloak.providerName }}
     - name: OIDC_KEYCLOAK_DISCOVERY_URL

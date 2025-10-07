@@ -9,6 +9,7 @@ keycloakHost: keycloak.test
 oidcProvider:
   name: keycloak
   openprojectClientId: openproject
+  openprojectClientSecret: openproject-secret
 
 nextcloud:
   enableApps:
