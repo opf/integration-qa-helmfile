@@ -1,10 +1,13 @@
-
+global:
+  security:
+    allowInsecureImages: true
 fullnameOverride: {{ .Values.keycloak.fullnameOverride }}
 service:
   ports:
     http: 8080
 image:
   tag: {{ .Values.keycloak.version | quote  }}
+  repository: bitnamilegacy/keycloak
 command: ['/scripts/entrypoint.sh']
 usePasswordFiles: false
 auth:
@@ -16,15 +19,15 @@ extraEnvVars:
   - name: KC_REALM_NAME
     value: {{ .Values.keycloak.realm.name }}
   - name: KC_NEXTCLOUD_CLIENT_ID
-    value: {{ .Values.keycloak.realm.clients.nextcloud.id }}
+    value: {{ .Values.integration.oidcClients.nextcloud.id }}
   - name: KC_NEXTCLOUD_CLIENT_SECRET
-    value: {{ .Values.keycloak.realm.clients.nextcloud.secret }}
+    value: {{ .Values.integration.oidcClients.nextcloud.secret }}
   - name: KC_NEXTCLOUD_CLIENT_HOST
     value: {{ .Values.nextcloud.host }}
   - name: KC_OPENPROJECT_CLIENT_ID
-    value: {{ .Values.keycloak.realm.clients.openproject.id }}
+    value: {{ .Values.integration.oidcClients.openproject.id }}
   - name: KC_OPENPROJECT_CLIENT_SECRET
-    value: {{ .Values.keycloak.realm.clients.openproject.secret }}
+    value: {{ .Values.integration.oidcClients.openproject.secret }}
   - name: KC_OPENPROJECT_CLIENT_HOST
     value: {{ .Values.openproject.host }}
 extraVolumes:
@@ -40,6 +43,8 @@ cache:
   enabled: false
 postgresql:
   fullnameOverride: {{ .Values.keycloak.postgresql.host }}
+  image:
+    repository: bitnamilegacy/postgresql
   primary:
     podLabels:
       app.kubernetes.io/name: {{ .Values.keycloak.postgresql.host }}

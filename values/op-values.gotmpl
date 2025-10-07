@@ -1,3 +1,6 @@
+global:
+  security:
+    allowInsecureImages: true
 fullnameOverride: {{ .Values.openproject.fullnameOverride }}
 # See https://github.com/opf/helm-charts/issues/201#issuecomment-2908788062
 containerSecurityContext:
@@ -14,8 +17,8 @@ openproject:
     enabled: {{ if not (eq .Values.integration.setupMethod "oauth2") }}true{{ else }}false{{ end }}
     {{ if .Values.integration.setupMethod | eq "sso-external" }}
     displayName: {{ .Values.keycloak.providerName }}
-    identifier: {{ .Values.keycloak.realm.clients.openproject.id }}
-    secret: {{ .Values.keycloak.realm.clients.openproject.secret }}
+    identifier: {{ .Values.integration.oidcClients.openproject.id }}
+    secret: {{ .Values.integration.oidcClients.openproject.secret }}
     authorizationEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/auth
     tokenEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/token
     userinfoEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/userinfo
@@ -112,6 +115,7 @@ extraVolumeMounts:
 postgresql:
   fullnameOverride: {{ .Values.openproject.postgresql.host }}
   image:
+    repository: bitnamilegacy/postgresql
     tag: '17.5.0-debian-12-r16'
   auth:
     password: {{ .Values.openproject.postgresql.password }}
@@ -120,3 +124,6 @@ postgresql:
       app.kubernetes.io/name: {{ .Values.openproject.postgresql.host }}
     persistence:
       enabled: false
+memcached:
+  image:
+    repository: bitnamilegacy/memcached

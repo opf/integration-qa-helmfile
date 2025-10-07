@@ -31,7 +31,8 @@ extraEnv:
 
 oidcProvider:
   name: {{ .Values.keycloak.providerName }}
-  openprojectClientId: {{ .Values.keycloak.realm.clients.openproject.id }}
+  openprojectClientId: {{ .Values.integration.oidcClients.openproject.id }}
+  openprojectClientSecret: {{ .Values.integration.oidcClients.openproject.secret }}
 
 ingress:
   ingressClassName: {{ .Values.integration.ingressClassName }}

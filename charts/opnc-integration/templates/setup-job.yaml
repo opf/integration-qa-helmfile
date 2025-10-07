@@ -21,8 +21,10 @@ spec:
               value: '{{ .Values.integrationSetupMethod }}'
             - name: OIDC_KEYCLOAK_PROVIDER_NAME
               value: '{{ include "opnc.oidc.providerName" . }}'
-            - name: OIDC_KEYCLOAK_OPENPROJECT_CLIENT_ID
+            - name: OIDC_OPENPROJECT_CLIENT_ID
               value: '{{ include "opnc.oidc.openprojectClientId" . }}'
+            - name: OIDC_OPENPROJECT_CLIENT_SECRET
+              value: '{{ include "opnc.oidc.openprojectClientSecret" . }}'
             {{- include "opnc.extraEnv" . | indent 12 }}
           volumeMounts:
             - name: setup-script

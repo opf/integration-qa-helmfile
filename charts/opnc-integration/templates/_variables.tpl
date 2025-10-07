@@ -52,6 +52,10 @@ OpenID Connect variables.
 {{ .Values.oidcProvider.openprojectClientId | default "openproject" }}
 {{- end -}}
 
+{{- define "opnc.oidc.openprojectClientSecret" -}}
+{{ .Values.oidcProvider.openprojectClientSecret | default "openproject-secret" }}
+{{- end -}}
+
 {{/*
 ---------------------------------------------
 Volumes
