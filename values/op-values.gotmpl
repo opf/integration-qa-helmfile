@@ -15,6 +15,7 @@ openproject:
     password_reset: 'false'
   oidc:
     enabled: {{ if not (eq .Values.integration.setupMethod "oauth2") }}true{{ else }}false{{ end }}
+    scope: '[openid offline_access]'
     {{ if .Values.integration.setupMethod | eq "sso-external" }}
     displayName: {{ .Values.keycloak.providerName }}
     identifier: {{ .Values.integration.oidcClients.openproject.id }}
