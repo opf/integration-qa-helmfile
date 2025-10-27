@@ -25,9 +25,9 @@ extraEnvVars:
   - name: KC_NEXTCLOUD_CLIENT_HOST
     value: {{ .Values.nextcloud.host }}
   - name: KC_OPENPROJECT_CLIENT_ID
-    value: {{ .Values.integration.oidcClients.openproject.id }}
+    value: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
   - name: KC_OPENPROJECT_CLIENT_SECRET
-    value: {{ .Values.integration.oidcClients.openproject.secret }}
+    value: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
   - name: KC_OPENPROJECT_CLIENT_HOST
     value: {{ .Values.openproject.host }}
 extraVolumes:

@@ -31,8 +31,8 @@ extraEnv:
 
 oidcProvider:
   name: {{ .Values.keycloak.providerName }}
-  openprojectClientId: {{ .Values.integration.oidcClients.openproject.id }}
-  openprojectClientSecret: {{ .Values.integration.oidcClients.openproject.secret }}
+  openprojectClientId: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
+  openprojectClientSecret: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
 
 ingress:
   ingressClassName: {{ .Values.integration.ingressClassName }}
