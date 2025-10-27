@@ -13,9 +13,12 @@ integration:
     nextcloud:
       id: nextcloud
       secret: nextcloud-secret
-    openproject:
+    openprojectNC:
       id: 4xMOWGYBXhSMNBcSwpgPW1B3Q7TPuP3S
       secret: 7V5AJR9TtNNaGtnZROSYp6N9oCTvxbbi
+    openprojectKC:
+      id: openproject
+      secret: openproject-secret
 
 openproject:
   fullnameOverride: openproject

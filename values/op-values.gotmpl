@@ -18,8 +18,8 @@ openproject:
     scope: '[openid offline_access]'
     {{ if .Values.integration.setupMethod | eq "sso-external" }}
     displayName: {{ .Values.keycloak.providerName }}
-    identifier: {{ .Values.integration.oidcClients.openproject.id }}
-    secret: {{ .Values.integration.oidcClients.openproject.secret }}
+    identifier: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
+    secret: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
     authorizationEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/auth
     tokenEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/token
     userinfoEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/userinfo
