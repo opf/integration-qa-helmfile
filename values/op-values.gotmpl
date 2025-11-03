@@ -15,8 +15,8 @@ openproject:
     password_reset: 'false'
   oidc:
     enabled: {{ if not (eq .Values.integration.setupMethod "oauth2") }}true{{ else }}false{{ end }}
-    scope: '[openid offline_access]'
     {{ if .Values.integration.setupMethod | eq "sso-external" }}
+    scope: '[openid offline_access]'
     displayName: {{ .Values.keycloak.providerName }}
     identifier: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
     secret: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
