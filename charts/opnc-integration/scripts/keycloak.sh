@@ -101,6 +101,7 @@ realm_status=$(
                 "firstName" : "Alice",
                 "lastName" : "Hansen",
                 "email" : "alice@example.com",
+                "realmRoles" : [ "offline_access" ],
                 '"$COMMON_USER_ATTRIBUTES"'
             },
             {
@@ -108,6 +109,7 @@ realm_status=$(
                 "firstName" : "Brian",
                 "lastName" : "Murphy",
                 "email" : "brian@example.com",
+                "realmRoles" : [ "offline_access" ],
                 '"$COMMON_USER_ATTRIBUTES"'
             }
         ],
