@@ -1,0 +1,45 @@
+{
+  "url": "https://openproject.test/login",
+  "selectors": {
+    "usernameInput": {
+      "by": "getByRole",
+      "value": {
+        "role": "textbox",
+        "name": "Username*"
+      }
+    },
+    "passwordInput": {
+      "by": "getByRole",
+      "value": {
+        "role": "textbox",
+        "name": "Password*"
+      }
+    },
+    "loginButton": {
+      "by": "locator",
+      "value": "#login-form input[type='submit'][value='Sign in']"
+    },
+    "userMenu": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Account menu"
+      }
+    },
+    "signInButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Sign in"
+      }
+    },
+    "forgotPasswordLink": {
+      "by": "getByRole",
+      "value": {
+        "role": "link",
+        "name": "Forgot your password?"
+      }
+    }
+  }
+}
+

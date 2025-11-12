@@ -1,0 +1,40 @@
+{
+  "url": "https://nextcloud.test",
+  "selectors": {
+    "usernameInput": {
+      "by": "locator",
+      "value": "#user"
+    },
+    "passwordInput": {
+      "by": "locator",
+      "value": "#password"
+    },
+    "loginButton": {
+      "by": "locator",
+      "value": "button[type='submit']"
+    },
+    "userMenu": {
+      "by": "locator",
+      "value": ".header-menu, [data-user-menu], #user-menu, .avatardiv"
+    },
+    "integrationAppTitle": {
+      "by": "locator",
+      "value": "h2:has-text('OpenProject')"
+    },
+    "integrationAppLink": {
+      "by": "getByRole",
+      "value": {
+        "role": "link",
+        "name": "OpenProject"
+      }
+    },
+    "appsMenu": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Apps"
+      }
+    }
+  }
+}
+

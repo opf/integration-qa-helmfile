@@ -1,0 +1,26 @@
+{
+  "url": "https://keycloak.test",
+  "selectors": {
+    "usernameInput": {
+      "by": "getByLabel",
+      "value": "Username or email"
+    },
+    "passwordInput": {
+      "by": "getByLabel",
+      "value": "Password"
+    },
+    "loginButton": {
+      "by": "locator",
+      "value": "input[type='submit'][value='Sign In']"
+    },
+    "adminConsole": {
+      "by": "locator",
+      "value": "#kc-page-title:has-text('Welcome to Keycloak')"
+    },
+    "realmSelector": {
+      "by": "locator",
+      "value": "#realm-select"
+    }
+  }
+}
+

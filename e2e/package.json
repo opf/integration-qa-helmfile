@@ -1,0 +1,26 @@
+{
+  "name": "opnc-integration-e2e",
+  "version": "1.0.0",
+  "description": "E2E tests for OpenProject-Nextcloud-Keycloak integration",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright test && playwright show-report",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:headed": "PWDEBUG=0 playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "report:show": "playwright show-report",
+    "wait-for-setup": "ts-node scripts/wait-for-setup.ts",
+    "playwright:install": "playwright install --with-deps"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.56.1",
+    "yaml": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2"
+  }
+}
+
