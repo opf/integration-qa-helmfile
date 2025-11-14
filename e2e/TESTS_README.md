@@ -72,6 +72,25 @@ Tests are organized by setup method:
 
 **Note:** Only tests matching the current `setupMethod` will run. Others are automatically skipped.
 
+## Test Users
+
+### SSO External (Keycloak) Users
+
+When using `sso-external` setup method, the following users are automatically created in Keycloak:
+
+- **admin/admin** - Keycloak admin console credentials
+- **alice/1234** - Test user for OpenProject and Nextcloud (via Keycloak SSO)
+- **brian/1234** - Test user for OpenProject and Nextcloud (via Keycloak SSO)
+
+These users are defined in `charts/opnc-integration/scripts/keycloak.sh` and can be imported in tests from `e2e/utils/test-users.ts`:
+
+```typescript
+import { ALICE_USER, BRIAN_USER, ADMIN_USER } from '../utils/test-users';
+
+// Use in tests
+await keycloakPage.login(ALICE_USER.username, ALICE_USER.password);
+```
+
 ## Environment Variables
 
 Optional overrides:

@@ -76,5 +76,124 @@ export class NextcloudPage extends BasePage {
       return false;
     }
   }
+
+  /**
+   * Close welcome message if present
+   */
+  async closeWelcomeMessage(): Promise<void> {
+    try {
+      // Try multiple selectors for welcome message close button
+      const closeSelectors = [
+        '.welcome .close',
+        '.modal__close',
+        '[aria-label*="close" i]',
+        '[aria-label*="Close"]',
+        'button[aria-label*="close" i]',
+        'button[aria-label*="Close"]'
+      ];
+      
+      for (const selector of closeSelectors) {
+        const closeButton = this.page.locator(selector).first();
+        if (await closeButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await closeButton.click();
+          await this.page.waitForTimeout(500);
+          return;
+        }
+      }
+    } catch {
+      // Welcome message might not be present, ignore
+    }
+  }
+
+  /**
+   * Click on profile icon in top right
+   */
+  async clickProfileIcon(): Promise<void> {
+    await this.getLocator('profileIcon').click();
+    // Wait for menu to open
+    await this.page.waitForTimeout(500);
+  }
+
+  /**
+   * Click on Administration settings link
+   */
+  async clickAdministrationSettings(): Promise<void> {
+    await this.getLocator('administrationSettingsLink').click();
+    // Wait for navigation
+    await this.page.waitForURL(/.*\/settings\/admin.*/, { timeout: 10000 });
+  }
+
+  /**
+   * Click on OpenID Connect link in settings
+   */
+  async clickOpenIDConnect(): Promise<void> {
+    await this.getLocator('openIdConnectLink').waitFor({ state: 'visible', timeout: 10000 });
+    await this.getLocator('openIdConnectLink').click();
+    // Wait for OpenID Connect page to load
+    await this.page.waitForURL(/.*\/settings\/admin\/user_oidc.*/, { timeout: 10000 });
+    await this.page.waitForTimeout(1000);
+  }
+
+  /**
+   * Verify Keycloak provider details are present
+   */
+  async verifyKeycloakProviderDetails(): Promise<boolean> {
+    try {
+      // Wait for provider details section
+      const detailsSection = this.getLocator('keycloakProviderDetails');
+      await detailsSection.waitFor({ state: 'visible', timeout: 10000 });
+      
+      // Verify provider name
+      const providerNameLocator = detailsSection.locator('h3');
+      const providerName = await providerNameLocator.textContent();
+      if (providerName?.trim().toLowerCase() !== 'keycloak') {
+        return false;
+      }
+
+      // Verify Client ID - find label with text "Client ID" and get next sibling span
+      const clientIdLabel = detailsSection.locator('label:has-text("Client ID")');
+      const clientId = await clientIdLabel.evaluate((el) => {
+        const nextSpan = el.nextElementSibling;
+        return nextSpan?.tagName === 'SPAN' ? nextSpan.textContent : null;
+      });
+      if (clientId?.trim() !== 'nextcloud') {
+        return false;
+      }
+
+      // Verify Discovery endpoint
+      const discoveryLabel = detailsSection.locator('label:has-text("Discovery endpoint")');
+      const discoveryEndpoint = await discoveryLabel.evaluate((el) => {
+        const nextSpan = el.nextElementSibling;
+        return nextSpan?.tagName === 'SPAN' ? nextSpan.textContent : null;
+      });
+      if (!discoveryEndpoint?.includes('keycloak.test/realms/opnc/.well-known/openid-configuration')) {
+        return false;
+      }
+
+      // Verify Backchannel Logout URL
+      const backchannelLabel = detailsSection.locator('label:has-text("Backchannel Logout URL")');
+      const backchannelLogoutUrl = await backchannelLabel.evaluate((el) => {
+        const nextSpan = el.nextElementSibling;
+        return nextSpan?.tagName === 'SPAN' ? nextSpan.textContent : null;
+      });
+      if (!backchannelLogoutUrl?.includes('nextcloud.test/apps/user_oidc/backchannel-logout/keycloak')) {
+        return false;
+      }
+
+      // Verify Redirect URI
+      const redirectLabel = detailsSection.locator('label:has-text("Redirect URI")');
+      const redirectUri = await redirectLabel.evaluate((el) => {
+        const nextSpan = el.nextElementSibling;
+        return nextSpan?.tagName === 'SPAN' ? nextSpan.textContent : null;
+      });
+      if (!redirectUri?.includes('nextcloud.test/apps/user_oidc/code')) {
+        return false;
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 

@@ -13,6 +13,8 @@ export type LocatorDescriptor =
   | { by: 'getByTitle'; value: string | RegExp | { text: string | RegExp; exact?: boolean } }
   // Alt text (for images)
   | { by: 'getByAltText'; value: string | RegExp | { text: string | RegExp; exact?: boolean } }
+  // Test ID (data-testid attribute)
+  | { by: 'getByTestId'; value: string }
   // Generic locator (CSS selector, XPath, etc.) - use as fallback
   | { by: 'locator'; value: Parameters<Page['locator']>[0] }
   // Frame locator (for iframes)
@@ -41,6 +43,10 @@ export type LocatorMap = Record<string, LocatorDescriptor>;
  * @example
  * // CSS selector (fallback)
  * { by: 'locator', value: '#submit-btn' }
+ * 
+ * @example
+ * // Test ID
+ * { by: 'getByTestId', value: 'nav-item-realms' }
  */
 export function resolveLocator(page: Page, descriptor: LocatorDescriptor): Locator {
   switch (descriptor.by) {
@@ -87,6 +93,10 @@ export function resolveLocator(page: Page, descriptor: LocatorDescriptor): Locat
       }
       const { text, exact = false } = descriptor.value;
       return page.getByAltText(text, { exact });
+    }
+
+    case 'getByTestId': {
+      return page.getByTestId(descriptor.value);
     }
 
     case 'locator': {

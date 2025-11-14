@@ -2,6 +2,12 @@
 .DS_Store
 **/.DS_Store
 
+# IDE
+.idea/
+
+# Certificates
+opnc-root-ca.crt
+
 charts/opnc-integration/charts/*
 charts/openproject/charts/*
 helmfile-*/

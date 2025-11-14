@@ -6,12 +6,15 @@
       "value": "Username or email"
     },
     "passwordInput": {
-      "by": "getByLabel",
-      "value": "Password"
+      "by": "locator",
+      "value": "input[type='password']#password"
     },
     "loginButton": {
-      "by": "locator",
-      "value": "input[type='submit'][value='Sign In']"
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Sign In"
+      }
     },
     "adminConsole": {
       "by": "locator",
@@ -20,6 +23,30 @@
     "realmSelector": {
       "by": "locator",
       "value": "#realm-select"
+    },
+    "manageRealmsButton": {
+      "by": "getByTestId",
+      "value": "nav-item-realms"
+    },
+    "opncRealmLink": {
+      "by": "locator",
+      "value": "a[href='#/opnc']"
+    },
+    "currentRealm": {
+      "by": "getByTestId",
+      "value": "currentRealm"
+    },
+    "clientsButton": {
+      "by": "getByTestId",
+      "value": "nav-item-clients"
+    },
+    "nextcloudClientLink": {
+      "by": "locator",
+      "value": "a[href='#/opnc/clients/d97b00f4-c4eb-41f0-ad9e-0c6674d13348/settings']"
+    },
+    "openprojectClientLink": {
+      "by": "locator",
+      "value": "a[href='#/opnc/clients/2a721a37-e840-49d1-8715-ab36cfc56dcf/settings']"
     }
   }
 }

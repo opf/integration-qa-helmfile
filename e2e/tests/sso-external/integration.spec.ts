@@ -33,53 +33,45 @@ test.describe('SSO External (Keycloak) Integration', () => {
       console.log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`);
     });
   });
-
-  test('should login to Keycloak', async ({ page }) => {
+  //Keycloak verification tests
+  test('should login to Keycloak and check op and nc client are present', async ({ page }) => {
     const keycloakPage = new KeycloakPage(page);
-
     await keycloakPage.login();
     const isLoggedIn = await keycloakPage.isLoggedIn();
     expect(isLoggedIn).toBe(true);
+    await keycloakPage.clickManageRealms();
+    await keycloakPage.selectRealm('opnc');
+    const isRealmSelected = await keycloakPage.verifyCurrentRealm('opnc');
+    expect(isRealmSelected).toBe(true);
+    await keycloakPage.clickClients();
+    const areClientsPresent = await keycloakPage.verifyClientsPresent();
+    expect(areClientsPresent).toBe(true);
   });
 
+  //Nextcloud integration tests
   test('should login to Nextcloud with external SSO', async ({ page }) => {
     const nextcloudPage = new NextcloudPage(page);
-
-    await nextcloudPage.login();
+    await nextcloudPage.login('admin', 'admin');
     const isLoggedIn = await nextcloudPage.isLoggedIn();
     expect(isLoggedIn).toBe(true);
+    await nextcloudPage.closeWelcomeMessage();
+    await nextcloudPage.clickProfileIcon();
+    await nextcloudPage.clickAdministrationSettings();
+    await nextcloudPage.clickOpenIDConnect();
+    const areProviderDetailsPresent = await nextcloudPage.verifyKeycloakProviderDetails();
+    expect(areProviderDetailsPresent).toBe(true);
   });
 
-  test('should access OpenProject via external SSO', async ({ page }) => {
+  test('Access OpenProject via external SSO', async ({ page }) => {
     const nextcloudPage = new NextcloudPage(page);
     const openProjectPage = new OpenProjectPage(page);
-
-    // Login to Nextcloud
     await nextcloudPage.login();
     const isLoggedIn = await nextcloudPage.isLoggedIn();
     expect(isLoggedIn).toBe(true);
-
-    // Navigate to integration app
     await nextcloudPage.navigateToIntegrationApp();
-    
-    // Verify integration app is accessible
     const isVisible = await nextcloudPage.isIntegrationAppVisible();
     expect(isVisible).toBe(true);
-
-    // External SSO flow would typically involve Keycloak
-    // Verify the integration is configured
     await expect(page).toHaveURL(/.*integration_openproject.*/, { timeout: 10000 });
-  });
-
-  test('should verify Keycloak realm configuration', async ({ page }) => {
-    const keycloakPage = new KeycloakPage(page);
-
-    await keycloakPage.login();
-    await keycloakPage.navigateToRealm('opnc');
-    
-    // Verify realm is accessible
-    const isLoggedIn = await keycloakPage.isLoggedIn();
-    expect(isLoggedIn).toBe(true);
   });
 });
 

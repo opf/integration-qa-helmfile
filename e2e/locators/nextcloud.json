@@ -11,7 +11,47 @@
     },
     "loginButton": {
       "by": "locator",
-      "value": "button[type='submit']"
+      "value": "button[data-login-form-submit][type='submit']"
+    },
+    "welcomeMessageClose": {
+      "by": "locator",
+      "value": ".welcome .close, .modal__close, [aria-label*='close'], [aria-label*='Close']"
+    },
+    "profileIcon": {
+      "by": "locator",
+      "value": "button[aria-label='Settings menu']"
+    },
+    "administrationSettingsLink": {
+      "by": "locator",
+      "value": "a#admin_settings[href*='/settings/admin/overview']"
+    },
+    "openIdConnectLink": {
+      "by": "locator",
+      "value": "li[data-section-id='user_oidc'] a[href*='/settings/admin/user_oidc']"
+    },
+    "keycloakProviderDetails": {
+      "by": "locator",
+      "value": ".oidcproviders__details"
+    },
+    "keycloakProviderName": {
+      "by": "locator",
+      "value": ".oidcproviders__details h3:has-text('keycloak')"
+    },
+    "keycloakClientId": {
+      "by": "locator",
+      "value": ".oidcproviders__details label:has-text('Client ID') + span"
+    },
+    "keycloakDiscoveryEndpoint": {
+      "by": "locator",
+      "value": ".oidcproviders__details label:has-text('Discovery endpoint') + span"
+    },
+    "keycloakBackchannelLogoutUrl": {
+      "by": "locator",
+      "value": ".oidcproviders__details label:has-text('Backchannel Logout URL') + span"
+    },
+    "keycloakRedirectUri": {
+      "by": "locator",
+      "value": ".oidcproviders__details label:has-text('Redirect URI') + span"
     },
     "userMenu": {
       "by": "locator",
