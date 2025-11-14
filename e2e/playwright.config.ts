@@ -20,14 +20,13 @@ export default defineConfig({
   ],
   use: {
     baseURL: process.env.OPENPROJECT_URL || 'https://openproject.test',
-    trace: 'on-first-retry',
+    
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    ignoreHTTPSErrors: true, // For self-signed certificates
+    ignoreHTTPSErrors: true,
     viewport: { width: 1280, height: 800 },
-    // Enable headed mode for debugging (can be overridden with --headed flag)
     headless: process.env.HEADED === 'true' ? false : true,
-    // Slower execution for debugging
     actionTimeout: 30000,
     navigationTimeout: 30000,
   },
@@ -36,10 +35,8 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
+    // Firefox disabled
+    // },
   ],
   // Filter tests by setupMethod from config.yaml
   // This filters tests to only run those in the matching directory

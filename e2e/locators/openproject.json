@@ -39,6 +39,14 @@
         "role": "link",
         "name": "Forgot your password?"
       }
+    },
+    "keycloakAuthButton": {
+      "by": "locator",
+      "value": "a.auth-provider-keycloak.auth-provider"
+    },
+    "userProfileButton": {
+      "by": "locator",
+      "value": "opce-principal.op-top-menu-user-avatar[data-test-selector='op-principal']"
     }
   }
 }

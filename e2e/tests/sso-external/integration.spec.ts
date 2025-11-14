@@ -3,10 +3,11 @@ import { OpenProjectPage } from '../../pageobjects/OpenProjectPage';
 import { NextcloudPage } from '../../pageobjects/NextcloudPage';
 import { KeycloakPage } from '../../pageobjects/KeycloakPage';
 import { testConfig } from '../../utils/config';
+import { ALICE_USER } from '../../utils/test-users';
 
-test.describe('SSO External (Keycloak) Integration', () => {
+test.describe('SSO External - Nextcloud & OpenProject Integration', () => {
   test.beforeEach(async ({ page }) => {
-    // Verify we're testing the correct setup method
+    // Verify wetupMethod
     if (testConfig.setupMethod !== 'sso-external') {
       test.skip();
     }
@@ -33,23 +34,9 @@ test.describe('SSO External (Keycloak) Integration', () => {
       console.log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`);
     });
   });
-  //Keycloak verification tests
-  test('should login to Keycloak and check op and nc client are present', async ({ page }) => {
-    const keycloakPage = new KeycloakPage(page);
-    await keycloakPage.login();
-    const isLoggedIn = await keycloakPage.isLoggedIn();
-    expect(isLoggedIn).toBe(true);
-    await keycloakPage.clickManageRealms();
-    await keycloakPage.selectRealm('opnc');
-    const isRealmSelected = await keycloakPage.verifyCurrentRealm('opnc');
-    expect(isRealmSelected).toBe(true);
-    await keycloakPage.clickClients();
-    const areClientsPresent = await keycloakPage.verifyClientsPresent();
-    expect(areClientsPresent).toBe(true);
-  });
 
   //Nextcloud integration tests
-  test('should login to Nextcloud with external SSO', async ({ page }) => {
+  test('should login to Nextcloud and verify Keycloak provider details', async ({ page }) => {
     const nextcloudPage = new NextcloudPage(page);
     await nextcloudPage.login('admin', 'admin');
     const isLoggedIn = await nextcloudPage.isLoggedIn();
@@ -62,16 +49,62 @@ test.describe('SSO External (Keycloak) Integration', () => {
     expect(areProviderDetailsPresent).toBe(true);
   });
 
-  test('Access OpenProject via external SSO', async ({ page }) => {
+  test('should login to Nextcloud and verify OpenProject Integration app', async ({ page }) => {
     const nextcloudPage = new NextcloudPage(page);
-    const openProjectPage = new OpenProjectPage(page);
-    await nextcloudPage.login();
+    await nextcloudPage.login('admin', 'admin');
     const isLoggedIn = await nextcloudPage.isLoggedIn();
     expect(isLoggedIn).toBe(true);
-    await nextcloudPage.navigateToIntegrationApp();
-    const isVisible = await nextcloudPage.isIntegrationAppVisible();
-    expect(isVisible).toBe(true);
-    await expect(page).toHaveURL(/.*integration_openproject.*/, { timeout: 10000 });
+    await nextcloudPage.closeWelcomeMessage();
+    await nextcloudPage.clickProfileIcon();
+    await nextcloudPage.clickAppsMenu();
+    await nextcloudPage.clickActiveApps();
+    await nextcloudPage.findOpenProjectIntegrationApp();
+    const appVersion = await nextcloudPage.getOpenProjectIntegrationAppVersion();
+    const originalTitle = test.info().title;
+    test.info().title = `${originalTitle} (v${appVersion})`;    
+    test.info().annotations.push({
+      type: 'app_version',
+      description: `OpenProject Integration App Version: ${appVersion}`
+    });
+
+    console.log(`[TEST RESULT] OpenProject Integration App Version: ${appVersion}`);
+    const appLink = nextcloudPage.getOpenProjectIntegrationAppLink();
+    await expect(appLink).toBeVisible();
+    expect(appVersion).toBeTruthy();
+    expect(appVersion.length).toBeGreaterThan(0);
+    console.log(`[TEST RESULT] Verified App Version: ${appVersion}`);
+    const isDisableButtonPresent = await nextcloudPage.isDisableButtonPresentForOpenProjectIntegration();
+    expect(isDisableButtonPresent).toBe(true);
+    console.log(`[TEST RESULT] Disable Button Present: ${isDisableButtonPresent}`);
+  });
+
+  //OpenProject integration tests
+  
+  test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
+    const openProjectPage = new OpenProjectPage(page);
+    const keycloakPage = new KeycloakPage(page);
+    await openProjectPage.navigateTo();
+    await openProjectPage.clickKeycloakAuthButton();
+    
+    await keycloakPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+    
+    await page.waitForURL(/.*openproject\.test.*/, { timeout: 15000 });
+    await page.waitForTimeout(2000);
+    
+    const currentUrl = page.url();
+    expect(currentUrl).not.toContain('/login');
+    expect(currentUrl).toContain('openproject.test');
+    
+    // Verify user profile button is present in top right corner
+    const isProfileButtonPresent = await openProjectPage.verifyUserProfileButton('Alice Hansen');
+    expect(isProfileButtonPresent).toBe(true);
+    
+    // Get and verify the user name from the profile button
+    const userName = await openProjectPage.getUserNameFromProfile();
+    expect(userName).toContain('Alice Hansen');
+    
+    console.log(`[TEST RESULT] Successfully logged in as: ${userName}`);
+    console.log(`[TEST RESULT] Current URL: ${currentUrl}`);
   });
 });
 

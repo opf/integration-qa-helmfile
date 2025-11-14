@@ -62,12 +62,9 @@ export class KeycloakPage extends BasePage {
    * @param realmName - Name of the realm to select (e.g., 'opnc')
    */
   async selectRealm(realmName: string): Promise<void> {
-    // Wait for the realm link to be visible and click it
-    // Match by href attribute (#/opnc) and text content (opnc) for robustness
     const realmLink = this.page.locator(`a[href='#/${realmName}']`).filter({ hasText: realmName });
     await realmLink.waitFor({ state: 'visible', timeout: 10000 });
     await realmLink.click();
-    // Wait a bit for the navigation to complete
     await this.page.waitForTimeout(1000);
   }
 
@@ -92,8 +89,6 @@ export class KeycloakPage extends BasePage {
    */
   async clickClients(): Promise<void> {
     await this.getLocator('clientsButton').click();
-    // Wait for the clients page content to load (hash-based navigation)
-    // Wait for at least one client link to appear as an indicator that content loaded
     const nextcloudClient = this.getLocator('nextcloudClientLink');
     await nextcloudClient.waitFor({ state: 'visible', timeout: 10000 });
   }
@@ -118,6 +113,37 @@ export class KeycloakPage extends BasePage {
              openprojectText?.trim() === 'openproject';
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Login to Keycloak as a regular user (not admin)
+   * This is used for SSO authentication flows
+   * @param username - Username to login with
+   * @param password - Password for the user
+   */
+  async loginAsUser(username: string, password: string): Promise<void> {
+    // Wait for the login form to be visible (might be on keycloak.test or a realm-specific URL)
+    await this.getLocator('usernameInput').waitFor({ state: 'visible', timeout: 10000 });
+    await this.getLocator('usernameInput').fill(username);
+    await this.getLocator('passwordInput').fill(password);
+    
+    // Store current URL to detect redirect
+    const currentUrl = this.page.url();
+    
+    await this.getLocator('loginButton').click();
+    
+    // Wait for redirect - URL should change from keycloak.test to the target application
+    // This might take a moment as Keycloak processes the authentication
+    try {
+      // Wait for URL to change (either to openproject.test or nextcloud.test)
+      await this.page.waitForURL(
+        (url) => !url.hostname.includes('keycloak.test'),
+        { timeout: 15000 }
+      );
+    } catch {
+      // If URL doesn't change immediately, wait a bit more
+      await this.page.waitForTimeout(3000);
     }
   }
 }

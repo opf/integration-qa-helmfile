@@ -69,11 +69,28 @@
       }
     },
     "appsMenu": {
-      "by": "getByRole",
-      "value": {
-        "role": "button",
-        "name": "Apps"
-      }
+      "by": "locator",
+      "value": "a#core_apps[href='/settings/apps']"
+    },
+    "activeAppsLink": {
+      "by": "locator",
+      "value": "a.app-navigation-entry-link[href='/settings/apps/enabled'][title='Active apps']"
+    },
+    "openProjectIntegrationAppRow": {
+      "by": "locator",
+      "value": "tr.app-item:has(a.app-name--link[href*='integration_openproject'])"
+    },
+    "openProjectIntegrationAppLink": {
+      "by": "locator",
+      "value": "a.app-name--link[href*='integration_openproject']:has-text('OpenProject Integration')"
+    },
+    "openProjectIntegrationAppVersion": {
+      "by": "locator",
+      "value": "tr.app-item:has(a.app-name--link[href*='integration_openproject']) td.app-version span"
+    },
+    "openProjectIntegrationDisableButton": {
+      "by": "locator",
+      "value": "tr.app-item:has(a.app-name--link[href*='integration_openproject']) button:has-text('Disable')"
     }
   }
 }

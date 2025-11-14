@@ -195,5 +195,102 @@ export class NextcloudPage extends BasePage {
       return false;
     }
   }
+
+  /**
+   * Click on Apps menu link from profile menu
+   */
+  async clickAppsMenu(): Promise<void> {
+    await this.getLocator('appsMenu').waitFor({ state: 'visible', timeout: 10000 });
+    await this.getLocator('appsMenu').click();
+    // Wait for navigation to apps page
+    await this.page.waitForURL(/.*\/settings\/apps.*/, { timeout: 10000 });
+    await this.page.waitForTimeout(1000);
+  }
+
+  /**
+   * Click on Active Apps link
+   */
+  async clickActiveApps(): Promise<void> {
+    await this.getLocator('activeAppsLink').waitFor({ state: 'visible', timeout: 10000 });
+    await this.getLocator('activeAppsLink').click();
+    // Wait for navigation to active apps page
+    await this.page.waitForURL(/.*\/settings\/apps\/enabled.*/, { timeout: 10000 });
+    await this.page.waitForTimeout(1000);
+  }
+
+  /**
+   * Find OpenProject Integration app, scrolling if necessary
+   */
+  async findOpenProjectIntegrationApp(): Promise<void> {
+    const appRow = this.getLocator('openProjectIntegrationAppRow');
+    
+    // Try to find the app without scrolling first
+    try {
+      await appRow.waitFor({ state: 'visible', timeout: 3000 });
+      return;
+    } catch {
+      // If not visible, scroll to find it
+      const appLink = this.getLocator('openProjectIntegrationAppLink');
+      
+      // Scroll until the app is visible
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (attempts < maxAttempts) {
+        try {
+          const isVisible = await appLink.isVisible({ timeout: 1000 }).catch(() => false);
+          if (isVisible) {
+            // Scroll the app into view
+            await appLink.scrollIntoViewIfNeeded();
+            await this.page.waitForTimeout(500);
+            return;
+          }
+        } catch {
+          // Continue scrolling
+        }
+        
+        // Scroll down
+        await this.page.evaluate(() => {
+          window.scrollBy(0, 300);
+        });
+        await this.page.waitForTimeout(500);
+        attempts++;
+      }
+      
+      // Final attempt to wait for the element
+      await appRow.waitFor({ state: 'visible', timeout: 5000 });
+    }
+  }
+
+  /**
+   * Get OpenProject Integration app version
+   */
+  async getOpenProjectIntegrationAppVersion(): Promise<string> {
+    await this.findOpenProjectIntegrationApp();
+    const versionLocator = this.getLocator('openProjectIntegrationAppVersion');
+    await versionLocator.waitFor({ state: 'visible', timeout: 10000 });
+    const version = await versionLocator.textContent();
+    return version?.trim() || '';
+  }
+
+  /**
+   * Check if Disable button is present for OpenProject Integration app
+   */
+  async isDisableButtonPresentForOpenProjectIntegration(): Promise<boolean> {
+    try {
+      await this.findOpenProjectIntegrationApp();
+      const disableButton = this.getLocator('openProjectIntegrationDisableButton');
+      return await disableButton.isVisible({ timeout: 5000 }).catch(() => false);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get the OpenProject Integration app link locator
+   */
+  getOpenProjectIntegrationAppLink() {
+    return this.getLocator('openProjectIntegrationAppLink');
+  }
 }
 
