@@ -20,6 +20,10 @@ global:
   ##   - myRegistryKeySecretName
   #
   imagePullSecrets: []
+## Add labels to all the deployed resources
+commonLabels: {}
+## Add annotations to all the deployed resources
+commonAnnotations: {}
 
 ## Affinity for pod assignment.
 ##
@@ -66,9 +70,6 @@ clusterDomain: "cluster.local"
 ## Define settings for check-db-ready init-container
 #
 dbInit:
-  ## @param command Override default container command
-  ##
-  command: []
   image:
     ## Define docker registry address.
     #
@@ -79,7 +80,7 @@ dbInit:
     repository: "postgres"
 
     # Postgres version to use
-    tag: 13
+    tag: 16
 
     ## Define a imagePullPolicy.
     ##
@@ -105,22 +106,11 @@ dbInit:
 # These containers need access to the Rails stack and wait for the database to be ready
 # (i.e., the seeder and migration job to have completed)
 appInit:
-  ## @param command Override default container command
-  ##
-  command: []
   resources:
     limits:
       memory: "512Mi"
     requests:
       memory: "512Mi"
-
-## @param lifecycleHooks LifecycleHooks to set additional configuration at startup
-##
-lifecycleHooks: {}
-
-## @param command Override default container command (useful when using custom images)
-##
-command: []
 
 ## Define and create Kubernetes Service.
 ##
@@ -144,6 +134,10 @@ ingress:
   ## annotations:
   ##   nginx.ingress.kubernetes.io/rewrite-target: /
   annotations: {}
+
+  ## Ingress labels
+  #
+  labels: {}
 
   ## Define the Fully Qualified Domain Name (FQDN) where OpenProject should be reachable.
   #
@@ -215,7 +209,7 @@ image:
   ## For the helm chart, use the `-slim` variants as the all-in-one container is not compatible
   ## with some of the options (non-root execution, password splitting, etc.) and is inefficient for using in helm
   ## due to embedded a number of services.
-  tag: "16.2.0-slim"
+  tag: "16.6.1-slim"
 
   ## Define image sha256 - mutual exclusive with image tag.
   ## The sha256 has a higher precedence than
@@ -238,6 +232,11 @@ memcached:
   #
   bundled: true
 
+  ## Override image repository to use Bitnami Secure images
+  image:
+    repository: bitnamilegacy/memcached
+    tag: 1.6.24-debian-12-r0
+
   global:
     containerSecurityContext:
       enabled: true
@@ -250,6 +249,9 @@ memcached:
       readOnlyRootFilesystem: true
       runAsNonRoot: true
 
+  ## @param commonLabels Add labels to all the deployed resources
+  ##
+  commonLabels: {}
   ## When "bundled" is set to false, you need to define the memcached connection details.
   #
   connection:
@@ -265,6 +267,64 @@ nameOverride: ""
 ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
 #
 nodeSelector: {}
+
+## Topology spread constraints for pod assignment.
+##
+## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+#
+topologySpreadConstraints: []
+
+## Node labels for web pod assignment.
+## If not specified, falls back to the global nodeSelector above.
+##
+## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+#
+web:
+  nodeSelector: {}
+  ## Topology spread constraints for web pod assignment.
+  ## If not specified, falls back to the global topologySpreadConstraints above.
+  ##
+  ## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  #
+  topologySpreadConstraints: []
+
+  ## Define custom web deployment labels:
+  ##
+  labels: {}
+
+  ## Define custom web deployment annotations:
+  ##
+  annotations: {}
+
+## Node labels for worker pod assignment.
+## If not specified, falls back to the global nodeSelector above.
+##
+## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+#
+worker:
+  nodeSelector: {}
+
+  ## Define custom worker deployment labels:
+  ##
+  labels: {}
+
+  ## Define custom worker deployment annotations:
+  ##
+  annotations: {}
+  ## Topology spread constraints for worker pod assignment.
+  ## If not specified, falls back to the global topologySpreadConstraints above.
+  ##
+  ## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  #
+  topologySpreadConstraints: []
+
+## Node labels for seeder job pod assignment.
+## If not specified, falls back to the global nodeSelector above.
+##
+## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+#
+seeder:
+  nodeSelector: {}
 
 ## Deployment strategy
 ##
@@ -287,10 +347,14 @@ cron:
   enabled: false
   ## See documentation referenced above for all variables.
   environment:
-    IMAP_HOST:
-    IMAP_USERNAME:
-    IMAP_PASSWORD:
+    IMAP_HOST: ""
+    IMAP_USERNAME: ""
+    IMAP_PASSWORD: ""
     IMAP_PORT: 993
+
+  ## Define custom cron deployment annotations:
+  ##
+  annotations: {}
 
   ## To avoid having sensitive credentials in your values.yaml, the preferred way is to
   ## use an existing secret containing the IMAP credentials.
@@ -300,6 +364,13 @@ cron:
   secretKeys:
     imapUsername: imapUsername
     imapPassword: imapPassword
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
 
 # Define the workers to run, their queues, max threads, replicas, strategy, and resources
 workers:
@@ -318,6 +389,45 @@ workers:
       limits:
         memory: "4Gi"
         cpu: "4"
+
+## WebSocket backend for use with real time collaboration features.
+hocuspocus:
+  enabled: false
+  ingress:
+    enabled: true
+    ingressClassName:
+    annotations: {}
+    host: "openproject.example.com"
+    path: /hocuspocus
+    pathType: "Prefix"
+    tls:
+      enabled: true
+      secretName: ""
+
+  image:
+    registry: "docker.io"
+    repository: "openproject/hocuspocus"
+    imagePullPolicy: "Always"
+    tag: "main-defdb238"
+
+  strategy:
+    type: "Recreate"
+
+  podAnnotations:
+
+  allowedOpenProjectDomains:
+    - openproject.example.com
+
+  service:
+    port: 1234
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "2"
 
 ## OpenProject related settings.
 ##
@@ -411,6 +521,10 @@ openproject:
   ## Ref.: https://www.openproject.org/docs/installation-and-operations/configuration/environment/#postgresql-statement_timeout
   #
   postgresStatementTimeout: 120s
+
+  ## Define custom web/worker deployment annotations:
+  ##
+  annotations: {}
 
   ## Whether or not to use ephemeral volumes for /app/tmp and /tmp.
   ## Falls back to a sensible default if undefined.
@@ -561,6 +675,17 @@ postgresql:
   #
   bundled: true
 
+  ## Override image repository to use Bitnami Secure images
+  image:
+    repository: bitnamilegacy/postgresql
+    tag: 15.4.0-debian-11-r45
+  volumePermissions:
+    image:
+      repository: bitnamilegacy/os-shell
+  metrics:
+    image:
+      repository: bitnamilegacy/postgres-exporter
+
   global:
     containerSecurityContext:
       enabled: true
@@ -572,6 +697,10 @@ postgresql:
         type: "RuntimeDefault"
       readOnlyRootFilesystem: true
       runAsNonRoot: true
+
+  ## @param commonLabels Add labels to all the deployed resources
+  ##
+  commonLabels: {}
 
   ## When "bundled" is set to false, you need to define the database connection details.
   #
@@ -707,15 +836,15 @@ probes:
     ## Number of seconds after the container has started before startup, liveness or readiness probes are initiated.
     ## Defaults to 0 seconds. Minimum value is 0.
     #
-    initialDelaySeconds: 120
+    initialDelaySeconds: 0
 
     ## Number of seconds after which the probe times out. Defaults to 1 second. Minimum value is 1.
     #
-    timeoutSeconds: 3
+    timeoutSeconds: 5
 
     ## How often (in seconds) to perform the probe. Default to 10 seconds. Minimum value is 1.
     #
-    periodSeconds: 30
+    periodSeconds: 15
 
     ## When a probe fails, Kubernetes will try failureThreshold times before giving up. Giving up in case of liveness
     ## probe means restarting the container. In case of readiness probe the Pod will be marked Unready. Defaults to 3.
@@ -733,28 +862,60 @@ probes:
   ## If the readiness probe failes, no traffic will be routed to the container.
   #
   readiness:
-    ## Whether to enable liveness probes.
+    ## Whether to enable readiness probes.
     #
     enabled: true
 
     ## Number of seconds after the container has started before startup, liveness or readiness probes are initiated.
     ## Defaults to 0 seconds. Minimum value is 0.
     #
-    initialDelaySeconds: 30
+    initialDelaySeconds: 0
 
     ## Number of seconds after which the probe times out. Defaults to 1 second. Minimum value is 1.
     #
-    timeoutSeconds: 3
+    timeoutSeconds: 5
 
     ## How often (in seconds) to perform the probe. Default to 10 seconds. Minimum value is 1.
     #
-    periodSeconds: 15
+    periodSeconds: 10
 
     ## When a probe fails, Kubernetes will try failureThreshold times before giving up. Giving up in case of liveness
     ## probe means restarting the container. In case of readiness probe the Pod will be marked Unready. Defaults to 3.
     ## Minimum value is 1.
     #
-    failureThreshold: 30
+    failureThreshold: 3
+
+    ## Minimum consecutive successes for the probe to be considered successful after having failed. Defaults to 1.
+    ## Must be 1 for liveness and startup Probes. Minimum value is 1.
+    #
+    successThreshold: 1
+
+  ## Configure startup probe.
+  ##
+  ## If the startup probe fails, the container will be restarted. Startup probes are useful for slow starting containers.
+  #
+  startup:
+    ## Whether to enable startup probes.
+    #
+    enabled: true
+
+    ## Number of seconds after the container has started before startup, liveness or readiness probes are initiated.
+    ## Defaults to 0 seconds. Minimum value is 0.
+    #
+    initialDelaySeconds: 60
+
+    ## Number of seconds after which the probe times out. Defaults to 1 second. Minimum value is 1.
+    #
+    timeoutSeconds: 5
+
+    ## How often (in seconds) to perform the probe. Default to 10 seconds. Minimum value is 1.
+    #
+    periodSeconds: 15
+
+    ## When a probe fails, Kubernetes will try failureThreshold times before giving up. Giving up in case of startup
+    ## probe means restarting the container. Defaults to 3. Minimum value is 1.
+    #
+    failureThreshold: 10
 
     ## Minimum consecutive successes for the probe to be considered successful after having failed. Defaults to 1.
     ## Must be 1 for liveness and startup Probes. Minimum value is 1.
@@ -768,6 +929,138 @@ replicaCount: 1
 ## Number of OpenProject background worker process replicas.
 #
 backgroundReplicaCount: 1
+
+## Horizontal Pod Autoscaler configuration
+## When enabled, replicaCount is ignored and HPA manages replica count
+#
+autoscaling:
+  ## Whether to enable HPA autoscaling
+  #
+  enabled: false
+
+  ## Minimum number of replicas
+  #
+  minReplicas: 1
+
+  ## Maximum number of replicas
+  #
+  maxReplicas: 10
+
+  ## Target resource utilization for CPU-based scaling
+  ## Uncomment to enable CPU-based scaling
+  #
+  # targetCPUUtilizationPercentage: 70
+
+  ## Target resource utilization for memory-based scaling
+  ## Uncomment to enable memory-based scaling
+  #
+  # targetMemoryUtilizationPercentage: 80
+
+  ## Custom metrics configuration (requires Prometheus Adapter)
+  ## These metrics require prometheus-adapter to be installed in the cluster
+  #
+  customMetrics: []
+    ## Example: Scale when request backlog exceeds 2 requests over 1 minute average
+    #
+    # - type: Pods
+    #   pods:
+    #     metric:
+    #       name: puma_request_backlog_avg_1min
+    #     target:
+    #       type: AverageValue
+    #       averageValue: "2"  # Scale up when backlog > 2 requests
+
+  ## Advanced scaling behavior configuration
+  #
+  behavior:
+    ## Scale down policies
+    #
+    scaleDown:
+      ## How long to wait before scaling down after metrics indicate scale down should happen
+      #
+      stabilizationWindowSeconds: 300
+
+      ## Scaling policies for scale down
+      #
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+
+      ## Select the policy that allows the highest number of pods to be removed
+      #
+      selectPolicy: Min
+
+    ## Scale up policies
+    #
+    scaleUp:
+      ## How long to wait before scaling up after metrics indicate scale up should happen
+      #
+      stabilizationWindowSeconds: 60
+
+      ## Scaling policies for scale up
+      #
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+      ## Select the policy that allows the highest number of pods to be added
+      #
+      selectPolicy: Max
+
+## Metrics configuration for Prometheus scraping
+#
+metrics:
+  ## Whether to enable metrics scraping
+  #
+  enabled: false
+
+  ## Metrics endpoint path
+  #
+  path: "/metrics"
+
+  ## Metrics port (added to service)
+  #
+  port: 9394
+
+  ## ServiceMonitor configuration for Prometheus Operator
+  #
+  serviceMonitor:
+    ## Whether to create ServiceMonitor resource
+    #
+    enabled: false
+
+    ## ServiceMonitor namespace
+    ## If not set, uses the same namespace as the chart
+    #
+    namespace: ""
+
+    ## ServiceMonitor labels
+    #
+    labels: {}
+
+    ## ServiceMonitor annotations
+    #
+    annotations: {}
+
+    ## Scrape interval
+    #
+    interval: "5s"
+
+    ## Scrape timeout
+    #
+    scrapeTimeout: "5s"
+
+    ## Honor labels from the scraped metrics
+    #
+    honorLabels: false
 
 ## Configure resource requests and limits.
 ##

@@ -84,6 +84,13 @@ securityContext:
 {{- end }}
 {{- end -}}
 
+{{- define "hocuspocus.tmpVolumeMounts" -}}
+{{- if eq (include "openproject.useTmpVolumes" .) "true" }}
+- mountPath: /tmp
+  name: tmp
+{{- end }}
+{{- end -}}
+
 {{- define "openproject.tmpVolumeSpec" -}}
 {{- if eq (include "openproject.useTmpVolumes" .) "true" }}
 - name: tmp
@@ -169,6 +176,10 @@ securityContext:
 {{- end }}
 
 {{- define "openproject.env" -}}
+{{- if .Values.metrics.enabled }}
+- name: OPENPROJECT_METRICS_ENABLED
+  value: "true"
+{{- end }}
 {{- if .Values.egress.tls.rootCA.fileName }}
 - name: SSL_CERT_FILE
   value: "/etc/ssl/certs/custom-ca.pem"

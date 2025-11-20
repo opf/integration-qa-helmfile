@@ -1,12 +1,12 @@
 dependencies:
 - name: postgresql
-  repository: https://charts.bitnami.com/bitnami
+  repository: oci://registry-1.docker.io/bitnamicharts
   version: 12.12.10
 - name: memcached
-  repository: https://charts.bitnami.com/bitnami
+  repository: oci://registry-1.docker.io/bitnamicharts
   version: 6.14.0
 - name: common
-  repository: https://charts.bitnami.com/bitnami
-  version: 2.31.3
-digest: sha256:a8c47e0dabd924169d2d5712bf999689495d800bb3128d4955089775ca22e110
-generated: "2025-07-16T10:12:33.656117122Z"
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 2.31.4
+digest: sha256:99d8225d543eef48e4304d7476ed50dd67335cfb3dc92c6771e0e1bdf05c98c4
+generated: "2025-11-07T16:42:55.235804069+05:45"

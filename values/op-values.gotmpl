@@ -7,7 +7,6 @@ containerSecurityContext:
   readOnlyRootFilesystem: false
 image:
   tag: {{ .Values.openproject.version | quote  }}
-command: ['/scripts/entrypoint.sh']
 openproject:
   https: true
   host: {{ .Values.openproject.host }}
@@ -72,7 +71,6 @@ dbInit:
     requests:
       memory: '512Mi'
 appInit:
-  command: ['/scripts/entrypoint.sh']
   resources:
     limits:
       memory: '1Gi'
@@ -105,7 +103,7 @@ extraVolumes:
   {{ end }}
 extraVolumeMounts:
   - name: entrypoint
-    mountPath: /scripts/entrypoint.sh
+    mountPath: /app/docker/prod/entrypoint.sh
     subPath: entrypoint.sh
   - name: ca-cert
     mountPath: {{ .Values.ingress.caCertFilePath }}

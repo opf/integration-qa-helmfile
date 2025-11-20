@@ -1,3 +1,27 @@
+---
+apiVersion: v2
+name: openproject
+description: A Helm chart for running OpenProject via Kubernetes
+home: https://www.openproject.org/
+icon: https://charts.openproject.org/logo.svg
+type: application
+appVersion: 16.6.1
+version: 11.4.2
+maintainers:
+- name: OpenProject
+  url: https://github.com/opf/helm-charts
+dependencies:
+- name: postgresql
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: "^12.1.6"
+  condition: postgresql.bundled
+- name: memcached
+  repository: oci://registry-1.docker.io/bitnamicharts
+  condition: memcached.bundled
+  version: "^6.3.2"
+- name: common
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: "^2.2.2"
 annotations:
   artifacthub.io/license: GPL-3.0-only
   artifacthub.io/links: |
@@ -10,26 +34,3 @@ annotations:
   artifacthub.io/signKey: |
     fingerprint: CB1CA0488A75B7471EA1B087CF56DD6A0AE260E5
     url: https://keys.openpgp.org/vks/v1/by-fingerprint/CB1CA0488A75B7471EA1B087CF56DD6A0AE260E5
-apiVersion: v2
-appVersion: 16.2.0
-dependencies:
-- condition: postgresql.bundled
-  name: postgresql
-  repository: https://charts.bitnami.com/bitnami
-  version: ^12.1.6
-- condition: memcached.bundled
-  name: memcached
-  repository: https://charts.bitnami.com/bitnami
-  version: ^6.3.2
-- name: common
-  repository: https://charts.bitnami.com/bitnami
-  version: ^2.2.2
-description: A Helm chart for running OpenProject via Kubernetes
-home: https://www.openproject.org/
-icon: https://charts.openproject.org/logo.svg
-maintainers:
-- name: OpenProject
-  url: https://github.com/opf/helm-charts
-name: openproject
-type: application
-version: 10.2.0
