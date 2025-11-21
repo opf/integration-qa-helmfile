@@ -9,8 +9,10 @@ environments:
       - environments/dev/config.yaml
 ---
 repositories:
-  # Issue: https://github.com/opf/helm-charts/issues/215
-  # NOTE: Remove local openproject and use the following once the issue is resolved:
+  # Issues:
+  #   - https://github.com/opf/helm-charts/issues/215
+  #   - https://github.com/opf/helm-charts/issues/264
+  # NOTE: Remove local openproject and use the following once the issues are resolved:
   # - name: openproject
   #   url: https://charts.openproject.org
   - name: nextcloud
@@ -41,8 +43,10 @@ releases:
       - values/op-values.gotmpl
     needs:
       - opnc-integration
-  # Issue: https://github.com/opf/helm-charts/issues/215
-  # NOTE: Remove local openproject and use the following once the issue is resolved:
+  # Issues:
+  #   - https://github.com/opf/helm-charts/issues/215
+  #   - https://github.com/opf/helm-charts/issues/264
+  # NOTE: Remove local openproject and use the following once the issues are resolved:
   # - name: openproject
   #   chart: openproject/openproject
   #   version: ~10.1.2

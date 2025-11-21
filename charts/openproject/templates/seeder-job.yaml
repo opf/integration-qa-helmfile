@@ -2,11 +2,10 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ include "common.names.fullname" . }}-seeder-{{ .Release.Revision }}
-  labels:
-    {{- include "common.labels.standard" . | nindent 4 }}
-  {{- with .Values.seederJob.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+  {{- if or .Values.seederJob.annotations .Values.commonAnnotations }}
+  {{- $annotations := include "common.tplvalues.merge" ( dict "values" ( list .Values.seederJob.annotations .Values.commonAnnotations ) "context" . ) }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" $annotations "context" $) | nindent 4 }}
   {{- end }}
 spec:
   {{- if .Values.cleanup.deletePodsOnSuccess }}
@@ -15,7 +14,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "common.labels.standard" . | nindent 8 }}
+        {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 8 }}
         openproject/process: seeder
       {{- with .Values.seederJob.annotations }}
       annotations:
@@ -24,11 +23,15 @@ spec:
     spec:
       {{- include "openproject.imagePullSecrets" . | indent 6 }}
       {{- include "openproject.podSecurityContext" . | indent 6 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{ toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
         {{ toYaml . | nindent 8 | trim }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with (coalesce .Values.seeder.nodeSelector .Values.nodeSelector) }}
       nodeSelector:
         {{ toYaml . | nindent 8 | trim }}
       {{- end }}
@@ -53,25 +56,15 @@ spec:
             {{- include "openproject.envFrom" . | nindent 12 }}
           env:
             {{- include "openproject.env" . | nindent 12 }}
-          {{- if .Values.dbInit.command }}
-          command: {{- include "common.tplvalues.render" (dict "value" .Values.dbInit.command "context" $) | nindent 12 }}
-          {{- end }}
           resources:
             {{- toYaml .Values.dbInit.resources | nindent 12 }}
           volumeMounts:
             {{- include "openproject.tmpVolumeMounts" . | indent 12 }}
-            {{- include "openproject.extraVolumeMounts" . | indent 12 }}
           {{- include "openproject.containerSecurityContext" . | indent 10 }}
       containers:
         - name: seeder
           image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}{{ if .Values.image.sha256 }}@sha256:{{ .Values.image.sha256 }}{{ else }}:{{ .Values.image.tag }}{{ end }}"
           imagePullPolicy: {{ .Values.image.imagePullPolicy }}
-          {{- if .Values.lifecycleHooks }}
-          lifecycle: {{- include "common.tplvalues.render" (dict "value" .Values.lifecycleHooks "context" $) | nindent 12 }}
-          {{- end }}
-          {{- if .Values.command }}
-          command: {{- include "common.tplvalues.render" (dict "value" .Values.command "context" $) | nindent 12 }}
-          {{- end }}
           args:
             - bash
             - /app/docker/prod/seeder

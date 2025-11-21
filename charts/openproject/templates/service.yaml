@@ -1,11 +1,13 @@
----
 {{- if or .Values.service.enabled .Values.ingress.enabled }}
+---
 apiVersion: "v1"
 kind: "Service"
 metadata:
   name: {{ include "common.names.fullname" . }}
-  labels:
-    {{- include "common.labels.standard" . | nindent 4 }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.service.type }}
   {{- if eq .Values.service.type "LoadBalancer" }}
@@ -27,8 +29,38 @@ spec:
       nodePort: {{ $value.nodePort }}
       {{- end }}
     {{- end }}
+    {{- if .Values.metrics.enabled }}
+    - port: {{ .Values.metrics.port }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+    {{- end }}
   selector:
     {{- include "common.labels.matchLabels" . | nindent 4 }}
     openproject/process: web
-{{- end }}
 ...
+{{- end }}
+
+{{- if .Values.hocuspocus.enabled }}
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: {{ include "common.names.fullname" . }}-hocuspocus
+  labels:
+    {{- include "common.labels.standard" . | nindent 4 }}
+spec:
+  type: {{ .Values.hocuspocus.service.type }}
+  {{- if eq .Values.hocuspocus.service.type "LoadBalancer" }}
+  loadBalancerIP: {{ .Values.hocuspocus.service.loadBalancerIP | quote }}
+  {{- end }}
+  ports:
+    - port: {{ .Values.hocuspocus.service.port }}
+      targetPort: 1234
+      protocol: "TCP"
+      name: http
+  selector:
+    {{- include "common.labels.matchLabels" . | nindent 4 }}
+    openproject/process: hocuspocus
+...
+{{- end }}
