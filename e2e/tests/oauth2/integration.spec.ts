@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { OpenProjectPage } from '../../pageobjects/OpenProjectPage';
-import { NextcloudPage } from '../../pageobjects/NextcloudPage';
+import { OpenProjectLoginPage } from '../../pageobjects/openproject';
+import { NextcloudLoginPage } from '../../pageobjects/nextcloud';
 import { testConfig } from '../../utils/config';
 
 test.describe('OAuth2 Integration', () => {
@@ -12,41 +12,37 @@ test.describe('OAuth2 Integration', () => {
   });
 
   test('should connect OpenProject and Nextcloud via OAuth2', async ({ page }) => {
-    const nextcloudPage = new NextcloudPage(page);
-    const openProjectPage = new OpenProjectPage(page);
+    const loginPage = new NextcloudLoginPage(page);
 
-    // Login to Nextcloud
-    await nextcloudPage.login();
-    const isLoggedIn = await nextcloudPage.isLoggedIn();
+    const dashboardPage = await loginPage.login();
+    await dashboardPage.waitForReady();
+    const isLoggedIn = await dashboardPage.isLoggedIn();
     expect(isLoggedIn).toBe(true);
 
-    // Navigate to integration app
-    await nextcloudPage.navigateToIntegrationApp();
+    const integrationAppPage = await dashboardPage.navigateToIntegrationApp();
+    await integrationAppPage.waitForReady();
     
-    // Wait a bit for the page to load
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Verify integration app is accessible
-    const isVisible = await nextcloudPage.isIntegrationAppVisible();
+    const isVisible = await integrationAppPage.isVisible();
     expect(isVisible).toBe(true);
 
-    // Verify we're on the integration app page
     await expect(page).toHaveURL(/.*integration_openproject.*/, { timeout: 10000 });
   });
 
   test('should login to OpenProject', async ({ page }) => {
-    const openProjectPage = new OpenProjectPage(page);
+    const loginPage = new OpenProjectLoginPage(page);
 
-    await openProjectPage.login();
-    const isLoggedIn = await openProjectPage.isLoggedIn();
+    const homePage = await loginPage.login();
+    await homePage.waitForReady();
+    const isLoggedIn = await loginPage.isLoggedIn();
     expect(isLoggedIn).toBe(true);
   });
 
   test('should login to Nextcloud', async ({ page }) => {
-    const nextcloudPage = new NextcloudPage(page);
+    const loginPage = new NextcloudLoginPage(page);
 
-    await nextcloudPage.login();
-    const isLoggedIn = await nextcloudPage.isLoggedIn();
+    const dashboardPage = await loginPage.login();
+    await dashboardPage.waitForReady();
+    const isLoggedIn = await dashboardPage.isLoggedIn();
     expect(isLoggedIn).toBe(true);
   });
 });

@@ -91,6 +91,34 @@
     "openProjectIntegrationDisableButton": {
       "by": "locator",
       "value": "tr.app-item:has(a.app-name--link[href*='integration_openproject']) button:has-text('Disable')"
+    },
+    "loginText": {
+      "by": "getByText",
+      "value": "Log in to Nextcloud"
+    },
+    "loginForm": {
+      "by": "locator",
+      "value": "#user, input[name='user']"
+    },
+    "closeButton": {
+      "by": "locator",
+      "value": "button[aria-label='Close']"
+    },
+    "registeredProvidersText": {
+      "by": "getByText",
+      "value": "Registered Providers"
+    },
+    "discoverText": {
+      "by": "locator",
+      "value": "h2.app-settings-content__label:has-text('Discover')"
+    },
+    "activeAppsText": {
+      "by": "locator",
+      "value": "h2.app-settings-content__label:has-text('Active apps')"
+    },
+    "integrationAppTitleAlt": {
+      "by": "locator",
+      "value": "h2:has-text('OpenProject'), h1:has-text('OpenProject'), [data-app='integration_openproject']"
     }
   }
 }

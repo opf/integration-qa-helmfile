@@ -16,9 +16,17 @@
         "name": "Sign In"
       }
     },
+    "signInText": {
+      "by": "getByText",
+      "value": "Sign in to your account"
+    },
     "adminConsole": {
       "by": "locator",
       "value": "#kc-page-title:has-text('Welcome to Keycloak')"
+    },
+    "welcomeText": {
+      "by": "getByText",
+      "value": "Welcome to Keycloak"
     },
     "realmSelector": {
       "by": "locator",
@@ -27,6 +35,14 @@
     "manageRealmsButton": {
       "by": "getByTestId",
       "value": "nav-item-realms"
+    },
+    "manageRealmsText": {
+      "by": "getByText",
+      "value": "Manage realms"
+    },
+    "realmLink": {
+      "by": "locator",
+      "value": "a[href^='#/']"
     },
     "opncRealmLink": {
       "by": "locator",

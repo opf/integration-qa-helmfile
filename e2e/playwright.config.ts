@@ -7,10 +7,8 @@ const setupMethod = process.env.SETUP_METHOD || config.setupMethod;
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : undefined,
   globalSetup: require.resolve('./global-setup'),
   reporter: [
     ['list'],
@@ -26,23 +24,34 @@ export default defineConfig({
     video: 'retain-on-failure',
     ignoreHTTPSErrors: true,
     viewport: { width: 1280, height: 800 },
-    headless: process.env.HEADED === 'true' ? false : true,
+    headless: process.env.HEADLESS === 'true' ? true : false,
     actionTimeout: 30000,
     navigationTimeout: 30000,
   },
   projects: [
+    // Keycloak tests - run in parallel
     {
-      name: 'chromium',
+      name: 'keycloak-tests',
       use: { ...devices['Desktop Chrome'] },
+      fullyParallel: true,
+      workers: process.env.CI ? 2 : undefined,
+      // Filter to only Keycloak test files
+      testMatch: setupMethod 
+        ? `**/${setupMethod}/**/keycloak.spec.ts`
+        : '**/keycloak.spec.ts',
     },
-    // Firefox disabled
-    // },
+    // Other tests - run sequentially (one at a time)
+    {
+      name: 'other-tests',
+      use: { ...devices['Desktop Chrome'] },
+      fullyParallel: false,
+      workers: 1,
+      // Filter to exclude Keycloak test files
+      testMatch: setupMethod 
+        ? `**/${setupMethod}/**/*.spec.ts`
+        : '**/*.spec.ts',
+      testIgnore: ['**/keycloak.spec.ts'],
+    },
   ],
-  // Filter tests by setupMethod from config.yaml
-  // This filters tests to only run those in the matching directory
-  // Environment variable SETUP_METHOD can override config.yaml value
-  testMatch: setupMethod 
-    ? `**/${setupMethod}/**/*.spec.ts`
-    : '**/*.spec.ts',
 });
 

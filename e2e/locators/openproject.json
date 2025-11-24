@@ -20,11 +20,8 @@
       "value": "#login-form input[type='submit'][value='Sign in']"
     },
     "userMenu": {
-      "by": "getByRole",
-      "value": {
-        "role": "button",
-        "name": "Account menu"
-      }
+      "by": "locator",
+      "value": "[data-test-selector='op-user-menu'], .user-menu, [aria-label*='Account'], [aria-label*='User']"
     },
     "signInButton": {
       "by": "getByRole",
@@ -32,6 +29,10 @@
         "role": "button",
         "name": "Sign in"
       }
+    },
+    "signInText": {
+      "by": "getByText",
+      "value": "Sign in"
     },
     "forgotPasswordLink": {
       "by": "getByRole",
@@ -42,11 +43,47 @@
     },
     "keycloakAuthButton": {
       "by": "locator",
-      "value": "a.auth-provider-keycloak.auth-provider"
+      "value": "a.auth-provider-keycloak[href*='/auth/keycloak']"
+    },
+    "loginForm": {
+      "by": "locator",
+      "value": "#login-form, input[name='username']"
     },
     "userProfileButton": {
       "by": "locator",
-      "value": "opce-principal.op-top-menu-user-avatar[data-test-selector='op-principal']"
+      "value": "button:has(opce-principal[data-test-selector='op-principal'])"
+    },
+    "userProfileButtonAlt": {
+      "by": "locator",
+      "value": "button.op-app-header--primer-button:has(opce-principal)"
+    },
+    "userProfileButtonAlt2": {
+      "by": "locator",
+      "value": "button[data-show-dialog-id]:has(opce-principal)"
+    },
+    "userProfileButtonAlt3": {
+      "by": "locator",
+      "value": "button:has(.op-top-menu-user-avatar)"
+    },
+    "homeText": {
+      "by": "locator",
+      "value": "span.ActionListItem-label:has-text('Home')"
+    },
+    "userNameText": {
+      "by": "locator",
+      "value": "div.text-bold"
+    },
+    "userNameInMenu": {
+      "by": "locator",
+      "value": "span.op-app-menu--user-name"
+    },
+    "dialog": {
+      "by": "locator",
+      "value": "[role='dialog'], [data-view-component='true']"
+    },
+    "opcePrincipal": {
+      "by": "locator",
+      "value": "opce-principal[data-test-selector='op-principal']"
     }
   }
 }

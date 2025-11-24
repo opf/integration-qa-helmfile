@@ -1,7 +1,7 @@
 import { Page, Locator } from '@playwright/test';
 
 export type LocatorDescriptor =
-  // Role-based (recommended for accessibility)
+  // Role-based
   | { by: 'getByRole'; value: { role: Parameters<Page['getByRole']>[0]; name?: string | RegExp; options?: Omit<Parameters<Page['getByRole']>[1], 'name'> } }
   // Label-based (for form fields)
   | { by: 'getByLabel'; value: string | { text: string; exact?: boolean } }
@@ -15,7 +15,7 @@ export type LocatorDescriptor =
   | { by: 'getByAltText'; value: string | RegExp | { text: string | RegExp; exact?: boolean } }
   // Test ID (data-testid attribute)
   | { by: 'getByTestId'; value: string }
-  // Generic locator (CSS selector, XPath, etc.) - use as fallback
+  // Generic locator (CSS selector, XPath)
   | { by: 'locator'; value: Parameters<Page['locator']>[0] }
   // Frame locator (for iframes)
   | { by: 'frameLocator'; value: Parameters<Page['frameLocator']>[0] };
