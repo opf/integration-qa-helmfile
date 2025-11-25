@@ -35,7 +35,7 @@ export abstract class BasePage {
   /**
    * Resolve a locator by key from the loaded locators
    */
-  protected getLocator(key: string): Locator {
+  public getLocator(key: string): Locator {
     const descriptor = this.locators.selectors[key];
     if (!descriptor) {
       throw new Error(`Locator '${key}' not found in locators file`);

@@ -31,8 +31,14 @@
       }
     },
     "signInText": {
-      "by": "getByText",
-      "value": "Sign in"
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Sign in",
+        "options": {
+          "exact": true
+        }
+      }
     },
     "forgotPasswordLink": {
       "by": "getByRole",
@@ -84,6 +90,79 @@
     "opcePrincipal": {
       "by": "locator",
       "value": "opce-principal[data-test-selector='op-principal']"
+    },
+    "allProjectsButton": {
+      "by": "locator",
+      "value": "span.ellipsis[title='All projects']"
+    },
+    "demoProjectItem": {
+      "by": "locator",
+      "value": "[data-test-selector='op-header-project-select--item-title']"
+    },
+    "projectSettingsMenuItem": {
+      "by": "locator",
+      "value": "a.settings-menu-item.op-menu--item-action[title='Project settings']"
+    },
+    "filesMenuItem": {
+      "by": "getByTitle",
+      "value": "Files"
+    },
+    "externalFileStoragesText": {
+      "by": "locator",
+      "value": "span[data-view-component='true']:has-text('External file storages')"
+    },
+    "newStorageLink": {
+      "by": "locator",
+      "value": "a.wp-inline-create--add-link[title='New storage']"
+    },
+    "addFileStorageHeading": {
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Add a file storage to this project"
+      }
+    },
+    "storageDropdown": {
+      "by": "locator",
+      "value": "select[name='storages_project_storage[storage_id]']"
+    },
+    "continueButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Continue"
+      }
+    },
+    "automaticFolderModeRadio": {
+      "by": "locator",
+      "value": "input[type='radio'][value='automatic'][name='storages_project_storage[project_folder_mode]']"
+    },
+    "addButton": {
+      "by": "locator",
+      "value": "button[type='submit'].Button--primary:has-text('Add')"
+    },
+    "loginToNextcloudRequiredHeading": {
+      "by": "getByText",
+      "value": "Login to Nextcloud required"
+    },
+    "nextcloudLoginButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Nextcloud log in"
+      }
+    },
+    "adminStoragesNextcloudLink": {
+      "by": "locator",
+      "value": "a[data-test-selector='storage-name']:has-text('nextcloud')"
+    },
+    "adminStoragesProjectsTab": {
+      "by": "locator",
+      "value": "a.tabnav-tab:has-text('Projects')"
+    },
+    "adminStoragesAddProjectsButton": {
+      "by": "locator",
+      "value": "a.Button--primary.Button--medium.Button:has-text('Add projects')"
     }
   }
 }

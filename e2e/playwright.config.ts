@@ -37,8 +37,8 @@ export default defineConfig({
       workers: process.env.CI ? 2 : undefined,
       // Filter to only Keycloak test files
       testMatch: setupMethod 
-        ? `**/${setupMethod}/**/keycloak.spec.ts`
-        : '**/keycloak.spec.ts',
+        ? `**/${setupMethod}/**/kc-integration.spec.ts`
+        : '**/kc-integration.spec.ts',
     },
     // Other tests - run sequentially (one at a time)
     {
@@ -50,7 +50,7 @@ export default defineConfig({
       testMatch: setupMethod 
         ? `**/${setupMethod}/**/*.spec.ts`
         : '**/*.spec.ts',
-      testIgnore: ['**/keycloak.spec.ts'],
+      testIgnore: ['**/kc-integration.spec.ts'],
     },
   ],
 });

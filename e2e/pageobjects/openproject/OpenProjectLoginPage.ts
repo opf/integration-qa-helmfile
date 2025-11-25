@@ -9,6 +9,9 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
   }
 
   async waitForReady(): Promise<void> {
+    // Wait for the page to be stable first
+    await this.page.waitForLoadState('domcontentloaded', { timeout: 10000 });
+    // Then wait for the sign in heading to be visible
     await this.getLocator('signInText').waitFor({ state: 'visible', timeout: 10000 });
   }
 
@@ -27,10 +30,13 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
   async login(username: string = 'admin', password: string = 'admin'): Promise<OpenProjectHomePage> {
     await this.navigateTo();
     await this.waitForReady();
+    // Wait for page to be stable before filling credentials
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    await this.page.waitForTimeout(500); // Small delay to ensure page is fully loaded
     await this.fillUsername(username);
     await this.fillPassword(password);
     await this.clickSignIn();
-    await this.page.waitForURL(/.*openproject\.test.*/, { timeout: 10000 });
+    await this.waitForOpenProjectUrl();
     return new OpenProjectHomePage(this.page);
   }
 
