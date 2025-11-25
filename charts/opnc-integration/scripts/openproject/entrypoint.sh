@@ -15,10 +15,14 @@ if [[ -n "$OP_GIT_SOURCE_BRANCH" || "$OP_USE_LOCAL_SOURCE" == 'true' ]]; then
 fi
 
 args=()
+run_webserver=false
 for arg in "$@"; do
     # Replace '/app/'' with './'
     arg="${arg//\/app\//./}"
     args+=("$arg")
+    if [[ "$arg" == *"/web" ]]; then
+        run_webserver=true
+    fi
 done
 
 ####################################################################################
@@ -112,5 +116,9 @@ if [ "$(id -u)" = '0' ]; then
 
 	exec gosu $APP_USER "$BASH_SOURCE" "$@"
 fi
+
+# if [[ "$OP_USE_LOCAL_SOURCE" == 'true' && "$run_webserver" == 'true' ]]; then
+#     npm run serve &
+# fi
 
 exec "${args[@]}"

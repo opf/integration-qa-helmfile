@@ -12,6 +12,7 @@ openproject:
   dockerTag: {{ .Values.openproject.version | quote }}
   gitSourceBranch: {{ .Values.openproject.gitSourceBranch | quote }}
   localSourcePath: {{ .Values.openproject.localSourcePath | quote }}
+  customSourceMountPath: {{ .Values.openproject.customSourceMountPath | quote }}
 
 extraVolumes:
   - name: ca-cert

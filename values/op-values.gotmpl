@@ -64,6 +64,7 @@ environment:
   {{ if .Values.openproject.localSourcePath }}
   OP_USE_LOCAL_SOURCE: 'true'
   {{ end }}
+  OPENPROJECT_CLI_PROXY: http://openproject-assets.test
 dbInit:
   resources:
     limits:
@@ -100,6 +101,14 @@ extraVolumes:
     hostPath:
       path: {{ .Values.openproject.localSourcePath }}
       type: Directory
+#  - name: nm-root
+#    emptyDir: {}
+#  - name: nm-frontend
+#    emptyDir: {}
+#  - name: linked-plugins
+#    emptyDir: {}
+#  - name: bundle
+#    emptyDir: {}
   {{ end }}
 extraVolumeMounts:
   - name: entrypoint
@@ -111,6 +120,14 @@ extraVolumeMounts:
   {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
   - name: op-source-data
     mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+#  - name: nm-root
+#    mountPath: {{ .Values.openproject.customSourceMountPath }}/node_modules
+#  - name: nm-frontend
+#    mountPath: {{ .Values.openproject.customSourceMountPath }}/frontend/node_modules
+#  - name: linked-plugins
+#    mountPath: {{ .Values.openproject.customSourceMountPath }}/frontend/src/app/features/plugins/linked
+#  - name: bundle
+#    mountPath: {{ .Values.openproject.customSourceMountPath }}/vendor/bundle
   {{ end }}
 postgresql:
   fullnameOverride: {{ .Values.openproject.postgresql.host }}

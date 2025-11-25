@@ -39,6 +39,7 @@ openproject:
   # Local host path to OpenProject source code
   localSourcePath: ''
   dockerTag: ''
+  customSourceMountPath: /home/app/openproject
 
 extraVolumes: []
 extraVolumeMounts: []

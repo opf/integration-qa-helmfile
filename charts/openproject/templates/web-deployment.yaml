@@ -57,6 +57,19 @@ spec:
       {{- end }}
       {{- include "openproject.podSecurityContext" . | indent 6 }}
       serviceAccountName: {{ include "common.names.fullname" . }}
+
+      # securityContext:
+      #   # runAsUser: 0
+      #   # runAsGroup: 0
+      #   privileged: true
+      #   allowPrivilegeEscalation: true
+      #   # runAsNonRoot: false
+      #   readOnlyRootFilesystem: false
+      #   capabilities:
+      #     add:
+      #       - "ALL"
+      #       - "SYS_PTRACE"
+
       volumes:
         {{- include "openproject.tmpVolumeSpec" . | indent 8 }}
         {{- if .Values.egress.tls.rootCA.fileName }}
@@ -121,6 +134,9 @@ spec:
               containerPort: {{ .Values.metrics.port }}
               protocol: TCP
             {{- end }}
+            # - containerPort: 4200
+            #   name: http-dev
+            #   protocol: TCP
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
             httpGet:

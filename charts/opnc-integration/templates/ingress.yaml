@@ -25,6 +25,16 @@ spec:
                 name: openproject
                 port:
                   number: 8080
+    # - host: 'openprojectdev.test'
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: openproject-dev
+    #             port:
+    #               number: 4200
     - host: {{ include "opnc.nextcloudHost" . }}
       http:
         paths:

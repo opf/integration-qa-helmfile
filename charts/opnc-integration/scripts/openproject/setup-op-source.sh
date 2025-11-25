@@ -2,16 +2,19 @@
 
 set -eo pipefail
 
-LOCAL_SRC_PATH=/home/app/localsrc
+LOCAL_SRC_PATH=/home/app/localsrc # path to build the local source
 APP_PATH=/home/app/openproject
 
 echo "[INFO] Building OpenProject from source..."
 
 set -x
 if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
+    apt update > /dev/null 2>&1 && apt install -y rsync
+    mkdir -p "$LOCAL_SRC_PATH"
     cd "$APP_PATH"
+    # cleanup
     rm -rf node_modules frontend/node_modules config/frontend_assets.manifest.json public/assets files/build-completed .bundle
-    cp -r "$APP_PATH" "$LOCAL_SRC_PATH"
+    rsync -a "$APP_PATH"/ "$LOCAL_SRC_PATH"/
     APP_PATH=$LOCAL_SRC_PATH
 fi
 
@@ -32,22 +35,24 @@ fi
 git config --global safe.directory '*'
 
 if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
-    cp frontend/package.json frontend/package.json.bak
     export BUNDLE_APP_CONFIG=./.bundle
     export BUNDLE_WITHOUT=""
     bundle config set --local path './vendor/bundle'
     bundle config set --local with 'development test'
     bundle install
+    npm install
+    SECRET_KEY_BASE=1 RAILS_ENV=development DATABASE_URL=nulldb://db \
+        bin/rails openproject:plugins:register_frontend assets:export_locales
 else
     bash ./docker/prod/setup/bundle-install.sh
+    # remove source map and production optimizations from build to speed up build time
+    sed -i 's/ --configuration production --named-chunks --source-map//' ./frontend/package.json
+    DOCKER=0 NG_CLI_ANALYTICS="false" bash ./docker/prod/setup/precompile-assets.sh
 fi
 
+# database config
 rm -f ./config/database.yml
 cp ./config/database.production.yml ./config/database.yml
-
-# remove source map and production optimizations from build to speed up build time
-sed -i 's/ --configuration production --named-chunks --source-map//' ./frontend/package.json
-DOCKER=0 NG_CLI_ANALYTICS="false" bash ./docker/prod/setup/precompile-assets.sh
 
 if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
     sed -i 's|rm -f ./config/database.yml||' ./docker/prod/setup/postinstall-common.sh
@@ -60,9 +65,9 @@ chmod +t "/tmp"
 
 if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
     sed -i 's/production:/development:/' ./config/database.yml
-    mv frontend/package.json.bak frontend/package.json
-    cp -rfL "$APP_PATH"/* /home/app/openproject/
-    cp -rf "$APP_PATH"/.bundle /home/app/openproject/
+    cd /home/app/openproject
+    rsync -a -L "$APP_PATH"/ /home/app/openproject/
+	npm run serve
 fi
 
 touch "/home/app/openproject/files/build-completed"

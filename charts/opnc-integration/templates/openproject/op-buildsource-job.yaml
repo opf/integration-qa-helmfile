@@ -4,9 +4,21 @@ kind: Job
 metadata:
   name: op-buildsource-job
 spec:
+  backoffLimit: 0
   template:
     spec:
       restartPolicy: Never
+      # securityContext:
+      #   runAsUser: 0
+      #   runAsGroup: 0
+      #   privileged: true
+      #   allowPrivilegeEscalation: true
+      #   runAsNonRoot: false
+      #   readOnlyRootFilesystem: false
+      #   capabilities:
+      #     add:
+      #       - "ALL"
+      #       - "SYS_PTRACE"
       containers:
         - name: build-source
           image: openproject/openproject:{{ .Values.openproject.dockerTag | default "dev" }}
@@ -23,7 +35,15 @@ spec:
               mountPath: /scripts/setup-op-source.sh
               subPath: setup-op-source.sh
             - name: op-source-data
-              mountPath: /home/app/openproject
+              mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+            # - name: nm-root
+            #   mountPath: {{ .Values.openproject.customSourceMountPath }}/node_modules
+            # - name: nm-frontend
+            #   mountPath: {{ .Values.openproject.customSourceMountPath }}/frontend/node_modules
+            # - name: linked-plugins
+            #   mountPath: {{ .Values.openproject.customSourceMountPath }}/frontend/src/app/features/plugins/linked
+            # - name: bundle
+            #   mountPath: {{ .Values.openproject.customSourceMountPath }}/vendor/bundle
       volumes:
         - name: build-source-script
           configMap:
@@ -39,6 +59,14 @@ spec:
           hostPath:
             path: {{ .Values.openproject.localSourcePath }}
             type: Directory
+        # - name: nm-root
+        #   emptyDir: {}
+        # - name: nm-frontend
+        #   emptyDir: {}
+        # - name: linked-plugins
+        #   emptyDir: {}
+        # - name: bundle
+        #   emptyDir: {}
         {{ end }}
 
 {{ if and .Values.openproject.gitSourceBranch (not .Values.openproject.localSourcePath) }}

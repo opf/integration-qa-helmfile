@@ -64,3 +64,18 @@ spec:
     openproject/process: hocuspocus
 ...
 {{- end }}
+
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: {{ include "common.names.fullname" . }}-dev
+# spec:
+#   selector:
+#     {{- include "common.labels.matchLabels" . | nindent 4 }}
+#     openproject/process: web
+#   ports:
+#     - port: 4200
+#       targetPort: 4200
+#       protocol: TCP
+#       name: http
