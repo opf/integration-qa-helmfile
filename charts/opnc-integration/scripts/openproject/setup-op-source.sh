@@ -2,17 +2,24 @@
 
 set -eo pipefail
 
-LOCAL_SRC_PATH=/home/app/localsrc
 APP_PATH=/home/app/openproject
 
 echo "[INFO] Building OpenProject from source..."
 
 set -x
 if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
-    cd "$APP_PATH"
-    rm -rf node_modules frontend/node_modules config/frontend_assets.manifest.json public/assets files/build-completed .bundle
-    cp -r "$APP_PATH" "$LOCAL_SRC_PATH"
-    APP_PATH=$LOCAL_SRC_PATH
+    # clean up previous build artifacts
+    rm -rf \
+        "$APP_PATH"/node_modules \
+        "$APP_PATH"/frontend/node_modules \
+        "$APP_PATH"/config/frontend_assets.manifest.json \
+        "$APP_PATH"/public/assets \
+        "$APP_PATH"/files/build-completed \
+        "$APP_PATH"/.bundle \
+        "$APP_PATH"/.cache \
+        "$APP_PATH"/vendor/bundle \
+        "$APP_PATH"/alias \
+        "$APP_PATH"/versions
 fi
 
 if [[ -n $(ls -A "$APP_PATH") ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
@@ -30,24 +37,26 @@ fi
 
 # trust git repos
 git config --global safe.directory '*'
+# database config
+rm -f ./config/database.yml
+cp ./config/database.production.yml ./config/database.yml
 
 if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
-    cp frontend/package.json frontend/package.json.bak
+    sed -i 's/production:/development:/' ./config/database.yml
     export BUNDLE_APP_CONFIG=./.bundle
     export BUNDLE_WITHOUT=""
     bundle config set --local path './vendor/bundle'
     bundle config set --local with 'development test'
     bundle install
+    npm install
+    SECRET_KEY_BASE=1 RAILS_ENV=development DATABASE_URL=nulldb://db \
+        bin/rails openproject:plugins:register_frontend assets:export_locales
 else
     bash ./docker/prod/setup/bundle-install.sh
+    # remove source map and production optimizations from build to speed up build time
+    sed -i 's/ --configuration production --named-chunks --source-map//' ./frontend/package.json
+    DOCKER=0 NG_CLI_ANALYTICS="false" bash ./docker/prod/setup/precompile-assets.sh
 fi
-
-rm -f ./config/database.yml
-cp ./config/database.production.yml ./config/database.yml
-
-# remove source map and production optimizations from build to speed up build time
-sed -i 's/ --configuration production --named-chunks --source-map//' ./frontend/package.json
-DOCKER=0 NG_CLI_ANALYTICS="false" bash ./docker/prod/setup/precompile-assets.sh
 
 if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
     sed -i 's|rm -f ./config/database.yml||' ./docker/prod/setup/postinstall-common.sh
@@ -58,12 +67,5 @@ fi
 chmod +t "$APP_PATH"
 chmod +t "/tmp"
 
-if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
-    sed -i 's/production:/development:/' ./config/database.yml
-    mv frontend/package.json.bak frontend/package.json
-    cp -rfL "$APP_PATH"/* /home/app/openproject/
-    cp -rf "$APP_PATH"/.bundle /home/app/openproject/
-fi
-
-touch "/home/app/openproject/files/build-completed"
+touch "$APP_PATH/files/build-completed"
 echo "[INFO] OpenProject build from source completed."

@@ -3,6 +3,7 @@
 integrationSetupMethod: 'sso-external'
 
 openprojectHost: openproject.test
+openprojectAssetHost: openproject-assets.test
 nextcloudHost: nextcloud.test
 keycloakHost: keycloak.test
 
@@ -39,6 +40,7 @@ openproject:
   # Local host path to OpenProject source code
   localSourcePath: ''
   dockerTag: ''
+  customSourceMountPath: /home/app/openproject
 
 extraVolumes: []
 extraVolumeMounts: []
@@ -46,8 +48,13 @@ extraEnv: []
 
 ingress:
   # Ingress class name
-  className: 'nginx'
+  ingressClassName: 'nginx'
   # TLS secret name
   tlsSecretName: 'opnc-tls-secret'
   # Use exisiting TLS secret name. If set, the above tlsSecretName will be ignored.
   existingTlsSecretName: ''
+
+persistence:
+  storageClassName: ''
+  accessModes:
+    - 'ReadWriteOnce'

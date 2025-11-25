@@ -17,3 +17,14 @@ data:
   setup-op-source.sh: |
 {{ .Files.Get "scripts/openproject/setup-op-source.sh" | indent 4 }}
 {{ end }}
+
+{{ if .Values.openproject.localSourcePath }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: op-serve-assets-configmap
+data:
+  serve-assets.sh: |
+{{ .Files.Get "scripts/openproject/serve-assets.sh" | indent 4 }}
+{{ end }}

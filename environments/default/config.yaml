@@ -8,7 +8,6 @@ integration:
   #   - sso-external
   ############################################
   setupMethod: 'oauth2'
-  ingressClassName: ''
   oidcClients:
     nextcloud:
       id: nextcloud
@@ -23,6 +22,7 @@ integration:
 openproject:
   fullnameOverride: openproject
   host: openproject.test
+  assetHost: openproject-assets.test
   #####################################################
   # Pod container image tag                           #
   # Examples: 16.2, dev                               #
@@ -111,8 +111,13 @@ keycloak:
     host: kc-postgresql
 
 ingress:
+  ingressClassName: 'traefik'
   tlsSecretName: 'opnc-tls-secret'
   # Use exisiting TLS secret name. If set, the above tlsSecretName will be ignored.
   existingTlsSecretName: ''
   # path to mount the CA certificate file in the container
-  caCertFilePath: /certs/ca.crt
+  caCertFileMountPath: /certs/ca.crt
+
+persistence:
+  storageClassName: ''
+  accessMode: 'ReadWriteOnce'
