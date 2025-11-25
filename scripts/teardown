@@ -25,7 +25,7 @@ done
 
 if [[ $do_full_teardown == true ]]; then
     echo "[INFO] Deleting cluster..."
-    minikube delete
+    k3d cluster delete -c config/k3d.yaml
 else
     # Go to project root
     # shellcheck disable=SC2164

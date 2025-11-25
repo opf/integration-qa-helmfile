@@ -8,7 +8,7 @@
 
 ## Dependencies
 
-- [minikube](https://minikube.sigs.k8s.io/docs/start/?arch=%2Flinux%2Fx86-64%2Fstable%2Fbinary+download)
+- [k3d](https://k3d.io/stable/#install-script)
 - [docker](https://docs.docker.com/engine/install/)
 - [helm](https://helm.sh/docs/intro/install/#through-package-managers)
 - [helm-diff](https://github.com/databus23/helm-diff?tab=readme-ov-file#using-helm-plugin-manager--23x) plugin
@@ -118,9 +118,23 @@ _**NOTE**: This can take a long time to build the source code and deploy the app
 
 You can serve the OpenProject using the local source path. Run the following command:
 
-```bash
-make deploy-dev LOCAL_SOURCE_PATH=<path-to-local-openproject-repo>
-```
+1. Teardown existing deployment (if any):
+
+   ```bash
+   make teardown-all
+   ```
+
+2. Setup the cluster again with local source path:
+
+   ```bash
+   LOCAL_SOURCE_PATH=<path-to-local-openproject-repo> make setup
+   ```
+
+3. Deploy the dev setup:
+
+   ```bash
+   make deploy-dev
+   ```
 
 _**NOTE**: This can take a long time to build the source code and deploy the application._
 

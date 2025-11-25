@@ -119,5 +119,5 @@ ingress:
   caCertFileMountPath: /certs/ca.crt
 
 persistence:
-  storageClassName: ''
+  storageClassName: 'local-path'
   accessMode: 'ReadWriteOnce'
