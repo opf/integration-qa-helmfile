@@ -34,7 +34,6 @@ nextcloud:
 
 openproject:
   # Git branch to use as the source
-  # NOTE: 'version' will be ignored if this is set
   # Example: dev
   gitSourceBranch: ''
   # Local host path to OpenProject source code
@@ -48,7 +47,7 @@ extraEnv: []
 
 ingress:
   # Ingress class name
-  ingressClassName: 'nginx'
+  ingressClassName: 'traefik'
   # TLS secret name
   tlsSecretName: 'opnc-tls-secret'
   # Use exisiting TLS secret name. If set, the above tlsSecretName will be ignored.

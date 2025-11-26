@@ -70,9 +70,9 @@ environment:
   {{ end }}
   {{ if .Values.openproject.localSourcePath }}
   OP_USE_LOCAL_SOURCE: 'true'
-  {{ end }}
   OPENPROJECT_CLI_PROXY: https://{{ .Values.openproject.assetHost }}
   OPENPROJECT_RAILS__ASSET__HOST: {{ .Values.openproject.assetHost }}
+  {{ end }}
 dbInit:
   resources:
     limits:

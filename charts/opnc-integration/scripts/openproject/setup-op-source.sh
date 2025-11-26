@@ -7,6 +7,8 @@ APP_PATH=/home/app/openproject
 echo "[INFO] Building OpenProject from source..."
 
 set -x
+mkdir -p "$APP_PATH" && cd "$APP_PATH"
+
 if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
     # clean up previous build artifacts
     rm -rf \
@@ -26,9 +28,6 @@ if [[ -n $(ls -A "$APP_PATH") ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
     echo "[ERROR] '$APP_PATH' is not empty. Please delete the volume and try again."
     exit 1
 fi
-
-mkdir -p "$APP_PATH" && cd "$APP_PATH"
-chown "$APP_USER":"$APP_USER" "$APP_PATH"
 
 if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
     echo "[INFO] Cloning OpenProject from branch: $OP_GIT_SOURCE_BRANCH"
@@ -63,6 +62,7 @@ if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; t
     rm -rf "$APP_PATH/tmp"
 fi
 
+chown "$APP_USER":"$APP_USER" -R "$APP_PATH"
 # set sticky bit on app path and tmp directory
 chmod +t "$APP_PATH"
 chmod +t "/tmp"

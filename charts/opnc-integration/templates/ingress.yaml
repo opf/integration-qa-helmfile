@@ -3,16 +3,21 @@ kind: Ingress
 metadata:
   name: opnc-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
     cert-manager.io/issuer: {{ include "opnc.issuerName" . }}
+    {{ if eq .Values.ingress.ingressClassName "nginx" }}
+    nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    {{ end }}
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClassName | default "nginx" }}
+  ingressClassName: {{ .Values.ingress.ingressClassName | default "traefik" }}
   tls:
     - hosts:
         - {{ include "opnc.openprojectHost" . }}
         - {{ include "opnc.nextcloudHost" . }}
         - {{ include "opnc.keycloakHost" . }}
+        {{ if .Values.openproject.localSourcePath }}
+        - {{ include "opnc.openprojectAssetHost" . }}
+        {{ end }}
       secretName: {{ include "opnc.tlsSecretName" . }}
   rules:
     - host: {{ include "opnc.openprojectHost" . }}
@@ -25,6 +30,8 @@ spec:
                 name: openproject
                 port:
                   number: 8080
+
+    {{ if .Values.openproject.localSourcePath }}
     - host: {{ include "opnc.openprojectAssetHost" . }}
       http:
         paths:
@@ -35,6 +42,8 @@ spec:
                 name: op-assets-svc
                 port:
                   number: 4200
+    {{ end }}
+
     - host: {{ include "opnc.nextcloudHost" . }}
       http:
         paths:
