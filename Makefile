@@ -10,7 +10,12 @@ help:
 	@echo "  teardown      - Delete the integration deployment from the K8s cluster"
 	@echo "  teardown-all  - Delete the K8s cluster"
 
-HOST_IP := $(shell hostname -I | awk '{print $$1}')
+PLATFORM := $(shell uname)
+ifeq ($(PLATFORM),Darwin)
+	HOST_IP := $(shell ipconfig getifaddr en0)
+else
+	HOST_IP := $(shell hostname -I | awk '{print $$1}')
+endif
 
 ifeq ($(strip $(OP_LOCAL_REPO_DIR)),)
 	VOL_ARG :=
