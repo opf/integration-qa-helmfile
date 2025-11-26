@@ -1,9 +1,0 @@
-# Make external hosts accessible
-# via the Ingress controller from inside the pods.
-apiVersion: v1
-kind: Service
-metadata:
-  name: opnc-local
-spec:
-  type: ExternalName
-  externalName: ingress-nginx-controller.ingress-nginx.svc.cluster.local

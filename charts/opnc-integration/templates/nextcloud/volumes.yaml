@@ -4,8 +4,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: nc-gitsource-pvc
 spec:
-  accessModes:
-    - ReadWriteMany
+  accessModes: {{ .Values.persistence.accessModes | default (list "ReadWriteOnce") }}
   resources:
     requests:
       storage: 8Gi

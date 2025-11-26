@@ -23,7 +23,7 @@ spec:
               mountPath: /scripts/setup-op-source.sh
               subPath: setup-op-source.sh
             - name: op-source-data
-              mountPath: /home/app/openproject
+              mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
       volumes:
         - name: build-source-script
           configMap:
@@ -48,8 +48,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: op-source-pvc
 spec:
-  accessModes:
-    - ReadWriteMany
+  accessModes: {{ .Values.persistence.accessModes | default (list "ReadWriteOnce") }}
   resources:
     requests:
       storage: 5Gi

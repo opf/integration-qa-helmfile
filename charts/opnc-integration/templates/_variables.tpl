@@ -8,6 +8,10 @@ Host name of the servers used in the stack.
 {{ .Values.openprojectHost | default "openproject.test" }}
 {{- end -}}
 
+{{- define "opnc.openprojectAssetHost" -}}
+{{ .Values.openprojectAssetHost | default "openproject-assets.test" }}
+{{- end -}}
+
 {{- define "opnc.nextcloudHost" -}}
 {{ .Values.nextcloudHost | default "nextcloud.test" }}
 {{- end -}}

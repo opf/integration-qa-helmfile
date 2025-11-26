@@ -1,0 +1,64 @@
+{{ if .Values.openproject.localSourcePath }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: op-assets-server
+  labels:
+    app: op-assets-server
+spec:
+  selector:
+    matchLabels:
+      app: op-assets-server
+  template:
+    metadata:
+      labels:
+        app: op-assets-server
+    spec:
+      containers:
+        - name: op-assets-server
+          image: openproject/openproject:{{ .Values.openproject.dockerTag | default "dev" }}
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          command: ['/serve-assets.sh']
+          env:
+            - name: OP_USE_LOCAL_SOURCE
+              value: 'true'
+            - name: APP_PATH
+              value: {{ .Values.openproject.customSourceMountPath | quote }}
+            - name: FE_HOST
+              value: '0.0.0.0'
+            - name: __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
+              value: {{ include "opnc.openprojectAssetHost" . }}
+          ports:
+            - containerPort: 4200
+              name: op-assets
+              protocol: TCP
+          volumeMounts:
+            - name: serve-assets-script
+              mountPath: /serve-assets.sh
+              subPath: serve-assets.sh
+            - name: op-source-data
+              mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+      volumes:
+        - name: serve-assets-script
+          configMap:
+            name: op-serve-assets-configmap
+            defaultMode: 0755
+        - name: op-source-data
+          hostPath:
+            path: {{ .Values.openproject.localSourcePath }}
+            type: Directory
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: op-assets-svc
+spec:
+  selector:
+    app: op-assets-server
+  ports:
+    - port: 4200
+      targetPort: 4200
+      protocol: TCP
+      name: http
+{{ end }}
