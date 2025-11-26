@@ -1,2 +1,3 @@
 openproject:
-  enterpriseToken: {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" }}
+  enterpriseToken: |
+    {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | nindent 4 }}
