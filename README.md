@@ -2,8 +2,9 @@
 
 - [Dependencies](#dependencies)
 - [Deploy Setup Locally (Minikube)](#deploy-setup-locally-minikube)
-- [Configuring the Setup](#configuring-the-setup)
-- [Serve From Git Branch](#server-from-git-branch)
+- [Configuring the Deployment](#configuring-the-deployment)
+- [Serve From Git Branch](#serve-from-git-branch)
+- [Serve OpenProject From Local Branch](#serve-openproject-from-local-branch)
 - [Trust Self-Signed Certificates](#trust-self-signed-certificates)
 
 ## Dependencies
@@ -24,12 +25,6 @@
    make setup
    ```
 
-   If you need to specify cluster resources:
-
-   ```bash
-   make setup cpu=4 memory=8g
-   ```
-
 2. Deploy the integration chart:
 
    ```bash
@@ -44,7 +39,7 @@
 
 4. Add these hosts to your `/etc/hosts` file:
    ```bash
-    sudo echo "$(minikube ip) openproject.test nextcloud.test keycloak.test" | sudo tee -a /etc/hosts
+    sudo echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test" | sudo tee -a /etc/hosts
    ```
 
 NOTE: make sure at least one `setup-job-*` pod is completed successfully before proceeding.
@@ -73,7 +68,7 @@ or if you want to delete the K8s cluster as well, run:
 make teardown-all
 ```
 
-## Configuring the Setup
+## Configuring the Deployment
 
 ⚠️ Do not edit `charts/opnc-integration/values.yaml` directly.
 All configuration must go into [environments/default/config.yaml](https://github.com/saw-jan/opnc-helm-chart/blob/master/environments/default/config.yaml).
@@ -127,7 +122,7 @@ You can serve the OpenProject using the local source path. Run the following com
 2. Setup the cluster again with local source path:
 
    ```bash
-   LOCAL_SOURCE_PATH=<path-to-local-openproject-repo> make setup
+   OP_LOCAL_REPO_DIR=<path-to-local-openproject-repo> make setup
    ```
 
 3. Deploy the dev setup:
