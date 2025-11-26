@@ -1,7 +1,7 @@
 # Openproject-Nextcloud Integration Helm Chart
 
 - [Dependencies](#dependencies)
-- [Deploy Setup Locally (Minikube)](#deploy-setup-locally-minikube)
+- [Deploy Setup Locally (k3d)](#deploy-setup-locally-k3d)
 - [Configuring the Deployment](#configuring-the-deployment)
 - [Serve From Git Branch](#serve-from-git-branch)
 - [Serve OpenProject From Local Branch](#serve-openproject-from-local-branch)
@@ -17,7 +17,7 @@
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
 - [make](https://sp21.datastructur.es/materials/guides/make-install.html)
 
-## Deploy Setup Locally (Minikube)
+## Deploy Setup Locally (k3d)
 
 1. Setup Kubernetes cluster and necessary resources:
 

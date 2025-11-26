@@ -2,7 +2,7 @@
 
 help:
 	@echo "Available commands:"
-	@echo "  setup         - Start the local K8s cluster with Minikube. Accepts the following options:"
+	@echo "  setup         - Start the local K8s cluster with k3d. Accepts the following options:"
 	@echo "                  Available env vars:"
 	@echo "                    OP_LOCAL_REPO_DIR: Path to the local source code (E.g.: OP_LOCAL_REPO_DIR=/path/to/openproject make deploy-dev)"
 	@echo "  deploy        - Deploy the integration setup: OpenProject, Nextcloud and Keycloak"

@@ -5,10 +5,10 @@ do_full_teardown=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --all)
-            # option to delete the minikube k8s cluster
+            # option to delete the k3d k8s cluster
             do_full_teardown=true
             # confirmation prompt
-            echo -e "[WARNING] You are about to delete the minikube cluster. This will remove all resources in the cluster.\nAre you sure? (y/N): "
+            echo -e "[WARNING] You are about to delete the k3d cluster. This will remove all resources in the cluster.\nAre you sure? (y/N): "
             read -r confirm
             if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
                 echo "[INFO] Aborting full teardown."
