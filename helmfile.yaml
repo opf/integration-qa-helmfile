@@ -7,6 +7,10 @@ environments:
     values:
       - environments/default/config.yaml
       - environments/dev/config.yaml
+  ci:
+    values:
+      - environments/default/config.yaml
+      - environments/ci/config.gotmpl
 ---
 repositories:
   # Issues:

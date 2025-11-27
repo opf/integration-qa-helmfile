@@ -5,6 +5,10 @@ fullnameOverride: {{ .Values.nextcloud.fullnameOverride }}
 image:
   # Nextcloud version image tag
   tag: {{ .Values.nextcloud.version | quote }}
+persistence:
+  storageClassName: {{ .Values.persistence.storageClassName | quote }}
+service:
+  port: 80
 nextcloud:
   host: {{ .Values.nextcloud.host }}
   username: admin
@@ -48,9 +52,9 @@ nextcloud:
           name: nextcloud-enable-apps
           key: enable-apps
     - name: CURL_CA_BUNDLE
-      value: {{ .Values.ingress.caCertFilePath }}
+      value: {{ .Values.ingress.caCertFileMountPath }}
     - name: SSL_CERT_FILE
-      value: {{ .Values.ingress.caCertFilePath }}
+      value: {{ .Values.ingress.caCertFileMountPath }}
   extraVolumes:
     - name: presetup
       configMap:
@@ -78,7 +82,7 @@ nextcloud:
       mountPath: /docker-entrypoint-hooks.d/before-starting/beforestart.sh
       subPath: beforestart.sh
     - name: ca-cert
-      mountPath: {{ .Values.ingress.caCertFilePath }}
+      mountPath: {{ .Values.ingress.caCertFileMountPath }}
       subPath: ca.crt
     - name: entrypoint
       mountPath: /entrypoint.sh

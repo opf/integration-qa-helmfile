@@ -7,11 +7,18 @@ containerSecurityContext:
   readOnlyRootFilesystem: false
 image:
   tag: {{ .Values.openproject.version | quote  }}
+persistence:
+  storageClassName: {{ .Values.persistence.storageClassName | quote }}
+  accessModes:
+    - {{ .Values.persistence.accessMode | quote }}
+ingress:
+  enabled: false
 openproject:
   https: true
   host: {{ .Values.openproject.host }}
   admin_user:
     password_reset: 'false'
+  tmpVolumesStorageClassName: {{ .Values.persistence.storageClassName | quote }}
   oidc:
     enabled: {{ if not (eq .Values.integration.setupMethod "oauth2") }}true{{ else }}false{{ end }}
     {{ if .Values.integration.setupMethod | eq "sso-external" }}
@@ -55,14 +62,16 @@ environment:
 
   DATABASE_HOST: {{ .Values.openproject.postgresql.host }}
   OPENPROJECT_SEED__ENTERPRISE__TOKEN: {{ toYaml .Values.openproject.enterpriseToken | indent 2 }}
-  CURL_CA_BUNDLE: {{ .Values.ingress.caCertFilePath }}
-  SSL_CERT_FILE: {{ .Values.ingress.caCertFilePath }}
+  CURL_CA_BUNDLE: {{ .Values.ingress.caCertFileMountPath }}
+  SSL_CERT_FILE: {{ .Values.ingress.caCertFileMountPath }}
   OP_GIT_SOURCE_BRANCH: {{ .Values.openproject.gitSourceBranch | quote }}
   {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
   APP_PATH: {{ .Values.openproject.customSourceMountPath | quote }}
   {{ end }}
   {{ if .Values.openproject.localSourcePath }}
   OP_USE_LOCAL_SOURCE: 'true'
+  OPENPROJECT_CLI_PROXY: https://{{ .Values.openproject.assetHost }}
+  OPENPROJECT_RAILS__ASSET__HOST: {{ .Values.openproject.assetHost }}
   {{ end }}
 dbInit:
   resources:
@@ -106,7 +115,7 @@ extraVolumeMounts:
     mountPath: /app/docker/prod/entrypoint.sh
     subPath: entrypoint.sh
   - name: ca-cert
-    mountPath: {{ .Values.ingress.caCertFilePath }}
+    mountPath: {{ .Values.ingress.caCertFileMountPath }}
     subPath: ca.crt
   {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
   - name: op-source-data
