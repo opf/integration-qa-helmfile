@@ -141,6 +141,14 @@
       "by": "locator",
       "value": "button[type='submit'].Button--primary:has-text('Add')"
     },
+    "storageCreationSuccessMessage": {
+      "by": "locator",
+      "value": ".flash.notice, .flash-message.-success, [role='status']:has-text('Successful creation.'), text=Successful creation."
+    },
+    "nextcloudStorageRow": {
+      "by": "locator",
+      "value": "table tbody tr:has(td.provider_type:has-text('Nextcloud'))"
+    },
     "loginToNextcloudRequiredHeading": {
       "by": "getByText",
       "value": "Login to Nextcloud required"

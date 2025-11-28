@@ -1,5 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 import { loadConfig } from './utils/config';
+
+const projectRoot = path.resolve(__dirname, '..');
+const caPathFromEnv = process.env.OPENPROJECT_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS;
+const defaultCaPath = path.resolve(projectRoot, 'opnc-root-ca.crt');
+
+if (!process.env.NODE_EXTRA_CA_CERTS) {
+  const candidate = caPathFromEnv ?? defaultCaPath;
+  if (fs.existsSync(candidate)) {
+    process.env.NODE_EXTRA_CA_CERTS = candidate;
+    console.log(`[Playwright Config] Using CA certificate: ${candidate}`);
+  } else if (caPathFromEnv) {
+    console.warn(`[Playwright Config] CA certificate not found at ${candidate}. TLS verification may fail.`);
+  }
+}
 
 // Load setupMethod from config.yaml (with env var override for CI/CD)
 const config = loadConfig();
