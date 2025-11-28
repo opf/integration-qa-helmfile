@@ -5,6 +5,7 @@
 - [Configuring the Deployment](#configuring-the-deployment)
 - [Serve From Git Branch](#serve-from-git-branch)
 - [Serve OpenProject From Local Branch](#serve-openproject-from-local-branch)
+- [Serve Standalone OpenProject (Local Branch)](#serve-standalone-openproject-local-branch)
 - [Trust Self-Signed Certificates](#trust-self-signed-certificates)
 
 ## Dependencies
@@ -132,6 +133,28 @@ You can serve the OpenProject using the local source path. Run the following com
    ```
 
 _**NOTE**: This can take a long time to build the source code and deploy the application._
+
+## Serve Standalone OpenProject (Local Branch)
+
+You can serve the OpenProject in standalone mode for the development setup. This doesn't run Nextcloud and Keycloak. Run the following command:
+
+1. Teardown existing deployment (if any):
+
+   ```bash
+   make teardown-all
+   ```
+
+2. Setup the cluster again with local source path:
+
+   ```bash
+   OP_LOCAL_REPO_DIR=<path-to-local-openproject-repo> make setup
+   ```
+
+3. Deploy the dev setup:
+
+   ```bash
+   make dev-op-standalone
+   ```
 
 ## Trust Self-Signed Certificates
 

@@ -33,6 +33,9 @@ deploy:
 deploy-dev:
 	@helmfile sync -e dev
 
+dev-op-standalone:
+	@helmfile sync -e dev-op-standalone
+
 teardown:
 	@./scripts/teardown
 
