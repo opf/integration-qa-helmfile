@@ -21,6 +21,7 @@ export abstract class OpenProjectBasePage extends BasePage {
     DEMO_PROJECT_SETTINGS_GENERAL: /.*\/projects\/demo-project\/settings\/general.*/,
     DEMO_PROJECT_STORAGES_EXTERNAL: /.*\/projects\/demo-project\/settings\/project_storages\/external_file_storages.*/,
     DEMO_PROJECT_STORAGES_NEW: /.*\/projects\/demo-project\/settings\/project_storages\/new.*/,
+    DEMO_PROJECT_WORK_PACKAGE_FILES: /.*\/projects\/demo-project\/work_packages\/\d+\/files.*/,
     ADMIN_SETTINGS_STORAGES: /.*\/admin\/settings\/storages\/?$/,
     ADMIN_STORAGE_PROJECTS: /.*\/admin\/settings\/storages\/\d+\/project_storages\/?$/,
     ADMIN_STORAGE_PROJECTS_NEW: /.*\/admin\/settings\/storages\/\d+\/project_storages\/new\/?$/,
@@ -29,6 +30,7 @@ export abstract class OpenProjectBasePage extends BasePage {
   // Full URL paths (for navigation)
   static readonly URLS = {
     DEMO_PROJECT_STORAGES_EXTERNAL: '/projects/demo-project/settings/project_storages/external_file_storages',
+    DEMO_PROJECT_WORK_PACKAGE_FILES_BASE: '/projects/demo-project/work_packages',
     ADMIN_SETTINGS_STORAGES: '/admin/settings/storages',
   } as const;
 
@@ -76,6 +78,24 @@ export abstract class OpenProjectBasePage extends BasePage {
       waitUntil: 'domcontentloaded',
       timeout: 15000
     });
+  }
+
+  /**
+   * Navigate to demo project work package files page
+   */
+  async navigateToDemoProjectWorkPackageFiles(workPackageId: number): Promise<void> {
+    const url = `${this.baseUrl}${OpenProjectBasePage.URLS.DEMO_PROJECT_WORK_PACKAGE_FILES_BASE}/${workPackageId}/files`;
+    await this.page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+    });
+  }
+
+  /**
+   * Wait for demo project work package files URL
+   */
+  async waitForDemoProjectWorkPackageFilesUrl(timeout: number = 15000): Promise<void> {
+    await this.page.waitForURL(OpenProjectBasePage.URL_PATHS.DEMO_PROJECT_WORK_PACKAGE_FILES, { timeout });
   }
 
   /**

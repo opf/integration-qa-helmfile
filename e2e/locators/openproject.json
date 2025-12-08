@@ -142,12 +142,36 @@
       "value": "button[type='submit'].Button--primary:has-text('Add')"
     },
     "storageCreationSuccessMessage": {
-      "by": "locator",
-      "value": ".flash.notice, .flash-message.-success, [role='status']:has-text('Successful creation.'), text=Successful creation."
+      "by": "getByText",
+      "value": "Successful creation."
     },
     "nextcloudStorageRow": {
       "by": "locator",
       "value": "table tbody tr:has(td.provider_type:has-text('Nextcloud'))"
+    },
+    "workPackageFilesUploadInput": {
+      "by": "locator",
+      "value": "input#upload_files[name='upload_files']"
+    },
+    "workPackageFilesUploadDropBox": {
+      "by": "locator",
+      "value": "button[data-test-selector='op-storage--drop-box']"
+    },
+    "filesPickerModal": {
+      "by": "locator",
+      "value": "[data-test-selector='op-files-picker-modal']"
+    },
+    "filesPickerConfirmButton": {
+      "by": "locator",
+      "value": "button[data-test-selector='op-files-picker-modal--confirm']"
+    },
+    "filesUploadSuccessMessage": {
+      "by": "locator",
+      "value": ".op-toast--content:has-text('Successfully created 1 file link.'), .flash.notice:has-text('Successfully created 1 file link.'), .flash-message.-success:has-text('Successfully created 1 file link.'), [role='status']:has-text('Successfully created 1 file link.')"
+    },
+    "workPackageFileLink": {
+      "by": "locator",
+      "value": "a.op-file-list--item-action span.ellipsis"
     },
     "loginToNextcloudRequiredHeading": {
       "by": "getByText",

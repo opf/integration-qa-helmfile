@@ -24,7 +24,8 @@ const setupMethod = process.env.SETUP_METHOD || config.setupMethod;
 export default defineConfig({
   testDir: './tests',
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // Do not retry tests automatically; fail fast so issues are visible
+  retries: 0,
   globalSetup: require.resolve('./global-setup'),
   reporter: [
     ['list'],
@@ -56,9 +57,19 @@ export default defineConfig({
         ? `**/${setupMethod}/**/kc-integration.spec.ts`
         : '**/kc-integration.spec.ts',
     },
-    // Other tests - run sequentially (one at a time)
+    // Nextcloud-focused integration tests
     {
-      name: 'other-tests',
+      name: 'nextcloud-tests',
+      use: { ...devices['Desktop Chrome'] },
+      fullyParallel: false,
+      workers: 1,
+      testMatch: setupMethod
+        ? `**/${setupMethod}/**/nc-integration.spec.ts`
+        : '**/nc-integration.spec.ts',
+    },
+    // OpenProject integration tests - run sequentially (one at a time)
+    {
+      name: 'op-integration-tests',
       use: { ...devices['Desktop Chrome'] },
       fullyParallel: false,
       workers: 1,
@@ -66,7 +77,7 @@ export default defineConfig({
       testMatch: setupMethod 
         ? `**/${setupMethod}/**/*.spec.ts`
         : '**/*.spec.ts',
-      testIgnore: ['**/kc-integration.spec.ts'],
+      testIgnore: ['**/kc-integration.spec.ts', '**/nc-integration.spec.ts'],
     },
   ],
 });
