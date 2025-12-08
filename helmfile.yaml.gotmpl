@@ -10,7 +10,11 @@ environments:
   ci:
     values:
       - environments/default/config.yaml
-      - environments/ci/config.gotmpl
+      - environments/ci/config.yaml.gotmpl
+  dev-op-standalone:
+    values:
+      - environments/default/config.yaml
+      - environments/dev-op-standalone/config.yaml
 ---
 repositories:
   # Issues:
@@ -61,6 +65,7 @@ releases:
   - name: nextcloud
     chart: nextcloud/nextcloud
     version: ~7.0.0
+    installed: {{ not .Values.openproject.standalone }}
     values:
       - values/nc-values.gotmpl
     needs:
@@ -68,6 +73,7 @@ releases:
   - name: keycloak
     chart: bitnami/keycloak
     version: ~24.7.5
+    installed: {{ not .Values.openproject.standalone }}
     values:
       - values/kc-values.gotmpl
     needs:

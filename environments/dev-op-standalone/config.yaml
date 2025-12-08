@@ -1,4 +1,5 @@
 openproject:
+  standalone: true
   # DO NOT CHANGE THE FOLLOWING PATH
   localSourcePath: '/localDir/openproject'
   railsEnv: 'development'
