@@ -1,0 +1,74 @@
+name: E2E Playwright
+
+on:
+  push:
+    branches: [dev, release]
+  pull_request:
+    branches: [dev, release]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Optional Playwright --grep (e.g., @smoke)'
+        required: false
+      setupMethod:
+        description: 'Override SETUP_METHOD (oauth2, sso-nextcloud, sso-external)'
+        required: false
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NODE_ENV: test
+      CI: true
+      HEADLESS: true
+      SKIP_SETUP_JOB_CHECK: true
+      # Use release/stage targets when the source or base branch is release; otherwise edge/dev targets.
+      IS_RELEASE: ${{ github.ref == 'refs/heads/release' || github.base_ref == 'release' }}
+      OPENPROJECT_URL: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_OPENPROJECT_URL || secrets.E2E_EDGE_OPENPROJECT_URL }}
+      NEXTCLOUD_URL: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_NEXTCLOUD_URL || secrets.E2E_EDGE_NEXTCLOUD_URL }}
+      KEYCLOAK_URL: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_KEYCLOAK_URL || secrets.E2E_EDGE_KEYCLOAK_URL }}
+      E2E_OP_ADMIN_USER: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_OP_ADMIN_USER || secrets.E2E_EDGE_OP_ADMIN_USER }}
+      E2E_OP_ADMIN_PASS: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_OP_ADMIN_PASS || secrets.E2E_EDGE_OP_ADMIN_PASS }}
+      E2E_NC_ADMIN_USER: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_NC_ADMIN_USER || secrets.E2E_EDGE_NC_ADMIN_USER }}
+      E2E_NC_ADMIN_PASS: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_NC_ADMIN_PASS || secrets.E2E_EDGE_NC_ADMIN_PASS }}
+      E2E_KC_ADMIN_USER: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_KC_ADMIN_USER || secrets.E2E_EDGE_KC_ADMIN_USER }}
+      E2E_KC_ADMIN_PASS: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_KC_ADMIN_PASS || secrets.E2E_EDGE_KC_ADMIN_PASS }}
+      SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        env:
+          TAG_GREP: ${{ github.event.inputs.tags }}
+        run: |
+          set -euo pipefail
+          CMD="npx playwright test"
+          if [ -n "${TAG_GREP:-}" ]; then
+            CMD="$CMD --grep \"${TAG_GREP}\""
+          fi
+          echo "Running: $CMD"
+          eval "$CMD"
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+
+

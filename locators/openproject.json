@@ -1,0 +1,201 @@
+{
+  "url": "https://openproject.test/login",
+  "selectors": {
+    "usernameInput": {
+      "by": "getByRole",
+      "value": {
+        "role": "textbox",
+        "name": "Username*"
+      }
+    },
+    "passwordInput": {
+      "by": "getByRole",
+      "value": {
+        "role": "textbox",
+        "name": "Password*"
+      }
+    },
+    "loginButton": {
+      "by": "locator",
+      "value": "#login-form input[type='submit'][value='Sign in']"
+    },
+    "userMenu": {
+      "by": "locator",
+      "value": "[data-test-selector='op-user-menu'], .user-menu, [aria-label*='Account'], [aria-label*='User']"
+    },
+    "signInButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Sign in"
+      }
+    },
+    "signInText": {
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Sign in",
+        "options": {
+          "exact": true
+        }
+      }
+    },
+    "forgotPasswordLink": {
+      "by": "getByRole",
+      "value": {
+        "role": "link",
+        "name": "Forgot your password?"
+      }
+    },
+    "keycloakAuthButton": {
+      "by": "locator",
+      "value": "a.auth-provider-keycloak[href*='/auth/keycloak']"
+    },
+    "loginForm": {
+      "by": "locator",
+      "value": "#login-form, input[name='username']"
+    },
+    "userProfileButton": {
+      "by": "locator",
+      "value": "button:has(opce-principal[data-test-selector='op-principal'])"
+    },
+    "userProfileButtonAlt": {
+      "by": "locator",
+      "value": "button.op-app-header--primer-button:has(opce-principal)"
+    },
+    "userProfileButtonAlt2": {
+      "by": "locator",
+      "value": "button[data-show-dialog-id]:has(opce-principal)"
+    },
+    "userProfileButtonAlt3": {
+      "by": "locator",
+      "value": "button:has(.op-top-menu-user-avatar)"
+    },
+    "homeText": {
+      "by": "locator",
+      "value": "span.ActionListItem-label:has-text('Home')"
+    },
+    "userNameText": {
+      "by": "locator",
+      "value": "div.text-bold"
+    },
+    "userNameInMenu": {
+      "by": "locator",
+      "value": "span.op-app-menu--user-name"
+    },
+    "dialog": {
+      "by": "locator",
+      "value": "[role='dialog'], [data-view-component='true']"
+    },
+    "opcePrincipal": {
+      "by": "locator",
+      "value": "opce-principal[data-test-selector='op-principal']"
+    },
+    "allProjectsButton": {
+      "by": "locator",
+      "value": "span.ellipsis[title='All projects']"
+    },
+    "demoProjectItem": {
+      "by": "locator",
+      "value": "[data-test-selector='op-header-project-select--item-title']"
+    },
+    "projectSettingsMenuItem": {
+      "by": "locator",
+      "value": "a.settings-menu-item.op-menu--item-action[title='Project settings']"
+    },
+    "filesMenuItem": {
+      "by": "getByTitle",
+      "value": "Files"
+    },
+    "externalFileStoragesText": {
+      "by": "locator",
+      "value": "span[data-view-component='true']:has-text('External file storages')"
+    },
+    "newStorageLink": {
+      "by": "locator",
+      "value": "a.wp-inline-create--add-link[title='New storage']"
+    },
+    "addFileStorageHeading": {
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Add a file storage to this project"
+      }
+    },
+    "storageDropdown": {
+      "by": "locator",
+      "value": "select[name='storages_project_storage[storage_id]']"
+    },
+    "continueButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Continue"
+      }
+    },
+    "automaticFolderModeRadio": {
+      "by": "locator",
+      "value": "input[type='radio'][value='automatic'][name='storages_project_storage[project_folder_mode]']"
+    },
+    "addButton": {
+      "by": "locator",
+      "value": "button[type='submit'].Button--primary:has-text('Add')"
+    },
+    "storageCreationSuccessMessage": {
+      "by": "getByText",
+      "value": "Successful creation."
+    },
+    "nextcloudStorageRow": {
+      "by": "locator",
+      "value": "table tbody tr:has(td.provider_type:has-text('Nextcloud'))"
+    },
+    "workPackageFilesUploadInput": {
+      "by": "locator",
+      "value": "input#upload_files[name='upload_files']"
+    },
+    "workPackageFilesUploadDropBox": {
+      "by": "locator",
+      "value": "button[data-test-selector='op-storage--drop-box']"
+    },
+    "filesPickerModal": {
+      "by": "locator",
+      "value": "[data-test-selector='op-files-picker-modal']"
+    },
+    "filesPickerConfirmButton": {
+      "by": "locator",
+      "value": "button[data-test-selector='op-files-picker-modal--confirm']"
+    },
+    "filesUploadSuccessMessage": {
+      "by": "locator",
+      "value": ".op-toast--content:has-text('Successfully created 1 file link.'), .flash.notice:has-text('Successfully created 1 file link.'), .flash-message.-success:has-text('Successfully created 1 file link.'), [role='status']:has-text('Successfully created 1 file link.')"
+    },
+    "workPackageFileLink": {
+      "by": "locator",
+      "value": "a.op-file-list--item-action span.ellipsis"
+    },
+    "loginToNextcloudRequiredHeading": {
+      "by": "getByText",
+      "value": "Login to Nextcloud required"
+    },
+    "nextcloudLoginButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Nextcloud log in"
+      }
+    },
+    "adminStoragesNextcloudLink": {
+      "by": "locator",
+      "value": "a[data-test-selector='storage-name']:has-text('nextcloud')"
+    },
+    "adminStoragesProjectsTab": {
+      "by": "locator",
+      "value": "a.tabnav-tab:has-text('Projects')"
+    },
+    "adminStoragesAddProjectsButton": {
+      "by": "locator",
+      "value": "a.Button--primary.Button--medium.Button:has-text('Add projects')"
+    }
+  }
+}
+
