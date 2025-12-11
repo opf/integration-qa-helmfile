@@ -7,6 +7,15 @@ on:
     branches: [dev, release]
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment (edge, stage, local)'
+        required: true
+        default: edge
+        type: choice
+        options:
+          - edge
+          - stage
+          - local
       tags:
         description: 'Optional Playwright --grep (e.g., @smoke)'
         required: false
@@ -23,22 +32,83 @@ jobs:
       CI: true
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
-      # Use release/stage targets when the source or base branch is release; otherwise edge/dev targets.
-      IS_RELEASE: ${{ github.ref == 'refs/heads/release' || github.base_ref == 'release' }}
-      OPENPROJECT_URL: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_OPENPROJECT_URL || secrets.E2E_EDGE_OPENPROJECT_URL }}
-      NEXTCLOUD_URL: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_NEXTCLOUD_URL || secrets.E2E_EDGE_NEXTCLOUD_URL }}
-      KEYCLOAK_URL: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_KEYCLOAK_URL || secrets.E2E_EDGE_KEYCLOAK_URL }}
-      E2E_OP_ADMIN_USER: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_OP_ADMIN_USER || secrets.E2E_EDGE_OP_ADMIN_USER }}
-      E2E_OP_ADMIN_PASS: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_OP_ADMIN_PASS || secrets.E2E_EDGE_OP_ADMIN_PASS }}
-      E2E_NC_ADMIN_USER: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_NC_ADMIN_USER || secrets.E2E_EDGE_NC_ADMIN_USER }}
-      E2E_NC_ADMIN_PASS: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_NC_ADMIN_PASS || secrets.E2E_EDGE_NC_ADMIN_PASS }}
-      E2E_KC_ADMIN_USER: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_KC_ADMIN_USER || secrets.E2E_EDGE_KC_ADMIN_USER }}
-      E2E_KC_ADMIN_PASS: ${{ (github.ref == 'refs/heads/release' || github.base_ref == 'release') && secrets.E2E_STAGE_KC_ADMIN_PASS || secrets.E2E_EDGE_KC_ADMIN_PASS }}
-      SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve target environment
+        id: resolve_env
+        run: |
+          if [ -n "${{ github.event.inputs.environment }}" ]; then
+            echo "target=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref }}" = "refs/heads/release" ] || [ "${{ github.base_ref }}" = "release" ]; then
+            echo "target=stage" >> "$GITHUB_OUTPUT"
+          else
+            echo "target=edge" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Export environment variables
+        run: |
+          set -euo pipefail
+          target="${{ steps.resolve_env.outputs.target }}"
+          echo "Resolved target: $target"
+          case "$target" in
+            stage)
+              cat <<'EOF' >> "$GITHUB_ENV"
+OPENPROJECT_HOST=${{ secrets.E2E_STAGE_OPENPROJECT_HOST }}
+NEXTCLOUD_HOST=${{ secrets.E2E_STAGE_NEXTCLOUD_HOST }}
+KEYCLOAK_HOST=${{ secrets.E2E_STAGE_KEYCLOAK_HOST }}
+OPENPROJECT_VERSION=${{ secrets.E2E_STAGE_OPENPROJECT_VERSION }}
+NEXTCLOUD_VERSION=${{ secrets.E2E_STAGE_NEXTCLOUD_VERSION }}
+INTEGRATION_APP_VERSION=${{ secrets.E2E_STAGE_INTEGRATION_APP_VERSION }}
+KEYCLOAK_VERSION=${{ secrets.E2E_STAGE_KEYCLOAK_VERSION }}
+E2E_OP_ADMIN_USER=${{ secrets.E2E_STAGE_OP_ADMIN_USER }}
+E2E_OP_ADMIN_PASS=${{ secrets.E2E_STAGE_OP_ADMIN_PASS }}
+E2E_NC_ADMIN_USER=${{ secrets.E2E_STAGE_NC_ADMIN_USER }}
+E2E_NC_ADMIN_PASS=${{ secrets.E2E_STAGE_NC_ADMIN_PASS }}
+E2E_KC_ADMIN_USER=${{ secrets.E2E_STAGE_KC_ADMIN_USER }}
+E2E_KC_ADMIN_PASS=${{ secrets.E2E_STAGE_KC_ADMIN_PASS }}
+E2E_ENV=stage
+EOF
+              ;;
+            edge)
+              cat <<'EOF' >> "$GITHUB_ENV"
+OPENPROJECT_HOST=${{ secrets.E2E_EDGE_OPENPROJECT_HOST }}
+NEXTCLOUD_HOST=${{ secrets.E2E_EDGE_NEXTCLOUD_HOST }}
+KEYCLOAK_HOST=${{ secrets.E2E_EDGE_KEYCLOAK_HOST }}
+OPENPROJECT_VERSION=${{ secrets.E2E_EDGE_OPENPROJECT_VERSION }}
+NEXTCLOUD_VERSION=${{ secrets.E2E_EDGE_NEXTCLOUD_VERSION }}
+INTEGRATION_APP_VERSION=${{ secrets.E2E_EDGE_INTEGRATION_APP_VERSION }}
+KEYCLOAK_VERSION=${{ secrets.E2E_EDGE_KEYCLOAK_VERSION }}
+E2E_OP_ADMIN_USER=${{ secrets.E2E_EDGE_OP_ADMIN_USER }}
+E2E_OP_ADMIN_PASS=${{ secrets.E2E_EDGE_OP_ADMIN_PASS }}
+E2E_NC_ADMIN_USER=${{ secrets.E2E_EDGE_NC_ADMIN_USER }}
+E2E_NC_ADMIN_PASS=${{ secrets.E2E_EDGE_NC_ADMIN_PASS }}
+E2E_KC_ADMIN_USER=${{ secrets.E2E_EDGE_KC_ADMIN_USER }}
+E2E_KC_ADMIN_PASS=${{ secrets.E2E_EDGE_KC_ADMIN_PASS }}
+E2E_ENV=edge
+EOF
+              ;;
+            local)
+              cat <<'EOF' >> "$GITHUB_ENV"
+OPENPROJECT_HOST=openproject.test
+NEXTCLOUD_HOST=nextcloud.test
+KEYCLOAK_HOST=keycloak.test
+OPENPROJECT_VERSION=local
+NEXTCLOUD_VERSION=local
+INTEGRATION_APP_VERSION=local
+KEYCLOAK_VERSION=local
+E2E_OP_ADMIN_USER=admin
+E2E_OP_ADMIN_PASS=admin
+E2E_NC_ADMIN_USER=admin
+E2E_NC_ADMIN_PASS=admin
+E2E_KC_ADMIN_USER=admin
+E2E_KC_ADMIN_PASS=admin
+E2E_ENV=local
+EOF
+              ;;
+          esac
 
       - name: Use Node.js
         uses: actions/setup-node@v4
@@ -54,12 +124,16 @@ jobs:
 
       - name: Run Playwright tests
         env:
+          SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           TAG_GREP: ${{ github.event.inputs.tags }}
         run: |
           set -euo pipefail
-          CMD="npx playwright test"
+          CMD="npx playwright test -- --env ${E2E_ENV:-edge}"
           if [ -n "${TAG_GREP:-}" ]; then
             CMD="$CMD --grep \"${TAG_GREP}\""
+          fi
+          if [ -n "${SETUP_METHOD:-}" ]; then
+            CMD="$CMD --setupMethod \"${SETUP_METHOD}\""
           fi
           echo "Running: $CMD"
           eval "$CMD"
@@ -70,5 +144,3 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report
-
-

@@ -17,13 +17,14 @@ if (!process.env.NODE_EXTRA_CA_CERTS) {
   }
 }
 
-// Load setupMethod from config.yaml (with env var override for CI/CD)
 const config = loadConfig();
-const setupMethod = process.env.SETUP_METHOD || config.setupMethod;
+const baseURL = process.env.OPENPROJECT_URL || `https://${config.openproject.host}`;
 
 export default defineConfig({
   testDir: './tests',
   forbidOnly: !!process.env.CI,
+  // Default to serial execution; override with --workers <n> when needed
+  workers: 1,
   // Do not retry tests automatically; fail fast so issues are visible
   retries: 0,
   globalSetup: require.resolve('./global-setup'),
@@ -34,8 +35,7 @@ export default defineConfig({
     ['junit', { outputFile: 'test-results/junit.xml' }],
   ],
   use: {
-    baseURL: process.env.OPENPROJECT_URL || 'https://openproject.test',
-    
+    baseURL: baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -50,12 +50,10 @@ export default defineConfig({
     {
       name: 'keycloak-tests',
       use: { ...devices['Desktop Chrome'] },
-      fullyParallel: true,
-      workers: process.env.CI ? 2 : undefined,
+      fullyParallel: false,
+      workers: 1,
       // Filter to only Keycloak test files
-      testMatch: setupMethod 
-        ? `**/${setupMethod}/**/kc-integration.spec.ts`
-        : '**/kc-integration.spec.ts',
+      testMatch: '**/kc-integration.spec.ts',
     },
     // Nextcloud-focused integration tests
     {
@@ -63,9 +61,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       fullyParallel: false,
       workers: 1,
-      testMatch: setupMethod
-        ? `**/${setupMethod}/**/nc-integration.spec.ts`
-        : '**/nc-integration.spec.ts',
+      testMatch: '**/nc-integration.spec.ts',
     },
     // OpenProject integration tests - run sequentially (one at a time)
     {
@@ -74,9 +70,7 @@ export default defineConfig({
       fullyParallel: false,
       workers: 1,
       // Filter to exclude Keycloak test files
-      testMatch: setupMethod 
-        ? `**/${setupMethod}/**/*.spec.ts`
-        : '**/*.spec.ts',
+      testMatch: '**/*.spec.ts',
       testIgnore: ['**/kc-integration.spec.ts', '**/nc-integration.spec.ts'],
     },
   ],

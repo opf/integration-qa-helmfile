@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 NAMESPACE="opnc-integration"
-SETUP_METHODS=("oauth2" "sso-nextcloud" "sso-external")
+SETUP_METHODS=("sso-external")
 CONFIG_FILE="environments/default/config.yaml"
 REPORTS_DIR="e2e/reports"
 E2E_DIR="e2e"

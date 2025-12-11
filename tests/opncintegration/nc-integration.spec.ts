@@ -1,13 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { NextcloudLoginPage, NextcloudActiveAppsPage, NextcloudOpenIDConnectPage } from '../../pageobjects/nextcloud';
-import { testConfig } from '../../utils/config';
 
-test.describe('SSO External - Nextcloud Integration', () => {
+test.describe('SSO External - Nextcloud Integration', { tag: ['@regression', '@integration'] }, () => {
   test.beforeEach(async ({ page }) => {
-    if (testConfig.setupMethod !== 'sso-external') {
-      test.skip();
-    }
-
     page.on('framenavigated', (frame) => {
       if (frame === page.mainFrame()) {
         console.log(`[PAGE NAVIGATION] Frame navigated to: ${frame.url()}`);

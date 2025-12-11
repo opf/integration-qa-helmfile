@@ -3,12 +3,12 @@ import { waitForSetupJobComplete, setupJobExists, isSetupJobComplete } from './u
 
 /**
  * Global setup that runs before all tests
- * Waits for setup-job to complete if SKIP_SETUP_JOB_CHECK is not set
+ * Waits for setup-job to complete only if SETUP_JOB_CHECK=true is set
  */
 async function globalSetup(config: FullConfig) {
-  // Skip if explicitly disabled
-  if (process.env.SKIP_SETUP_JOB_CHECK === 'true') {
-    console.log('⏭️  Skipping setup-job check (SKIP_SETUP_JOB_CHECK=true)');
+  // Default: skip setup-job check unless explicitly enabled
+  if (process.env.SETUP_JOB_CHECK !== 'true') {
+    console.log('⏭️  Skipping setup-job check (enable with SETUP_JOB_CHECK=true)');
     return;
   }
 

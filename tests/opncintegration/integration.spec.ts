@@ -1,16 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { OpenProjectLoginPage, OpenProjectHomePage } from '../../pageobjects/openproject';
-import { testConfig } from '../../utils/config';
 import { ALICE_USER } from '../../utils/test-users';
 import { ensureUserIsAdmin, setUserAdmin } from '../../utils/openproject-api';
 
-test.describe('SSO External - OpenProject Integration', () => {
+test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '@integration'] }, () => {
   test.beforeEach(async ({ page }) => {
-    // Verify setupMethod
-    if (testConfig.setupMethod !== 'sso-external') {
-      test.skip();
-    }
-
     // Track all page navigations
     page.on('framenavigated', (frame) => {
       if (frame === page.mainFrame()) {

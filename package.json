@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "E2E tests for OpenProject-Nextcloud-Keycloak integration",
   "scripts": {
+    "test": "playwright test",
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright test && playwright show-report",
     "test:e2e:chromium": "playwright test --project=chromium",
@@ -10,12 +11,16 @@
     "test:e2e:headed": "PWDEBUG=0 playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
+    "test:edge": "playwright test -- --env edge",
+    "test:stage": "playwright test -- --env stage",
+    "test:local": "playwright test -- --env local",
     "report:show": "playwright show-report",
     "wait-for-setup": "ts-node scripts/wait-for-setup.ts",
     "playwright:install": "playwright install --with-deps"
   },
   "dependencies": {
     "@playwright/test": "^1.56.1",
+    "dotenv": "^16.4.5",
     "yaml": "^2.3.0"
   },
   "devDependencies": {
