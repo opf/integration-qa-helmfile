@@ -24,6 +24,11 @@ openproject:
   host: openproject.test
   assetHost: openproject-assets.test
   #####################################################
+  # Run OpenProject in standalone mode                #
+  # (without Nextcloud and Keycloak integration)      #
+  #####################################################
+  standalone: false
+  #####################################################
   # Pod container image tag                           #
   # Examples: 16.2, dev                               #
   # NOTE: you might also need to change the image tag #
