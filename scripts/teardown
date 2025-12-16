@@ -52,13 +52,13 @@ else
     wait_pvc="kubectl wait --for=delete pvc --namespace=$namespace --all --timeout=$wait_timeout"
     if ! $wait_pvc; then
         echo "[ERROR] Some persistent volume claims did not terminate in time. Deleting..."
-        kubectl delete pvc --namespace=$namespace --all
+        kubectl delete pvc --namespace=$namespace --all --timeout=$wait_timeout
     fi
 
     wait_pv="kubectl wait --for=delete pv --namespace=$namespace --all --timeout=$wait_timeout"
     if ! $wait_pv; then
         echo "[ERROR] Some persistent volumes did not terminate in time. Deleting..."
-        kubectl delete pv --namespace=$namespace --all
+        kubectl delete pv --namespace=$namespace --all --timeout=$wait_timeout
     fi
 fi
 
