@@ -96,7 +96,7 @@ npx playwright test --grep "(?=.*@fast)(?=.*@slow)"
 All tests now live directly under `tests/`:
 - `kc-integration.spec.ts` - Keycloak integration (`@smoke`, `@regression`, `@integration`)
 - `nc-integration.spec.ts` - Nextcloud integration (`@regression`, `@integration`)
-- `integration.spec.ts` - OpenProject integration (`@regression`, `@integration`)
+- `op-integration.spec.ts` - OpenProject integration (`@regression`, `@integration`)
 
 All specs run for the single supported setup (`sso-external`). Use `--grep` to target `@smoke`, `@regression`, or `@integration`.
 
