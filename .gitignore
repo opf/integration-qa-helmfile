@@ -14,3 +14,4 @@ test-results/
 .playwright-browsers/
 
 .DS_Store
+.cursor/

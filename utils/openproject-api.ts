@@ -1,3 +1,4 @@
+import { Agent } from 'undici';
 import { testConfig } from './config';
 import { ADMIN_USER } from './test-users';
 
@@ -47,6 +48,10 @@ async function apiRequest<T>(
     authorization: buildBasicAuthHeader(credentials),
   };
 
+  const envName = (process.env.E2E_ENV || process.env.ENV || 'local').toLowerCase();
+  const allowInsecureTls = envName === 'local' || process.env.ALLOW_INSECURE_TLS === '1';
+  const dispatcher = allowInsecureTls ? new Agent({ connect: { rejectUnauthorized: false } }) : undefined;
+
   let payload: string | undefined;
   if (body) {
     headers['content-type'] = 'application/json';
@@ -57,6 +62,7 @@ async function apiRequest<T>(
     method,
     headers,
     body: payload,
+    dispatcher,
   });
 
   if (!response.ok) {

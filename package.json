@@ -11,21 +11,21 @@
     "test:e2e:headed": "PWDEBUG=0 playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
-    "test:edge": "playwright test -- --env edge",
-    "test:stage": "playwright test -- --env stage",
-    "test:local": "playwright test -- --env local",
+    "test:edge": "E2E_ENV=edge playwright test",
+    "test:stage": "E2E_ENV=stage playwright test",
+    "test:local": "E2E_ENV=local playwright test",
     "report:show": "playwright show-report",
     "wait-for-setup": "ts-node scripts/wait-for-setup.ts",
     "playwright:install": "playwright install --with-deps"
   },
   "dependencies": {
-    "@playwright/test": "^1.56.1",
-    "dotenv": "^16.4.5",
-    "yaml": "^2.3.0"
+    "@playwright/test": "^1.57.0",
+    "dotenv": "^17.2.3",
+    "undici": "^7.18.2",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^25.0.9",
     "ts-node": "^10.9.2"
   }
 }
-
