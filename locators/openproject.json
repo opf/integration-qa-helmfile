@@ -195,6 +195,30 @@
     "adminStoragesAddProjectsButton": {
       "by": "locator",
       "value": "a.Button--primary.Button--medium.Button:has-text('Add projects')"
+    },
+    "viewAllProjectsButton": {
+      "by": "locator",
+      "value": "a.button.-highlight-inverted[title='View all projects']"
+    },
+    "demoProjectRow": {
+      "by": "locator",
+      "value": "tr#project-1.op-project-row-component"
+    },
+    "demoProjectKebabButton": {
+      "by": "locator",
+      "value": "tr#project-1.op-project-row-component button.Button--iconOnly.Button--invisible.Button--small"
+    },
+    "projectActionsCopyItem": {
+      "by": "locator",
+      "value": "span.ActionListItem-label:has-text('Copy')"
+    },
+    "copyProjectNameInput": {
+      "by": "locator",
+      "value": "input#project_name[name='project[name]']"
+    },
+    "copyProjectSubmitButton": {
+      "by": "locator",
+      "value": "button.Button--primary:has-text('Copy')"
     }
   }
 }

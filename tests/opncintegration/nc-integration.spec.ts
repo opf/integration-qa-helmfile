@@ -1,5 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { NextcloudLoginPage, NextcloudActiveAppsPage, NextcloudOpenIDConnectPage } from '../../pageobjects/nextcloud';
+import { testConfig } from '../../utils/config';
+
+/**
+ * Build a URL regex for the configured Nextcloud host and a given path.
+ */
+function nextcloudUrl(path: string): RegExp {
+  const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const host = escapeForRegex(testConfig.nextcloud.host);
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const pathPattern = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) + '/?' : cleanPath + '/?';
+  return new RegExp(`^https?://${host}${pathPattern}$`);
+}
 
 test.describe('SSO External - Nextcloud Integration', { tag: ['@regression', '@integration'] }, () => {
   test.beforeEach(async ({ page }) => {

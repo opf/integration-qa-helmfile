@@ -97,5 +97,43 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     const userName = await this.getLocator('userNameInMenu').first().textContent();
     return userName?.trim() || '';
   }
+
+  async navigateToAllProjects(): Promise<void> {
+    const viewAllProjectsButton = this.getLocator('viewAllProjectsButton').first();
+    await viewAllProjectsButton.waitFor({ state: 'visible', timeout: 10000 });
+
+    await Promise.all([
+      this.page.waitForURL(/\/projects\/?$/, { timeout: 15000 }),
+      viewAllProjectsButton.click(),
+    ]);
+  }
+
+  async copyDemoProjectTo(name: string): Promise<void> {
+    const demoProjectKebabButton = this.getLocator('demoProjectKebabButton').first();
+    await demoProjectKebabButton.waitFor({ state: 'visible', timeout: 15000 });
+    await demoProjectKebabButton.click();
+
+    const copyActionItem = this.getLocator('projectActionsCopyItem').first();
+    await copyActionItem.waitFor({ state: 'visible', timeout: 15000 });
+
+    await Promise.all([
+      this.page.waitForURL(/\/projects\/demo-project\/copy\/?$/, { timeout: 15000 }),
+      copyActionItem.click(),
+    ]);
+
+    const nameInput = this.getLocator('copyProjectNameInput').first();
+    await nameInput.waitFor({ state: 'visible', timeout: 15000 });
+    await nameInput.fill(name);
+
+    const copyButton = this.getLocator('copyProjectSubmitButton').first();
+    await copyButton.waitFor({ state: 'visible', timeout: 15000 });
+
+    const targetUrlPattern = new RegExp(`/projects/${name}/?$`);
+
+    await Promise.all([
+      this.page.waitForURL(targetUrlPattern, { timeout: 20000 }),
+      copyButton.click(),
+    ]);
+  }
 }
 
