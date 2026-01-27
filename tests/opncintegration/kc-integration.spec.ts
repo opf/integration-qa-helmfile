@@ -1,5 +1,24 @@
 import { test, expect } from '@playwright/test';
 import { KeycloakLoginPage, KeycloakHomePage } from '../../pageobjects/keycloak';
+import { testConfig } from '../../utils/config';
+
+/**
+ * Build a URL regex for the configured Keycloak host and a given path.
+ */
+function keycloakUrl(path: string): RegExp {
+  const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const resolveHostname = (value: string): string => {
+    try {
+      return new URL(value).hostname;
+    } catch {
+      return value;
+    }
+  };
+  const host = escapeForRegex(resolveHostname(testConfig.keycloak.host));
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const pathPattern = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) + '/?' : cleanPath + '/?';
+  return new RegExp(`^https?://${host}${pathPattern}$`);
+}
 
 test.describe('SSO External - Keycloak Integration', { tag: ['@regression', '@integration'] }, () => {
   test.beforeEach(async ({ page }) => {

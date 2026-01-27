@@ -138,5 +138,16 @@ export abstract class OpenProjectBasePage extends BasePage {
   async waitForAdminStorageProjectsNewUrl(timeout: number = 15000): Promise<void> {
     await this.page.waitForURL(OpenProjectBasePage.URL_PATHS.ADMIN_STORAGE_PROJECTS_NEW, { timeout });
   }
+
+  /**
+   * Navigate to a project's external file storages page
+   */
+  async navigateToProjectStoragesExternal(projectIdentifier: string, timeout: number = 15000): Promise<void> {
+    const url = `${this.baseUrl}/projects/${projectIdentifier}/settings/project_storages/external_file_storages`;
+    await this.page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout,
+    });
+  }
 }
 

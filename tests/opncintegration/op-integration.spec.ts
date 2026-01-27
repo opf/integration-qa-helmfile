@@ -2,6 +2,25 @@ import { test, expect } from '@playwright/test';
 import { OpenProjectLoginPage, OpenProjectHomePage } from '../../pageobjects/openproject';
 import { ALICE_USER } from '../../utils/test-users';
 import { ensureUserIsAdmin, setUserAdmin } from '../../utils/openproject-api';
+import { testConfig } from '../../utils/config';
+
+/**
+ * Build a URL regex for the configured OpenProject host and a given path.
+ */
+function openProjectUrl(path: string): RegExp {
+  const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const resolveHostname = (value: string): string => {
+    try {
+      return new URL(value).hostname;
+    } catch {
+      return value;
+    }
+  };
+  const host = escapeForRegex(resolveHostname(testConfig.openproject.host));
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const pathPattern = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) + '/?' : cleanPath + '/?';
+  return new RegExp(`^https?://${host}${pathPattern}$`);
+}
 
 test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '@integration'] }, () => {
   test.beforeEach(async ({ page }) => {
@@ -42,7 +61,7 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
     
     const currentUrl = page.url();
     expect(currentUrl).not.toContain('/login');
-    expect(currentUrl).toContain('openproject.test');
+    expect(currentUrl).toContain(testConfig.openproject.host);
     
     const isProfileButtonPresent = await homePage.verifyUserProfileButton('Alice Hansen');
     expect(isProfileButtonPresent).toBe(true);
@@ -136,7 +155,7 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
 
       await homePage.navigateToDemoProjectStoragesExternal();
       await homePage.waitForDemoProjectStoragesExternalUrl();
-      expect(page.url()).toContain('/projects/demo-project/settings/project_storages/external_file_storages');
+      await expect(page).toHaveURL(openProjectUrl('/projects/demo-project/settings/project_storages/external_file_storages'));
     } finally {
       if (shouldRevokeAdmin) {
         await setUserAdmin(userId, false);
@@ -264,6 +283,37 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
       // ]).then(([response]) => response);
 
       // expect(deleteResponse.status()).toBe(204);
+    } finally {
+      if (shouldRevokeAdmin) {
+        await setUserAdmin(userId, false);
+      }
+    }
+  });
+
+  test('Copy ampf Demo project', async ({ page }) => {
+    const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
+    const { userId, updated } = await ensureUserIsAdmin(loginIdentifier);
+    let shouldRevokeAdmin = updated;
+
+    try {
+      const loginPage = new OpenProjectLoginPage(page);
+      await loginPage.navigateTo();
+      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+
+      const homePage = new OpenProjectHomePage(page);
+      await homePage.waitForReady();
+
+      await homePage.navigateToAllProjects();
+      await homePage.copyDemoProjectTo('test');
+
+      await expect(page).toHaveURL(openProjectUrl('/projects/test'));
+
+      await homePage.navigateToProjectStoragesExternal('test');
+
+      const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
+      await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
+      await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
     } finally {
       if (shouldRevokeAdmin) {
         await setUserAdmin(userId, false);

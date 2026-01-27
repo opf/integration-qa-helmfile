@@ -34,27 +34,27 @@ Playwright end-to-end tests for OpenProject-Nextcloud-Keycloak integration.
 
 3. **Run tests (choose env):**
    ```bash
-   npm test -- --env local        # local Helm/defaults
-   npm test -- --env edge         # edge/staging secrets must be exported
-   npm test -- --env stage        # stage secrets must be exported
+   E2E_ENV=local npm test        # local Helm/defaults
+   E2E_ENV=edge npm test         # edge/staging secrets must be exported
+   E2E_ENV=stage npm test        # stage secrets must be exported
    ```
 
 ## Commands
 
 ### Run Tests
 ```bash
-# Run with explicit env selection
-npm test -- --env edge
-npm test -- --env stage
-npm test -- --env local
+# Run with explicit env selection (preferred)
+E2E_ENV=edge npm test
+E2E_ENV=stage npm test
+E2E_ENV=local npm test
 
 # Override worker count to re-enable parallelism (default is 1)
 npx playwright test --workers 4
 
 # Shortcuts
-npm run test:edge
-npm run test:stage
-npm run test:local
+npm run test:edge     # uses E2E_ENV=edge
+npm run test:stage    # uses E2E_ENV=stage
+npm run test:local    # uses E2E_ENV=local
 
 # Run in headed mode
 npm run test:e2e:headed
@@ -133,6 +133,10 @@ Local runs: put the above in `.env.local` (already gitignored). CI ignores this 
 **Tests fail to connect?**
 - Verify pods are running: `kubectl get pods -n opnc-integration`
 - Check port forwarding is active
+
+**Playwright complains about missing browser executable?**
+- Make sure you've run `npm run playwright:install` (or `npx playwright install`) after `npm install`.
+- Re-run your test command, e.g. `npm run test:local`.
 
 ## Project Structure
 

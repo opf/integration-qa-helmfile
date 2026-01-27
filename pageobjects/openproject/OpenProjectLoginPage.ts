@@ -57,14 +57,41 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
   }
 
   async clickKeycloakAuthButton(): Promise<KeycloakLoginPage> {
-    const keycloakButton = this.getLocator('keycloakAuthButton').first();
-    await keycloakButton.waitFor({ state: 'attached', timeout: 10000 });
-    
-    const href = await keycloakButton.getAttribute('href');
-    await this.page.goto(new URL(href!, this.page.url()).toString());
+    // If we've already been redirected to Keycloak (e.g., auto-SSO), skip looking for the OP button.
+    if (keycloakHostPattern.test(this.page.url())) {
+      const keycloakPage = new KeycloakLoginPage(this.page);
+      await keycloakPage.waitForReady().catch(() => {});
+      return keycloakPage;
+    }
+
+    // Try the known locator first, but fall back to a direct /auth/keycloak visit
+    const primary = this.getLocator('keycloakAuthButton').first();
+    const fallbackLocator = this.page.locator(
+      "a[href*='/auth/keycloak'], button.auth-provider-keycloak, a.auth-provider-keycloak, button:has-text('Keycloak'), a:has-text('Keycloak')"
+    ).first();
+
+    const candidate = await Promise.race([
+      primary.waitFor({ state: 'attached', timeout: 10000 }).then(() => primary).catch(() => null),
+      fallbackLocator.waitFor({ state: 'attached', timeout: 10000 }).then(() => fallbackLocator).catch(() => null),
+    ]);
+
+    if (candidate) {
+      const href = await candidate.getAttribute('href');
+      if (href) {
+        await this.page.goto(new URL(href, this.page.url()).toString());
+      } else {
+        await candidate.click({ timeout: 5000 });
+      }
+    } else {
+      const keycloakUrl = new URL('/auth/keycloak', this.page.url()).toString();
+      await this.page.goto(keycloakUrl);
+    }
+
     await this.page.waitForURL(keycloakHostPattern, { timeout: 10000 });
     
-    return new KeycloakLoginPage(this.page);
+    const keycloakPage = new KeycloakLoginPage(this.page);
+    await keycloakPage.waitForReady().catch(() => {});
+    return keycloakPage;
   }
 
   async isLoggedIn(): Promise<boolean> {
