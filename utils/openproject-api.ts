@@ -20,7 +20,62 @@ interface UsersCollection {
   };
 }
 
-interface AdminCredentials {
+export interface OpenProjectApiProject {
+  id: number;
+  identifier: string;
+  name: string;
+}
+
+interface ProjectsCollection {
+  _type: string;
+  total: number;
+  count: number;
+  pageSize: number;
+  offset: number;
+  _embedded?: {
+    elements?: OpenProjectApiProject[];
+  };
+}
+
+export interface OpenProjectApiStorage {
+  id: number;
+  name: string;
+  _links: {
+    self: { href: string };
+  };
+}
+
+interface StoragesCollection {
+  _type: string;
+  total: number;
+  count: number;
+  pageSize: number;
+  offset: number;
+  _embedded?: {
+    elements?: OpenProjectApiStorage[];
+  };
+}
+
+export interface OpenProjectApiProjectStorage {
+  id: number;
+  _links: {
+    project: { href: string };
+    storage: { href: string };
+  };
+}
+
+interface ProjectStoragesCollection {
+  _type: string;
+  total: number;
+  count: number;
+  pageSize: number;
+  offset: number;
+  _embedded?: {
+    elements?: OpenProjectApiProjectStorage[];
+  };
+}
+
+export interface AdminCredentials {
   username: string;
   password: string;
 }
@@ -39,7 +94,7 @@ function buildBasicAuthHeader({ username, password }: AdminCredentials): string 
 
 async function apiRequest<T>(
   endpoint: string,
-  method: 'GET' | 'PATCH',
+  method: 'GET' | 'PATCH' | 'POST' | 'DELETE',
   credentials: AdminCredentials,
   body?: Record<string, unknown>
 ): Promise<T> {
@@ -146,4 +201,65 @@ export async function setUserAdmin(
   credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
 ): Promise<void> {
   await updateUserAdminStatus(userId, isAdmin, credentials);
+}
+
+export async function listProjects(
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiProject[]> {
+  const data = await apiRequest<ProjectsCollection>(
+    '/projects?offset=1&pageSize=200',
+    'GET',
+    credentials
+  );
+  return data._embedded?.elements ?? [];
+}
+
+export async function findProjectByIdentifierOrName(
+  identifierOrName: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiProject | undefined> {
+  const projects = await listProjects(credentials);
+  const normalized = identifierOrName.toLowerCase();
+
+  return projects.find((project) => {
+    return (
+      project.identifier.toLowerCase() === normalized ||
+      project.name.toLowerCase() === normalized
+    );
+  });
+}
+
+export async function listStorages(
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiStorage[]> {
+  const data = await apiRequest<StoragesCollection>(
+    '/storages?offset=1&pageSize=200',
+    'GET',
+    credentials
+  );
+  return data._embedded?.elements ?? [];
+}
+
+export async function listProjectStorages(
+  projectId: number,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiProjectStorage[]> {
+  const filters = encodeURIComponent(
+    JSON.stringify([
+      {
+        project_id: {
+          operator: '=',
+          values: [String(projectId)],
+        },
+      },
+    ])
+  );
+
+  const data = await apiRequest<ProjectStoragesCollection>(
+    `/project_storages?filters=${filters}`,
+    'GET',
+    credentials
+  );
+
+  return data._embedded?.elements ?? [];
 }

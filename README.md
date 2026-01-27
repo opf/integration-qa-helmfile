@@ -114,6 +114,35 @@ Import from `e2e/utils/test-users.ts`:
 import { OP_ADMIN_USER, NC_ADMIN_USER, ADMIN_USER, ALICE_USER, BRIAN_USER } from '../utils/test-users';
 ```
 
+## Test Helpers
+
+Use the helpers in `utils/test-helpers.ts` to keep specs focused on behaviour instead of data setup:
+
+- Ensure a user has admin rights (idempotent):
+
+```typescript
+import { ensureUserIsAdmin } from '../utils/test-helpers';
+
+const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
+const { userId, updated } = await ensureUserIsAdmin(loginIdentifier);
+```
+
+- Ensure a project exists and has a Nextcloud storage configured via API:
+
+```typescript
+import { ensureProjectHasNextcloudStorage } from '../utils/test-helpers';
+
+await ensureProjectHasNextcloudStorage('demo-project');
+```
+
+- Copy the demo project via UI using the existing page objects:
+
+```typescript
+import { ensureDemoProjectCopyViaUi } from '../utils/test-helpers';
+
+await ensureDemoProjectCopyViaUi(page, 'test');
+```
+
 ## Environment Variables
 
 Hosts (preferred):\

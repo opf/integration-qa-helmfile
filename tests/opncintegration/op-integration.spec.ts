@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { OpenProjectLoginPage, OpenProjectHomePage } from '../../pageobjects/openproject';
 import { ALICE_USER } from '../../utils/test-users';
-import { ensureUserIsAdmin, setUserAdmin } from '../../utils/openproject-api';
+import {
+  ensureDemoProjectCopyViaUi,
+  ensureProjectHasNextcloudStorage,
+  ensureUserIsAdmin,
+} from '../../utils/test-helpers';
 import { testConfig } from '../../utils/config';
 
 /**
@@ -73,7 +77,6 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
     const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
     const { userId, updated } = await ensureUserIsAdmin(loginIdentifier);
     let shouldRevokeAdmin = updated;
-    let homePage: OpenProjectHomePage | null = null;
 
     try {
       const loginPage = new OpenProjectLoginPage(page);
@@ -81,83 +84,23 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
       const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
       await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
-      homePage = new OpenProjectHomePage(page);
+      const homePage = new OpenProjectHomePage(page);
       await homePage.waitForReady();
-      await homePage.navigateToDemoProjectStoragesExternal();
-      await homePage.waitForDemoProjectStoragesExternalUrl();
 
-      const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
-      const existingStorageCount = await nextcloudStorageRow.count();
-      if (existingStorageCount > 0) {
-        await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
-        console.log('[INFO] Nextcloud storage already exists for Demo project. Skipping creation.');
-        return;
-      }
-
-      const newStorageLink = homePage.getLocator('newStorageLink');
-      await newStorageLink.waitFor({ state: 'visible', timeout: 10000 });
-      await newStorageLink.click();
-      await homePage.waitForDemoProjectStoragesNewUrl();
-
-      const addFileStorageHeading = homePage.getLocator('addFileStorageHeading').first();
-      await addFileStorageHeading.waitFor({ state: 'visible', timeout: 10000 });
-      await expect(addFileStorageHeading).toBeVisible();
-
-      const storageDropdown = homePage.getLocator('storageDropdown');
-      await storageDropdown.waitFor({ state: 'visible', timeout: 10000 });
-      const selectedOption = storageDropdown.locator('option:checked');
-      let selectedText = (await selectedOption.textContent())?.toLowerCase() ?? '';
-      if (!selectedText.includes('nextcloud')) {
-        const nextcloudOption = storageDropdown.locator('option', { hasText: /nextcloud/i }).first();
-        if (await nextcloudOption.count() === 0) {
-          throw new Error('Nextcloud option is not available in the storage dropdown.');
-        }
-        const nextcloudValue = await nextcloudOption.getAttribute('value');
-        if (!nextcloudValue) {
-          throw new Error('Nextcloud option is missing a value attribute.');
-        }
-        await storageDropdown.selectOption(nextcloudValue);
-      }
-      await expect(storageDropdown.locator('option:checked')).toContainText(/nextcloud/i);
-
-      const continueButton = homePage.getLocator('continueButton');
-      await continueButton.waitFor({ state: 'visible', timeout: 10000 });
-      await continueButton.click();
-
-      const automaticFolderModeRadio = homePage.getLocator('automaticFolderModeRadio');
-      await automaticFolderModeRadio.waitFor({ state: 'visible', timeout: 10000 });
-      if (!(await automaticFolderModeRadio.isChecked())) {
-        await automaticFolderModeRadio.check();
-      }
-      await expect(automaticFolderModeRadio).toBeChecked();
-
-      const addButton = homePage.getLocator('addButton');
-      await addButton.waitFor({ state: 'visible', timeout: 10000 });
-      await addButton.click();
-
-      const successMessage = homePage.getLocator('storageCreationSuccessMessage');
-      await successMessage.waitFor({ state: 'visible', timeout: 10000 });
-      await expect(successMessage).toContainText('Successful creation.');
-
-      const loginToNextcloudRequiredHeading = homePage.getLocator('loginToNextcloudRequiredHeading');
-      await loginToNextcloudRequiredHeading.waitFor({ state: 'visible', timeout: 10000 });
-      await expect(loginToNextcloudRequiredHeading).toBeVisible();
-
-      const nextcloudLoginButton = homePage.getLocator('nextcloudLoginButton');
-      await nextcloudLoginButton.waitFor({ state: 'visible', timeout: 10000 });
-      const popupPromise = page.context().waitForEvent('page', { timeout: 3000 }).catch(() => null);
-      await nextcloudLoginButton.click();
-      const popup = await popupPromise;
-      if (popup) {
-        await page.waitForTimeout(1000);
-        await popup.close().catch(() => {});
-      }
+      await ensureProjectHasNextcloudStorage('demo-project', page);
 
       await homePage.navigateToDemoProjectStoragesExternal();
       await homePage.waitForDemoProjectStoragesExternalUrl();
       await expect(page).toHaveURL(openProjectUrl('/projects/demo-project/settings/project_storages/external_file_storages'));
+
+      const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
+      await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
+      await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
     } finally {
       if (shouldRevokeAdmin) {
+        // Reuse the ensureUserIsAdmin result to flip back via API helper
+        // We intentionally call the low-level API wrapper to avoid adding more helpers for this case.
+        const { setUserAdmin } = await import('../../utils/openproject-api');
         await setUserAdmin(userId, false);
       }
     }
@@ -285,6 +228,7 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
       // expect(deleteResponse.status()).toBe(204);
     } finally {
       if (shouldRevokeAdmin) {
+        const { setUserAdmin } = await import('../../utils/openproject-api');
         await setUserAdmin(userId, false);
       }
     }
@@ -301,14 +245,11 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
       const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
       await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
-      const homePage = new OpenProjectHomePage(page);
-      await homePage.waitForReady();
-
-      await homePage.navigateToAllProjects();
-      await homePage.copyDemoProjectTo('test');
+      await ensureDemoProjectCopyViaUi(page, 'test');
 
       await expect(page).toHaveURL(openProjectUrl('/projects/test'));
 
+      const homePage = new OpenProjectHomePage(page);
       await homePage.navigateToProjectStoragesExternal('test');
 
       const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
@@ -316,9 +257,11 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
       await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
     } finally {
       if (shouldRevokeAdmin) {
+        const { setUserAdmin } = await import('../../utils/openproject-api');
         await setUserAdmin(userId, false);
       }
     }
   });
+
 });
 
