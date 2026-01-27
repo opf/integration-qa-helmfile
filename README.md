@@ -134,6 +134,10 @@ Local runs: put the above in `.env.local` (already gitignored). CI ignores this 
 - Verify pods are running: `kubectl get pods -n opnc-integration`
 - Check port forwarding is active
 
+**Playwright complains about missing browser executable?**
+- Make sure you've run `npm run playwright:install` (or `npx playwright install`) after `npm install`.
+- Re-run your test command, e.g. `npm run test:local`.
+
 ## Project Structure
 
 ```

@@ -7,7 +7,14 @@ import { testConfig } from '../../utils/config';
  */
 function nextcloudUrl(path: string): RegExp {
   const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const host = escapeForRegex(testConfig.nextcloud.host);
+  const resolveHostname = (value: string): string => {
+    try {
+      return new URL(value).hostname;
+    } catch {
+      return value;
+    }
+  };
+  const host = escapeForRegex(resolveHostname(testConfig.nextcloud.host));
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   const pathPattern = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) + '/?' : cleanPath + '/?';
   return new RegExp(`^https?://${host}${pathPattern}$`);
