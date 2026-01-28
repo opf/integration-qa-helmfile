@@ -118,16 +118,12 @@ jobs:
           TAG_GREP: ${{ github.event.inputs.tags }}
         run: |
           set -euo pipefail
-          GREP_OPT=""
+          CMD="npx playwright test"
           if [ -n "${TAG_GREP:-}" ]; then
-            GREP_OPT="--grep \"${TAG_GREP}\""
+            CMD="$CMD --grep \"${TAG_GREP}\""
           fi
-          SETUP_OPT=""
-          if [ -n "${SETUP_METHOD:-}" ]; then
-            SETUP_OPT="--setupMethod \"${SETUP_METHOD}\""
-          fi
-          CMD="npx playwright test ${GREP_OPT} -- --env ${E2E_ENV:-edge} ${SETUP_OPT}"
           echo "Running: $CMD"
+          echo "E2E_ENV=${E2E_ENV:-edge}, SETUP_METHOD=${SETUP_METHOD:-}"
           eval "$CMD"
 
       - name: Upload Playwright report
