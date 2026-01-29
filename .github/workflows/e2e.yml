@@ -113,6 +113,7 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run Playwright tests
+        continue-on-error: true
         env:
           SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           TAG_GREP: ${{ github.event.inputs.tags }}

@@ -2,6 +2,8 @@
 
 Playwright end-to-end tests for OpenProject-Nextcloud-Keycloak integration.
 
+
+
 ## Requirements
 
 - Node.js 18+
@@ -166,16 +168,6 @@ Local runs: put the above in `.env.local` (already gitignored). CI ignores this 
 **Playwright complains about missing browser executable?**
 - Make sure you've run `npm run playwright:install` (or `npx playwright install`) after `npm install`.
 - Re-run your test command, e.g. `npm run test:local`.
-
-## Project Structure
-
-```
-e2e/
-├── tests/              # Test files by setup method
-├── pageobjects/        # Page Object Model classes
-├── locators/           # JSON locator definitions
-├── utils/              # Utilities (config, locator-resolver, etc.)
-└── playwright.config.ts
 ```
 
 ## More Information
@@ -185,23 +177,3 @@ e2e/
 - Locators stored in JSON files
 - See `e2e/utils/locators_guide.md` for locator usage examples
 
-## GitHub Actions (CI)
-
-Workflow `.github/workflows/e2e.yml`:
-- Trigger: push/PR to `dev`/`release`, or manual `workflow_dispatch`.
-- Input `environment`: `edge`, `stage`, or `local`.
-- Secrets required per env:
-  - Hosts: `E2E_EDGE_OPENPROJECT_HOST`, `E2E_EDGE_NEXTCLOUD_HOST`, `E2E_EDGE_KEYCLOAK_HOST` (and `E2E_STAGE_*`, `E2E_LOCAL_*` if used in CI)
-  - Versions: `E2E_EDGE_OPENPROJECT_VERSION`, `E2E_EDGE_NEXTCLOUD_VERSION`, `E2E_EDGE_INTEGRATION_APP_VERSION`, `E2E_EDGE_KEYCLOAK_VERSION` (stage/local variants as needed)
-  - Admin creds: `E2E_EDGE_OP_ADMIN_USER/PASS`, `E2E_EDGE_NC_ADMIN_USER/PASS`, `E2E_EDGE_KC_ADMIN_USER/PASS` (stage/local variants as needed)
-- The workflow exports env vars and runs: `npx playwright test -- --env <env> [--grep ...]`.
-
-Local override example:
-```bash
-OPENPROJECT_HOST=openproject.test \
-NEXTCLOUD_HOST=nextcloud.test \
-KEYCLOAK_HOST=keycloak.test \
-SETUP_METHOD=sso-external \
-E2E_OP_ADMIN_USER=admin E2E_OP_ADMIN_PASS=admin \
-npm test -- --env local --grep @smoke
-```

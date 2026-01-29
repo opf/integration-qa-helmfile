@@ -1,7 +1,11 @@
 {
-  "name": "opnc-integration-e2e",
+  "name": "openproject-e2e",
   "version": "1.0.0",
   "description": "E2E tests for OpenProject-Nextcloud-Keycloak integration",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opf/openproject-e2e.git"
+  },
   "scripts": {
     "test": "playwright test",
     "test:e2e": "playwright test",
