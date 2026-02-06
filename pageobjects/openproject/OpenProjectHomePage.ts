@@ -108,6 +108,15 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     ]);
   }
 
+  /**
+   * Copy the demo project via UI: waits for home, navigates to all projects, copies demo project to the given identifier.
+   */
+  async copyDemoProjectViaUi(newIdentifier: string): Promise<void> {
+    await this.waitForReady();
+    await this.navigateToAllProjects();
+    await this.copyDemoProjectTo(newIdentifier);
+  }
+
   async copyDemoProjectTo(name: string): Promise<void> {
     const demoProjectKebabButton = this.getLocator('demoProjectKebabButton').first();
     await demoProjectKebabButton.waitFor({ state: 'visible', timeout: 15000 });

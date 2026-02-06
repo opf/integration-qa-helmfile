@@ -40,6 +40,7 @@ Page object inheritance:
 ## Page Object Conventions
 
 - When adding a new test, first check if an existing page object can be reused or extended before creating a new one.
+- Do not put UI flows (navigations, clicks, form fills) in `utils/test-helpers.ts`; move them into page objects.
 - All page objects must:
   - Extend the appropriate domain base page (`OpenProjectBasePage`, `NextcloudBasePage`, `KeycloakBasePage`) or `BasePage`.
   - Load locators via the base constructor using the correct locator JSON file.
@@ -108,12 +109,15 @@ try {
 ## Test Helpers and Reuse
 
 - Use functions for repetitive actions so they can be reused later rather than copied into each spec.
-- Shared helpers live primarily in:
-  - `utils/test-helpers.ts` for high-level flows (e.g., `ensureProjectExists`, `ensureProjectHasNextcloudStorage`, `ensureDemoProjectCopyViaUi`).
-  - `utils/openproject-api.ts` for direct API interactions with OpenProject (projects, users, storages).
+- **`utils/test-helpers.ts`** must contain only API-specific helpers and orchestration that combines API checks with page objects for UI fallback:
+  - API helpers: `ensureUserIsAdmin`, `ensureProjectExists`, `getProjectStorages`, `ensureProjectHasNoNextcloudStorage`.
+  - Orchestration: `ensureProjectHasNextcloudStorage` (API checks + optional UI via `OpenProjectProjectStoragesPage`).
+- **`utils/openproject-api.ts`** for direct API interactions with OpenProject (projects, users, storages).
+- **UI flows** belong in page objects, not test-helpers:
+  - `OpenProjectHomePage.copyDemoProjectViaUi(newIdentifier)` – copy demo project via UI.
+  - `OpenProjectProjectStoragesPage.navigateTo(identifier)`, `addNextcloudStorage()`, `hasNextcloudStorage()` – project storages UI.
 - When adding new cross-test flows:
-  - First, see if existing helpers can be extended.
-  - If needed, create a new helper function with a clear name and parameters.
+  - Prefer page objects for UI flows; use test-helpers only for API or orchestration.
 - After UI actions that should succeed, verify the expected UI feedback:
   - Example: after adding Nextcloud storage from OpenProject, wait for the success banner (`storageCreationSuccessMessage` locator, text `"Successful creation."`).
 

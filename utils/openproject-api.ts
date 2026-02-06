@@ -264,3 +264,26 @@ export async function listProjectStorages(
 
   return data._embedded?.elements ?? [];
 }
+
+/**
+ * Delete an OpenProject project by identifier or name.
+ * Returns true if the project was deleted, false if it didn't exist.
+ */
+export async function deleteProject(
+  identifierOrName: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<boolean> {
+  const project = await findProjectByIdentifierOrName(identifierOrName, credentials);
+  
+  if (!project) {
+    return false;
+  }
+
+  await apiRequest(
+    `/projects/${project.id}`,
+    'DELETE',
+    credentials
+  );
+
+  return true;
+}

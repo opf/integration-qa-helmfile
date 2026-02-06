@@ -1,46 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, integrationTags } from '../base-test';
 import { KeycloakLoginPage, KeycloakHomePage } from '../../pageobjects/keycloak';
-import { testConfig } from '../../utils/config';
 
-/**
- * Build a URL regex for the configured Keycloak host and a given path.
- */
-function keycloakUrl(path: string): RegExp {
-  const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const resolveHostname = (value: string): string => {
-    try {
-      return new URL(value).hostname;
-    } catch {
-      return value;
-    }
-  };
-  const host = escapeForRegex(resolveHostname(testConfig.keycloak.host));
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const pathPattern = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) + '/?' : cleanPath + '/?';
-  return new RegExp(`^https?://${host}${pathPattern}$`);
-}
-
-test.describe('SSO External - Keycloak Integration', { tag: ['@regression', '@integration'] }, () => {
-  test.beforeEach(async ({ page }) => {
-    page.on('framenavigated', (frame) => {
-      if (frame === page.mainFrame()) {
-        console.log(`[PAGE NAVIGATION] Frame navigated to: ${frame.url()}`);
-      }
-    });
-
-    page.on('request', (request) => {
-      console.log(`[NETWORK REQUEST] ${request.method()} ${request.url()}`);
-    });
-
-    page.on('response', (response) => {
-      console.log(`[NETWORK RESPONSE] ${response.status()} ${response.url()}`);
-    });
-
-    page.on('console', (msg) => {
-      console.log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`);
-    });
-  });
-
+test.describe('SSO External - Keycloak Integration', integrationTags, () => {
   test('should login to Keycloak and check op and nc client are present', { tag: ['@smoke'] }, async ({ page }) => {
     const loginPage = new KeycloakLoginPage(page);
     await loginPage.login();
