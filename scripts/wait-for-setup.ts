@@ -7,6 +7,7 @@
  */
 
 import { waitForSetupJobComplete, setupJobExists, isSetupJobComplete } from '../utils/pod-waiter';
+import { getErrorMessage } from '../utils/error-utils';
 
 const namespace = process.env.KUBERNETES_NAMESPACE || 'opnc-integration';
 
@@ -33,8 +34,8 @@ async function main() {
     await waitForSetupJobComplete(namespace);
     console.log('\n✓ Setup-job completed successfully. Ready to run tests!');
     process.exit(0);
-  } catch (error: any) {
-    console.error('\n❌ Error waiting for setup-job:', error.message);
+  } catch (error: unknown) {
+    console.error('\n❌ Error waiting for setup-job:', getErrorMessage(error));
     process.exit(1);
   }
 }

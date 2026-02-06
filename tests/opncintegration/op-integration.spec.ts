@@ -98,8 +98,6 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
       await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
     } finally {
       if (shouldRevokeAdmin) {
-        // Reuse the ensureUserIsAdmin result to flip back via API helper
-        // We intentionally call the low-level API wrapper to avoid adding more helpers for this case.
         const { setUserAdmin } = await import('../../utils/openproject-api');
         await setUserAdmin(userId, false);
       }

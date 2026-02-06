@@ -1,5 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { getErrorMessage } from './error-utils';
+import { logInfo, logWarn } from './logger';
 
 const execAsync = promisify(exec);
 
@@ -16,7 +18,7 @@ export async function isSetupJobComplete(namespace: string = 'opnc-integration')
     );
     
     return stdout.trim() === 'True';
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -35,7 +37,7 @@ export async function waitForSetupJobComplete(
   const startTime = Date.now();
   let lastStatus = '';
   
-  console.log(`Waiting for setup-job to complete in namespace '${namespace}'...`);
+  logInfo(`Waiting for setup-job to complete in namespace '${namespace}'...`);
   
   while (Date.now() - startTime < maxWaitTime) {
     try {
@@ -57,12 +59,12 @@ export async function waitForSetupJobComplete(
               `kubectl logs -n ${namespace} -l job-name=setup-job --tail=50 2>/dev/null || echo "Could not retrieve logs"`
             );
             throw new Error(`Setup job failed. Last logs:\n${logs}`);
-          } catch (logError: any) {
-            throw new Error(`Setup job failed: ${logError.message}`);
+          } catch (logError: unknown) {
+            throw new Error(`Setup job failed: ${getErrorMessage(logError)}`);
           }
         }
         
-        console.log('✓ Setup job completed successfully');
+        logInfo('✓ Setup job completed successfully');
         return;
       }
       
@@ -70,14 +72,15 @@ export async function waitForSetupJobComplete(
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       const currentStatus = status.trim() || 'Pending';
       if (currentStatus !== lastStatus) {
-        console.log(`  Status: ${currentStatus} (${elapsed}s elapsed)`);
+        logInfo(`  Status: ${currentStatus} (${elapsed}s elapsed)`);
         lastStatus = currentStatus;
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Job might not exist yet or kubectl error
-      if (!error.message.includes('not found') && !error.message.includes('No resources found')) {
-        console.warn(`  Warning checking setup-job: ${error.message}`);
+      const message = getErrorMessage(error);
+      if (!message.includes('not found') && !message.includes('No resources found')) {
+        logWarn(`  Warning checking setup-job: ${message}`);
       }
     }
     
@@ -93,10 +96,10 @@ export async function waitForSetupJobComplete(
       `Setup job did not complete within ${maxWaitTime / 1000}s timeout.\n` +
       `Final status: ${finalStatus}`
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     throw new Error(
       `Setup job did not complete within ${maxWaitTime / 1000}s timeout.\n` +
-      `Error: ${error.message}`
+      `Error: ${getErrorMessage(error)}`
     );
   }
 }
