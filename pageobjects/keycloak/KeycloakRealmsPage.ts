@@ -1,6 +1,7 @@
 import { Page } from '@playwright/test';
 import { KeycloakBasePage } from './KeycloakBasePage';
 import { KeycloakClientsPage } from './KeycloakClientsPage';
+import { getErrorMessage } from '../../utils/error-utils';
 
 export class KeycloakRealmsPage extends KeycloakBasePage {
   constructor(page: Page) {
@@ -45,8 +46,10 @@ export class KeycloakRealmsPage extends KeycloakBasePage {
       
       console.log(`[REALM CHECK] Realm "${realmName}" is ${isSelected ? 'already selected' : 'not selected'}`);
       return isSelected;
-    } catch (error) {
-      console.log(`[REALM CHECK] Could not determine if realm "${realmName}" is selected, assuming not. Error: ${error}`);
+    } catch (error: unknown) {
+      console.log(
+        `[REALM CHECK] Could not determine if realm "${realmName}" is selected, assuming not. Error: ${getErrorMessage(error)}`
+      );
       return false;
     }
   }

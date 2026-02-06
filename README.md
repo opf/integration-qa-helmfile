@@ -19,47 +19,44 @@ Playwright end-to-end tests for OpenProject-Nextcloud-Keycloak integration.
    npm run playwright:install
    ```
 
-2. **Set env for local (gitignored):**
-   ```bash
-   cat > .env.local <<'EOF'
-   OPENPROJECT_HOST=openproject.test
-   NEXTCLOUD_HOST=nextcloud.test
-   KEYCLOAK_HOST=keycloak.test
-   E2E_OP_ADMIN_USER=admin
-   E2E_OP_ADMIN_PASS=admin
-   E2E_NC_ADMIN_USER=admin
-   E2E_NC_ADMIN_PASS=admin
-   E2E_KC_ADMIN_USER=admin
-   E2E_KC_ADMIN_PASS=admin
-   EOF
-   ```
+2. **Ensure local integration cluster is running (for local tests):**
+   The recommended way to run a full local OpenProject–Nextcloud–Keycloak stack is via the
+   [`opf/integration-qa-helmfile`](https://github.com/opf/integration-qa-helmfile/tree/main) repo.
+   Follow its README to `make setup` and `make deploy`, which will provision:
+   - `https://openproject.test`
+   - `https://nextcloud.test`
+   - `https://keycloak.test`
 
-3. **Run tests (choose env):**
+3. **Run tests (native Playwright, headless by default):**
    ```bash
-   E2E_ENV=local npm test        # local Helm/defaults
-   E2E_ENV=edge npm test         # edge/staging secrets must be exported
-   E2E_ENV=stage npm test        # stage secrets must be exported
+   E2E_ENV=local npx playwright test        # local Helm/defaults
+   E2E_ENV=edge npx playwright test         # edge/staging secrets must be exported
+   E2E_ENV=stage npx playwright test        # stage secrets must be exported
    ```
 
 ## Commands
 
 ### Run Tests
 ```bash
-# Run with explicit env selection (preferred)
-E2E_ENV=edge npm test
-E2E_ENV=stage npm test
-E2E_ENV=local npm test
+# Native Playwright (recommended)
+E2E_ENV=local npx playwright test
+E2E_ENV=edge npx playwright test
+E2E_ENV=stage npx playwright test
+
+# Run tests and automatically open HTML report
+E2E_ENV=local npx playwright test && npx playwright show-report
 
 # Override worker count to re-enable parallelism (default is 1)
 npx playwright test --workers 4
 
-# Shortcuts
+# npm script shortcuts (thin wrappers around the above)
 npm run test:edge     # uses E2E_ENV=edge
 npm run test:stage    # uses E2E_ENV=stage
 npm run test:local    # uses E2E_ENV=local
 
-# Run in headed mode
-npm run test:e2e:headed
+# Run in headed mode (non-headless)
+npm run test:e2e:headed     
+npx playwright test --headed
 
 # Run with UI mode
 npm run test:e2e:ui
@@ -67,7 +64,10 @@ npm run test:e2e:ui
 
 ### View Results
 ```bash
-# Open test report
+# Open last test report (native)
+npx playwright show-report
+
+# Or via npm script
 npm run report:show
 ```
 
@@ -167,12 +167,11 @@ Local runs: put the above in `.env.local` (already gitignored). CI ignores this 
 
 **Playwright complains about missing browser executable?**
 - Make sure you've run `npm run playwright:install` (or `npx playwright install`) after `npm install`.
-- Re-run your test command, e.g. `npm run test:local`.
-```
+- Re-run your test command, e.g. `E2E_ENV=local npx playwright test`.
 
 ## More Information
 
-- Tests run in parallel by default (both browsers + multiple test files)
+- Tests run with a single worker by default (configurable via `--workers`)
 - Uses Page Object Model pattern
 - Locators stored in JSON files
 - See `e2e/utils/locators_guide.md` for locator usage examples

@@ -1,5 +1,6 @@
 import { Page } from '@playwright/test';
 import { KeycloakBasePage } from './KeycloakBasePage';
+import { getErrorMessage } from '../../utils/error-utils';
 
 export class KeycloakClientsPage extends KeycloakBasePage {
   constructor(page: Page) {
@@ -69,8 +70,11 @@ export class KeycloakClientsPage extends KeycloakBasePage {
       
       console.log(`[CLIENTS VERIFICATION] Final result: ${result}`);
       return result;
-    } catch (error) {
-      console.error('[CLIENTS VERIFICATION] Error verifying clients:', error);
+    } catch (error: unknown) {
+      console.error(
+        '[CLIENTS VERIFICATION] Error verifying clients:',
+        getErrorMessage(error),
+      );
       // Take a screenshot for debugging
       await this.screenshot('clients-verification-error.png').catch(() => {});
       return false;

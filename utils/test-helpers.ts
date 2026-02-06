@@ -162,6 +162,9 @@ export async function ensureProjectHasNextcloudStorage(
   const addButton = homePage.getLocator('addButton');
   await addButton.waitFor({ state: 'visible', timeout: 10000 });
   await addButton.click();
+
+  const successMessage = homePage.getLocator('storageCreationSuccessMessage');
+  await successMessage.waitFor({ state: 'visible', timeout: 15000 });
 }
 
 export async function ensureProjectHasNoNextcloudStorage(

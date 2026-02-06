@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import { resolveEnvName, resolveHosts } from './env-hosts';
+import { logInfo, logDebug } from './logger';
 
 export interface TestConfig {
   envName: string;
@@ -11,8 +13,10 @@ export interface TestConfig {
   };
   nextcloud: {
     version: string;
+    apiVersion: string;
     host: string;
     integrationAppVersion: string;
+    teamFoldersVersion: string;
   };
   keycloak: {
     version: string;
@@ -21,24 +25,6 @@ export interface TestConfig {
 }
 
 type SetupMethod = TestConfig['setupMethod'];
-
-const DEFAULTS = {
-  edge: {
-    openprojectHost: 'openproject.edge',
-    nextcloudHost: 'nextcloud.edge',
-    keycloakHost: 'keycloak.edge',
-  },
-  stage: {
-    openprojectHost: 'openproject.stage',
-    nextcloudHost: 'nextcloud.stage',
-    keycloakHost: 'keycloak.stage',
-  },
-  local: {
-    openprojectHost: 'openproject.test',
-    nextcloudHost: 'nextcloud.test',
-    keycloakHost: 'keycloak.test',
-  },
-};
 
 function getArgValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
@@ -57,19 +43,14 @@ function loadDotEnvLocal(): void {
   const envPath = path.resolve(projectRoot, '.env.local');
   if (fs.existsSync(envPath)) {
     dotenv.config({ path: envPath });
-    console.log(`[config] Loaded .env.local from ${envPath}`);
+    logDebug(`[config] Loaded .env.local from ${envPath}`);
   }
 }
 
 export function loadConfig(): TestConfig {
   loadDotEnvLocal();
 
-  const envName = (
-    process.env.E2E_ENV ||
-    process.env.ENV ||
-    getArgValue('--env') ||
-    'local'
-  ).toLowerCase();
+  const envName = resolveEnvName();
 
   const setupMethod = (
     process.env.SETUP_METHOD ||
@@ -77,39 +58,33 @@ export function loadConfig(): TestConfig {
     'sso-external'
   ) as SetupMethod;
 
-  const defaults = DEFAULTS[envName as keyof typeof DEFAULTS] || DEFAULTS.local;
+  const hosts = resolveHosts(envName);
+  const openprojectHost = hosts.openproject;
+  const nextcloudHost = hosts.nextcloud;
+  const keycloakHost = hosts.keycloak;
 
-  const openprojectHost =
-    process.env.OPENPROJECT_HOST ||
-    process.env.OPENPROJECT_URL || // backwards compatibility
-    defaults.openprojectHost;
-  const nextcloudHost =
-    process.env.NEXTCLOUD_HOST ||
-    process.env.NEXTCLOUD_URL ||
-    defaults.nextcloudHost;
-  const keycloakHost =
-    process.env.KEYCLOAK_HOST ||
-    process.env.KEYCLOAK_URL ||
-    defaults.keycloakHost;
+  const openprojectVersion = process.env.OPENPROJECT_VERSION || 'not-detected';
+  const nextcloudVersion = process.env.NEXTCLOUD_VERSION || 'not-detected';
+  const nextcloudApiVersion = process.env.NEXTCLOUD_API_VERSION || 'not-detected';
+  const integrationAppVersion = process.env.INTEGRATION_APP_VERSION || 'not-detected';
+  const teamFoldersVersion = process.env.NEXTCLOUD_TEAM_FOLDERS_VERSION || 'not-detected';
+  const keycloakVersion = process.env.KEYCLOAK_VERSION || 'not-detected';
 
-  const openprojectVersion = process.env.OPENPROJECT_VERSION || '16';
-  const nextcloudVersion = process.env.NEXTCLOUD_VERSION || '32';
-  const integrationAppVersion = process.env.INTEGRATION_APP_VERSION || '';
-  const keycloakVersion = process.env.KEYCLOAK_VERSION || '26.2.5';
-
-  console.log('\n' + '='.repeat(60));
-  console.log('📋 Test Configuration Detected');
-  console.log('='.repeat(60));
-  console.log(`🔧 Env:              ${envName}`);
-  console.log(`🔧 Setup Method:     ${setupMethod}${process.env.SETUP_METHOD ? ' (from env)' : getArgValue('--setupMethod') ? ' (from flag)' : ' (default)'}`);
-  console.log(`📦 OpenProject:      v${openprojectVersion}`);
-  console.log(`🌐 OpenProject Host: ${openprojectHost}`);
-  console.log(`📦 Nextcloud:        v${nextcloudVersion}`);
-  console.log(`🌐 Nextcloud Host:   ${nextcloudHost}`);
-  console.log(`🔌 Integration App:  ${integrationAppVersion || '(not specified)'}`);
-  console.log(`🔐 Keycloak:         v${keycloakVersion}`);
-  console.log(`🌐 Keycloak Host:    ${keycloakHost}`);
-  console.log('='.repeat(60) + '\n');
+  logInfo('\n' + '='.repeat(60));
+  logInfo('📋 Test Configuration');
+  logInfo('='.repeat(60));
+  logInfo(`🔧 Env:              ${envName}`);
+  logInfo(`🔧 Setup Method:     ${setupMethod}${process.env.SETUP_METHOD ? ' (from env)' : getArgValue('--setupMethod') ? ' (from flag)' : ' (default)'}`);
+  logInfo(`📦 OpenProject:      ${openprojectVersion}`);
+  logInfo(`🌐 OpenProject Host: ${openprojectHost}`);
+  logInfo(`📦 Nextcloud:        ${nextcloudVersion}`);
+  logInfo(`📦 NC API Version:   ${nextcloudApiVersion}`);
+  logInfo(`🌐 Nextcloud Host:   ${nextcloudHost}`);
+  logInfo(`🔌 Integration App:  ${integrationAppVersion}`);
+  logInfo(`📁 Team Folders:     ${teamFoldersVersion}`);
+  logInfo(`🔐 Keycloak:         ${keycloakVersion}`);
+  logInfo(`🌐 Keycloak Host:    ${keycloakHost}`);
+  logInfo('='.repeat(60) + '\n');
 
   return {
     envName,
@@ -120,8 +95,10 @@ export function loadConfig(): TestConfig {
     },
     nextcloud: {
       version: nextcloudVersion,
+      apiVersion: nextcloudApiVersion,
       host: nextcloudHost,
       integrationAppVersion,
+      teamFoldersVersion,
     },
     keycloak: {
       version: keycloakVersion,
