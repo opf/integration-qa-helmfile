@@ -4,14 +4,17 @@ import {
   EnsureAdminResult,
   OpenProjectApiProjectStorage,
   OpenProjectApiStorage,
+  deleteProject,
   ensureUserIsAdmin,
   findProjectByIdentifierOrName,
   listProjectStorages,
   listStorages,
 } from './openproject-api';
-import { OpenProjectHomePage } from '../pageobjects/openproject';
+import { deleteNextcloudFile } from './nextcloud-api';
+import { OpenProjectProjectStoragesPage } from '../pageobjects/openproject';
+import type { TestUser } from './test-users';
 
-export { ensureUserIsAdmin };
+export { ensureUserIsAdmin, deleteProject };
 
 export interface ProjectRef {
   id: number;
@@ -108,63 +111,14 @@ export async function ensureProjectHasNextcloudStorage(
     );
   }
 
-  if (project.identifier !== 'demo-project') {
-    throw new Error(
-      `UI-based storage creation is currently only implemented for the 'demo-project' identifier, got '${project.identifier}'.`
-    );
-  }
+  const storagesPage = new OpenProjectProjectStoragesPage(page);
+  await storagesPage.navigateToProjectStorages(project.identifier);
 
-  const homePage = new OpenProjectHomePage(page);
-  await homePage.navigateToDemoProjectStoragesExternal();
-  await homePage.waitForDemoProjectStoragesExternalUrl();
-
-  const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
-  const existingStorageCount = await nextcloudStorageRow.count();
-  if (existingStorageCount > 0) {
+  if (await storagesPage.hasNextcloudStorage()) {
     return;
   }
 
-  const newStorageLink = homePage.getLocator('newStorageLink');
-  await newStorageLink.waitFor({ state: 'visible', timeout: 10000 });
-  await newStorageLink.click();
-  await homePage.waitForDemoProjectStoragesNewUrl();
-
-  const addFileStorageHeading = homePage.getLocator('addFileStorageHeading').first();
-  await addFileStorageHeading.waitFor({ state: 'visible', timeout: 10000 });
-
-  const storageDropdown = homePage.getLocator('storageDropdown');
-  await storageDropdown.waitFor({ state: 'visible', timeout: 10000 });
-
-  const selectedOption = storageDropdown.locator('option:checked');
-  let selectedText = (await selectedOption.textContent())?.toLowerCase() ?? '';
-  if (!selectedText.includes('nextcloud')) {
-    const nextcloudOption = storageDropdown.locator('option', { hasText: /nextcloud/i }).first();
-    if (await nextcloudOption.count() === 0) {
-      throw new Error('Nextcloud option is not available in the storage dropdown.');
-    }
-    const nextcloudValue = await nextcloudOption.getAttribute('value');
-    if (!nextcloudValue) {
-      throw new Error('Nextcloud option is missing a value attribute.');
-    }
-    await storageDropdown.selectOption(nextcloudValue);
-  }
-
-  const continueButton = homePage.getLocator('continueButton');
-  await continueButton.waitFor({ state: 'visible', timeout: 10000 });
-  await continueButton.click();
-
-  const automaticFolderModeRadio = homePage.getLocator('automaticFolderModeRadio');
-  await automaticFolderModeRadio.waitFor({ state: 'visible', timeout: 10000 });
-  if (!(await automaticFolderModeRadio.isChecked())) {
-    await automaticFolderModeRadio.check();
-  }
-
-  const addButton = homePage.getLocator('addButton');
-  await addButton.waitFor({ state: 'visible', timeout: 10000 });
-  await addButton.click();
-
-  const successMessage = homePage.getLocator('storageCreationSuccessMessage');
-  await successMessage.waitFor({ state: 'visible', timeout: 15000 });
+  await storagesPage.addNextcloudStorage();
 }
 
 export async function ensureProjectHasNoNextcloudStorage(
@@ -200,13 +154,19 @@ export async function ensureUserIsAdminWithRevokeFlag(
   return ensureUserIsAdmin(identifier, credentials);
 }
 
-export async function ensureDemoProjectCopyViaUi(
-  page: Page,
-  newIdentifier: string
+/**
+ * Delete an uploaded test file from Nextcloud via WebDAV.
+ * Uses Keycloak OIDC token for the given user (e.g. ALICE_USER).
+ *
+ * @param fileName - e.g. 'op-to-nc-upload-test.md'
+ * @param projectFolder - e.g. 'Demo project (1)'
+ * @param user - e.g. ALICE_USER
+ */
+export async function deleteUploadedTestFile(
+  fileName: string,
+  projectFolder: string,
+  user: TestUser
 ): Promise<void> {
-  const homePage = new OpenProjectHomePage(page);
-  await homePage.waitForReady();
-  await homePage.navigateToAllProjects();
-  await homePage.copyDemoProjectTo(newIdentifier);
+  const filePath = `OpenProject/${projectFolder}/${fileName}`;
+  await deleteNextcloudFile(filePath, user);
 }
-

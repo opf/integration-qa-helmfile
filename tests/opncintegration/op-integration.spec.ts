@@ -1,56 +1,21 @@
-import { test, expect } from '@playwright/test';
+import {
+  test,
+  expect,
+  openProjectUrl,
+  integrationTags,
+} from '../base-test';
 import { OpenProjectLoginPage, OpenProjectHomePage } from '../../pageobjects/openproject';
 import { ALICE_USER } from '../../utils/test-users';
 import {
-  ensureDemoProjectCopyViaUi,
+  deleteProject,
+  deleteUploadedTestFile,
   ensureProjectHasNextcloudStorage,
   ensureUserIsAdmin,
 } from '../../utils/test-helpers';
+import { setUserAdmin } from '../../utils/openproject-api';
 import { testConfig } from '../../utils/config';
 
-/**
- * Build a URL regex for the configured OpenProject host and a given path.
- */
-function openProjectUrl(path: string): RegExp {
-  const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const resolveHostname = (value: string): string => {
-    try {
-      return new URL(value).hostname;
-    } catch {
-      return value;
-    }
-  };
-  const host = escapeForRegex(resolveHostname(testConfig.openproject.host));
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const pathPattern = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) + '/?' : cleanPath + '/?';
-  return new RegExp(`^https?://${host}${pathPattern}$`);
-}
-
-test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '@integration'] }, () => {
-  test.beforeEach(async ({ page }) => {
-    // Track all page navigations
-    page.on('framenavigated', (frame) => {
-      if (frame === page.mainFrame()) {
-        console.log(`[PAGE NAVIGATION] Frame navigated to: ${frame.url()}`);
-      }
-    });
-
-    // Track all network requests
-    page.on('request', (request) => {
-      console.log(`[NETWORK REQUEST] ${request.method()} ${request.url()}`);
-    });
-
-    // Track all network responses
-    page.on('response', (response) => {
-      console.log(`[NETWORK RESPONSE] ${response.status()} ${response.url()}`);
-    });
-
-    // Track console messages from the page
-    page.on('console', (msg) => {
-      console.log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`);
-    });
-  });
-
+test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   //OpenProject integration tests
   
   test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
@@ -75,189 +40,124 @@ test.describe('SSO External - OpenProject Integration', { tag: ['@regression', '
   
   test('Add Nextcloud file storage to Demo project', async ({ page }) => {
     const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
-    const { userId, updated } = await ensureUserIsAdmin(loginIdentifier);
-    let shouldRevokeAdmin = updated;
+    await ensureUserIsAdmin(loginIdentifier);
 
-    try {
-      const loginPage = new OpenProjectLoginPage(page);
-      await loginPage.navigateTo();
-      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+    const loginPage = new OpenProjectLoginPage(page);
+    await loginPage.navigateTo();
+    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
-      const homePage = new OpenProjectHomePage(page);
-      await homePage.waitForReady();
+    const homePage = new OpenProjectHomePage(page);
+    await homePage.waitForReady();
 
-      await ensureProjectHasNextcloudStorage('demo-project', page);
+    await ensureProjectHasNextcloudStorage('demo-project', page);
 
-      await homePage.navigateToDemoProjectStoragesExternal();
-      await homePage.waitForDemoProjectStoragesExternalUrl();
-      await expect(page).toHaveURL(openProjectUrl('/projects/demo-project/settings/project_storages/external_file_storages'));
+    await homePage.navigateToDemoProjectStoragesExternal();
+    await homePage.waitForDemoProjectStoragesExternalUrl();
+    await expect(page).toHaveURL(openProjectUrl('/projects/demo-project/settings/project_storages/external_file_storages'));
 
-      const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
-      await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
-      await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
-    } finally {
-      if (shouldRevokeAdmin) {
-        const { setUserAdmin } = await import('../../utils/openproject-api');
-        await setUserAdmin(userId, false);
-      }
-    }
+    const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
+    await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
+    await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
   });
 
   test('Upload a file from OP to NC using ampf', async ({ page }) => {
     const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
-    const { userId, updated } = await ensureUserIsAdmin(loginIdentifier);
-    let shouldRevokeAdmin = updated;
+    await ensureUserIsAdmin(loginIdentifier);
     const uploadedFileName = 'op-to-nc-upload-test.md';
 
-    try {
-      const loginPage = new OpenProjectLoginPage(page);
-      await loginPage.navigateTo();
-      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+    const loginPage = new OpenProjectLoginPage(page);
+    await loginPage.navigateTo();
+    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
-      const homePage = new OpenProjectHomePage(page);
-      await homePage.waitForReady();
+    const homePage = new OpenProjectHomePage(page);
+    await homePage.waitForReady();
 
-      await homePage.navigateToDemoProjectWorkPackageFiles(2);
-      await homePage.waitForDemoProjectWorkPackageFilesUrl();
+    await homePage.navigateToDemoProjectWorkPackageFiles(2);
+    await homePage.waitForDemoProjectWorkPackageFilesUrl();
 
-      const uploadInput = homePage.getLocator('workPackageFilesUploadInput');
-      await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
+    const uploadInput = homePage.getLocator('workPackageFilesUploadInput');
+    await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
 
-      await uploadInput.setInputFiles(`fixtures/${uploadedFileName}`);
+    await uploadInput.setInputFiles(`fixtures/${uploadedFileName}`);
 
-      const filesPickerModal = homePage.getLocator('filesPickerModal');
-      await filesPickerModal.waitFor({ state: 'visible', timeout: 15000 });
+    const filesPickerModal = homePage.getLocator('filesPickerModal');
+    await filesPickerModal.waitFor({ state: 'visible', timeout: 15000 });
 
-      const chooseLocationButton = homePage.getLocator('filesPickerConfirmButton');
-      await chooseLocationButton.waitFor({ state: 'visible', timeout: 15000 });
-      await chooseLocationButton.click();
+    const chooseLocationButton = homePage.getLocator('filesPickerConfirmButton');
+    await chooseLocationButton.waitFor({ state: 'visible', timeout: 15000 });
+    await chooseLocationButton.click();
 
-      // Handle "file already exists" modal if it appears
-      const existingFileModalTitle = page
-        .locator('.spot-modal--header-title', { hasText: 'This file already exists' });
-      if (await existingFileModalTitle.isVisible({ timeout: 5000 }).catch(() => false)) {
-        const replaceButton = page
-          .locator('.spot-modal .spot-action-bar--right .button.-primary', { hasText: 'Replace' })
-          .first();
-        await replaceButton.waitFor({ state: 'visible', timeout: 10000 });
-        await replaceButton.click();
-      }
-
-      const uploadSuccessMessage = homePage.getLocator('filesUploadSuccessMessage');
-      await uploadSuccessMessage.waitFor({ state: 'visible', timeout: 20000 });
-      await expect(uploadSuccessMessage).toContainText('Successfully created 1 file link.');
-
-      // Wait for the file list to be updated with the new (or replaced) file
-      // await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-
-      // const fileLinkLabel = homePage
-      //   .getLocator('workPackageFileLink')
-      //   .filter({ hasText: uploadedFileName })
-      //   .first();
-      // await fileLinkLabel.waitFor({ state: 'visible', timeout: 15000 });
-
-      // const fileLink = fileLinkLabel.locator('xpath=ancestor::a[1]');
-
-      // const [nextcloudPage] = await Promise.all([
-      //   page.context().waitForEvent('page'),
-      //   fileLink.click(),
-      // ]);
-
-      // await nextcloudPage.waitForLoadState('domcontentloaded');
-
-      // const loginWithKeycloakButton = nextcloudPage
-      //   .getByRole('link', { name: /Login with keycloak/i });
-      // if (await loginWithKeycloakButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      //   await Promise.all([
-      //     nextcloudPage.waitForLoadState('networkidle'),
-      //     loginWithKeycloakButton.click(),
-      //   ]);
-      // }
-
-      // if (nextcloudPage.url().includes('keycloak.test')) {
-      //   const keycloakUsernameInput = nextcloudPage.locator('input[name=\"username\"], #username');
-      //   const keycloakPasswordInput = nextcloudPage.locator('input[name=\"password\"], #password');
-      //   const keycloakLoginButton = nextcloudPage.getByRole('button', { name: /Log in|Sign in/i });
-
-      //   await keycloakUsernameInput.waitFor({ state: 'visible', timeout: 10000 });
-      //   await keycloakUsernameInput.fill(ALICE_USER.username);
-      //   await keycloakPasswordInput.fill(ALICE_USER.password);
-
-      //   await Promise.all([
-      //     nextcloudPage.waitForLoadState('networkidle'),
-      //     keycloakLoginButton.click(),
-      //   ]);
-      // }
-
-      // const viewsApiUrlPrefix = `https://${testConfig.nextcloud.host}/apps/files/api/v1/views`;
-      // await nextcloudPage.waitForResponse(
-      //   (response) =>
-      //     response.url().startsWith(viewsApiUrlPrefix) &&
-      //     response.request().method() === 'GET' &&
-      //     response.status() === 200,
-      //   { timeout: 20000 },
-      // );
-
-      // const actionsMenuButton = nextcloudPage.locator(
-      //   'button.button-vue--icon-only.action-item__menutoggle',
-      // );
-      // await actionsMenuButton.waitFor({ state: 'visible', timeout: 15000 });
-      // await actionsMenuButton.click();
-
-      // const encodedFileName = encodeURIComponent(uploadedFileName);
-      // const deleteRequest = nextcloudPage.waitForResponse((response) => {
-      //   return (
-      //     response.request().method() === 'DELETE' &&
-      //     response.url().includes('/remote.php/dav/files/') &&
-      //     response.url().includes(encodedFileName)
-      //   );
-      // });
-
-      // const deleteButton = nextcloudPage.getByRole('menuitem', { name: /Delete/i });
-      // await deleteButton.waitFor({ state: 'visible', timeout: 15000 });
-
-      // const deleteResponse = await Promise.all([
-      //   deleteRequest,
-      //   deleteButton.click(),
-      // ]).then(([response]) => response);
-
-      // expect(deleteResponse.status()).toBe(204);
-    } finally {
-      if (shouldRevokeAdmin) {
-        const { setUserAdmin } = await import('../../utils/openproject-api');
-        await setUserAdmin(userId, false);
-      }
+    // Handle "file already exists" modal if it appears
+    const existingFileModalTitle = page
+      .locator('.spot-modal--header-title', { hasText: 'This file already exists' });
+    if (await existingFileModalTitle.isVisible({ timeout: 5000 }).catch(() => false)) {
+      const replaceButton = page
+        .locator('.spot-modal .spot-action-bar--right .button.-primary', { hasText: 'Replace' })
+        .first();
+      await replaceButton.waitFor({ state: 'visible', timeout: 10000 });
+      await replaceButton.click();
     }
+
+    const uploadSuccessMessage = homePage.getLocator('filesUploadSuccessMessage');
+    await uploadSuccessMessage.waitFor({ state: 'visible', timeout: 20000 });
+    await expect(uploadSuccessMessage).toContainText('Successfully created 1 file link.');
   });
 
   test('Copy ampf Demo project', async ({ page }) => {
     const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
-    const { userId, updated } = await ensureUserIsAdmin(loginIdentifier);
-    let shouldRevokeAdmin = updated;
+    await ensureUserIsAdmin(loginIdentifier);
+
+    const loginPage = new OpenProjectLoginPage(page);
+    await loginPage.navigateTo();
+    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+
+    const homePage = new OpenProjectHomePage(page);
+    await homePage.copyDemoProjectViaUi('test');
+
+    await expect(page).toHaveURL(openProjectUrl('/projects/test'));
+
+    await homePage.navigateToProjectStoragesExternal('test');
+
+    const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
+    await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
+    await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
+  });
+
+  test.afterAll(async () => {
+    // Clean up test data created during the test suite
+    try {
+      await deleteUploadedTestFile(
+        'op-to-nc-upload-test.md',
+        'Demo project (1)',
+        ALICE_USER
+      );
+      console.log('[Cleanup] Deleted uploaded test file from Demo project (1)');
+    } catch (err) {
+      console.warn('[Cleanup] Failed to delete uploaded test file:', err);
+    }
 
     try {
-      const loginPage = new OpenProjectLoginPage(page);
-      await loginPage.navigateTo();
-      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
-
-      await ensureDemoProjectCopyViaUi(page, 'test');
-
-      await expect(page).toHaveURL(openProjectUrl('/projects/test'));
-
-      const homePage = new OpenProjectHomePage(page);
-      await homePage.navigateToProjectStoragesExternal('test');
-
-      const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
-      await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
-      await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
-    } finally {
-      if (shouldRevokeAdmin) {
-        const { setUserAdmin } = await import('../../utils/openproject-api');
-        await setUserAdmin(userId, false);
+      const deleted = await deleteProject('test');
+      if (deleted) {
+        console.log('[Cleanup] Deleted copied project "test"');
+      } else {
+        console.log('[Cleanup] Project "test" not found (already deleted or never created)');
       }
+    } catch (err) {
+      console.warn('[Cleanup] Failed to delete project "test":', err);
+    }
+
+    // Revoke admin permissions from Alice
+    try {
+      const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
+      const { userId } = await ensureUserIsAdmin(loginIdentifier);
+      await setUserAdmin(userId, false);
+      console.log('[Cleanup] Revoked admin permissions from Alice');
+    } catch (err) {
+      console.warn('[Cleanup] Failed to revoke admin permissions from Alice:', err);
     }
   });
 

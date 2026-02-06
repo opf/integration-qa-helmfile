@@ -1,6 +1,7 @@
 import { FullConfig } from '@playwright/test';
 import { waitForSetupJobComplete, setupJobExists, isSetupJobComplete } from './utils/pod-waiter';
 import { detectAllVersions } from './utils/version-detect';
+import { ensureKeycloakDirectAccessForNextcloud } from './utils/nextcloud-api';
 import { getErrorMessage } from './utils/error-utils';
 import { logInfo, logError, logWarn } from './utils/logger';
 
@@ -68,6 +69,15 @@ async function globalSetup(config: FullConfig) {
   } catch (error: unknown) {
     logWarn('⚠️  Version detection failed:', getErrorMessage(error));
     logWarn('   Tests will use "not-detected" as fallback.');
+  }
+
+  // ── Step 3: Enable direct access grants for Nextcloud WebDAV ────────
+  try {
+    await ensureKeycloakDirectAccessForNextcloud();
+    logInfo('✓ Keycloak direct access grants enabled for Nextcloud WebDAV');
+  } catch (error: unknown) {
+    logWarn('⚠️  Failed to enable Keycloak direct access grants:', getErrorMessage(error));
+    logWarn('   Nextcloud WebDAV operations may fail.');
   }
 }
 

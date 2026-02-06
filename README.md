@@ -137,12 +137,13 @@ import { ensureProjectHasNextcloudStorage } from '../utils/test-helpers';
 await ensureProjectHasNextcloudStorage('demo-project');
 ```
 
-- Copy the demo project via UI using the existing page objects:
+- Copy the demo project via UI using page objects:
 
 ```typescript
-import { ensureDemoProjectCopyViaUi } from '../utils/test-helpers';
+import { OpenProjectHomePage } from '../pageobjects/openproject';
 
-await ensureDemoProjectCopyViaUi(page, 'test');
+const homePage = new OpenProjectHomePage(page);
+await homePage.copyDemoProjectViaUi('test');
 ```
 
 ## Environment Variables

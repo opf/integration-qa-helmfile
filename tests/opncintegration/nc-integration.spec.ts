@@ -1,46 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, integrationTags } from '../base-test';
 import { NextcloudLoginPage, NextcloudActiveAppsPage, NextcloudOpenIDConnectPage } from '../../pageobjects/nextcloud';
-import { testConfig } from '../../utils/config';
 
-/**
- * Build a URL regex for the configured Nextcloud host and a given path.
- */
-function nextcloudUrl(path: string): RegExp {
-  const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const resolveHostname = (value: string): string => {
-    try {
-      return new URL(value).hostname;
-    } catch {
-      return value;
-    }
-  };
-  const host = escapeForRegex(resolveHostname(testConfig.nextcloud.host));
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const pathPattern = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) + '/?' : cleanPath + '/?';
-  return new RegExp(`^https?://${host}${pathPattern}$`);
-}
-
-test.describe('SSO External - Nextcloud Integration', { tag: ['@regression', '@integration'] }, () => {
-  test.beforeEach(async ({ page }) => {
-    page.on('framenavigated', (frame) => {
-      if (frame === page.mainFrame()) {
-        console.log(`[PAGE NAVIGATION] Frame navigated to: ${frame.url()}`);
-      }
-    });
-
-    page.on('request', (request) => {
-      console.log(`[NETWORK REQUEST] ${request.method()} ${request.url()}`);
-    });
-
-    page.on('response', (response) => {
-      console.log(`[NETWORK RESPONSE] ${response.status()} ${response.url()}`);
-    });
-
-    page.on('console', (msg) => {
-      console.log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`);
-    });
-  });
-
+test.describe('SSO External - Nextcloud Integration', integrationTags, () => {
   test('should login to Nextcloud and verify Keycloak provider details', async ({ page }) => {
     const loginPage = new NextcloudLoginPage(page);
     const dashboardPage = await loginPage.login('admin', 'admin');
@@ -67,12 +28,6 @@ test.describe('SSO External - Nextcloud Integration', { tag: ['@regression', '@i
     await activeAppsPage.waitForReady();
     await activeAppsPage.findOpenProjectIntegrationApp();
     const appVersion = await activeAppsPage.getOpenProjectIntegrationAppVersion();
-    const originalTitle = test.info().title;
-    test.info().title = `${originalTitle} (v${appVersion})`;    
-    test.info().annotations.push({
-      type: 'app_version',
-      description: `OpenProject Integration App Version: ${appVersion}`
-    });
 
     console.log(`[TEST RESULT] OpenProject Integration App Version: ${appVersion}`);
     const appLink = activeAppsPage.getOpenProjectIntegrationAppLink();
