@@ -1,5 +1,6 @@
 import { test, expect, integrationTags } from '../base-test';
 import { NextcloudLoginPage, NextcloudActiveAppsPage, NextcloudOpenIDConnectPage } from '../../pageobjects/nextcloud';
+import { logInfo } from '../../utils/logger';
 
 test.describe('SSO External - Nextcloud Integration', integrationTags, () => {
   test('should login to Nextcloud and verify Keycloak provider details', async ({ page }) => {
@@ -29,14 +30,14 @@ test.describe('SSO External - Nextcloud Integration', integrationTags, () => {
     await activeAppsPage.findOpenProjectIntegrationApp();
     const appVersion = await activeAppsPage.getOpenProjectIntegrationAppVersion();
 
-    console.log(`[TEST RESULT] OpenProject Integration App Version: ${appVersion}`);
+    logInfo('[TEST RESULT] OpenProject Integration App Version: %s', appVersion);
     const appLink = activeAppsPage.getOpenProjectIntegrationAppLink();
     await expect(appLink).toBeVisible();
     expect(appVersion).toBeTruthy();
     expect(appVersion.length).toBeGreaterThan(0);
-    console.log(`[TEST RESULT] Verified App Version: ${appVersion}`);
+    logInfo('[TEST RESULT] Verified App Version: %s', appVersion);
     const isDisableButtonPresent = await activeAppsPage.isDisableButtonPresentForOpenProjectIntegration();
     expect(isDisableButtonPresent).toBe(true);
-    console.log(`[TEST RESULT] Disable Button Present: ${isDisableButtonPresent}`);
+    logInfo('[TEST RESULT] Disable Button Present: %s', isDisableButtonPresent);
   });
 });

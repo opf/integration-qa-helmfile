@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig } from './utils/config';
+import { logInfo, logWarn } from './utils/logger';
 
 const projectRoot = path.resolve(__dirname, '..');
 const caPathFromEnv = process.env.OPENPROJECT_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS;
@@ -11,9 +12,9 @@ if (!process.env.NODE_EXTRA_CA_CERTS) {
   const candidate = caPathFromEnv ?? defaultCaPath;
   if (fs.existsSync(candidate)) {
     process.env.NODE_EXTRA_CA_CERTS = candidate;
-    console.log(`[Playwright Config] Using CA certificate: ${candidate}`);
+    logInfo('[Playwright Config] Using CA certificate:', candidate);
   } else if (caPathFromEnv) {
-    console.warn(`[Playwright Config] CA certificate not found at ${candidate}. TLS verification may fail.`);
+    logWarn('[Playwright Config] CA certificate not found at', candidate, '- TLS verification may fail.');
   }
 }
 

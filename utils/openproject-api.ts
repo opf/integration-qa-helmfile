@@ -1,7 +1,6 @@
-import { Agent } from 'undici';
 import { testConfig } from './config';
 import { ADMIN_USER } from './test-users';
-import { resolveEnvName } from './env-hosts';
+import { getDispatcher } from './tls-dispatcher';
 
 interface OpenProjectApiUser {
   id: number;
@@ -104,9 +103,7 @@ async function apiRequest<T>(
     authorization: buildBasicAuthHeader(credentials),
   };
 
-  const envName = resolveEnvName();
-  const allowInsecureTls = envName === 'local' || process.env.ALLOW_INSECURE_TLS === '1';
-  const dispatcher = allowInsecureTls ? new Agent({ connect: { rejectUnauthorized: false } }) : undefined;
+  const dispatcher = getDispatcher();
 
   let payload: string | undefined;
   if (body) {

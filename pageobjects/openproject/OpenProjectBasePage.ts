@@ -1,17 +1,7 @@
 import { Page } from '@playwright/test';
 import { BasePage } from '../base/BasePage';
 import { testConfig } from '../../utils/config';
-
-const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const resolveHostname = (value?: string): string => {
-  if (!value) return '';
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return value;
-  }
-};
+import { escapeForRegex, resolveHostname } from '../../utils/url-helpers';
 
 const openProjectHost = resolveHostname(process.env.OPENPROJECT_URL) || resolveHostname(testConfig.openproject.host) || 'openproject.test';
 const openProjectHostPattern = new RegExp(`.*${escapeForRegex(openProjectHost)}.*`);

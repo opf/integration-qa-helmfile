@@ -24,27 +24,27 @@ async function globalSetup(config: FullConfig) {
     // Check if setup-job exists
     const exists = await setupJobExists(namespace);
     if (!exists) {
-      logWarn(`⚠️  Setup-job not found in namespace '${namespace}'. Skipping check.`);
+      logWarn(`Setup-job not found in namespace '${namespace}'. Skipping check.`);
       logInfo('   If you are running tests against a pre-deployed environment,');
       logInfo('   set SKIP_SETUP_JOB_CHECK=true to skip this check.');
     } else {
       // Check if already complete
       const isComplete = await isSetupJobComplete(namespace);
       if (isComplete) {
-        logInfo('✓ Setup-job is already completed');
+        logInfo('Setup-job is already completed');
       } else {
         // Wait for setup-job to complete
         try {
           await waitForSetupJobComplete(namespace);
         } catch (error: unknown) {
-          logError('❌ Setup-job check failed:', getErrorMessage(error));
+          logError('Setup-job check failed:', getErrorMessage(error));
           logError('\nTo skip this check, set SKIP_SETUP_JOB_CHECK=true');
           throw error;
         }
       }
     }
   } else {
-    logInfo('⏭️  Skipping setup-job check (enable with SETUP_JOB_CHECK=true)');
+    logInfo('Skipping setup-job check (enable with SETUP_JOB_CHECK=true)');
   }
 
   // Step 2: Detect service versions via API and persist for workers
@@ -101,9 +101,9 @@ async function globalSetup(config: FullConfig) {
   // ── Step 3: Enable direct access grants for Nextcloud WebDAV ────────
   try {
     await ensureKeycloakDirectAccessForNextcloud();
-    logInfo('✓ Keycloak direct access grants enabled for Nextcloud WebDAV');
+    logInfo('Keycloak direct access grants enabled for Nextcloud WebDAV');
   } catch (error: unknown) {
-    logWarn('⚠️  Failed to enable Keycloak direct access grants:', getErrorMessage(error));
+    logWarn('Failed to enable Keycloak direct access grants:', getErrorMessage(error));
     logWarn('   Nextcloud WebDAV operations may fail.');
   }
 }

@@ -4,17 +4,7 @@ import { KeycloakLoginPage } from '../keycloak/KeycloakLoginPage';
 import { OpenProjectHomePage } from './OpenProjectHomePage';
 import { OP_ADMIN_USER } from '../../utils/test-users';
 import { testConfig } from '../../utils/config';
-
-const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const resolveHostname = (value?: string): string => {
-  if (!value) return '';
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return value;
-  }
-};
+import { escapeForRegex, resolveHostname } from '../../utils/url-helpers';
 
 const keycloakHost = resolveHostname(process.env.KEYCLOAK_URL) || resolveHostname(testConfig.keycloak.host) || 'keycloak.test';
 const keycloakHostPattern = new RegExp(`.*${escapeForRegex(keycloakHost)}.*`);
@@ -46,9 +36,8 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
   async login(username: string = OP_ADMIN_USER.username, password: string = OP_ADMIN_USER.password): Promise<OpenProjectHomePage> {
     await this.navigateTo();
     await this.waitForReady();
-    // Wait for page to be stable before filling credentials
     await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500); // Small delay to ensure page is fully loaded
+    await this.getLocator('usernameInput').waitFor({ state: 'visible', timeout: 5000 });
     await this.fillUsername(username);
     await this.fillPassword(password);
     await this.clickSignIn();

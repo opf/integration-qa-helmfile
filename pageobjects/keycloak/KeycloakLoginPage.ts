@@ -2,17 +2,7 @@ import { Page } from '@playwright/test';
 import { KeycloakBasePage } from './KeycloakBasePage';
 import { ADMIN_USER } from '../../utils/test-users';
 import { testConfig } from '../../utils/config';
-
-const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const resolveHostname = (value?: string): string => {
-  if (!value) return '';
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return value;
-  }
-};
+import { escapeForRegex, resolveHostname } from '../../utils/url-helpers';
 
 const keycloakHost = resolveHostname(process.env.KEYCLOAK_URL) || resolveHostname(testConfig.keycloak.host) || 'keycloak.test';
 const keycloakHostPattern = new RegExp(`.*${escapeForRegex(keycloakHost)}.*`);
@@ -65,7 +55,7 @@ export class KeycloakLoginPage extends KeycloakBasePage {
         { timeout: 15000 }
       );
     } catch {
-      await this.page.waitForTimeout(3000);
+      await this.page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
     }
   }
 }

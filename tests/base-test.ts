@@ -1,6 +1,8 @@
 import { test as base, expect } from '@playwright/test';
 import { Page } from '@playwright/test';
 import { testConfig } from '../utils/config';
+import { escapeForRegex, resolveHostname } from '../utils/url-helpers';
+import { logDebug } from '../utils/logger';
 
 export const test = base.extend({});
 
@@ -23,17 +25,17 @@ test.beforeEach(async ({ page }, testInfo) => {
 export function attachDebugListeners(page: Page): void {
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) {
-      console.log(`[PAGE NAVIGATION] Frame navigated to: ${frame.url()}`);
+      logDebug('[PAGE NAVIGATION] Frame navigated to:', frame.url());
     }
   });
   page.on('request', (request) => {
-    console.log(`[NETWORK REQUEST] ${request.method()} ${request.url()}`);
+    logDebug('[NETWORK REQUEST]', request.method(), request.url());
   });
   page.on('response', (response) => {
-    console.log(`[NETWORK RESPONSE] ${response.status()} ${response.url()}`);
+    logDebug('[NETWORK RESPONSE]', response.status(), response.url());
   });
   page.on('console', (msg) => {
-    console.log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`);
+    logDebug('[PAGE CONSOLE]', msg.type() + ':', msg.text());
   });
 }
 
@@ -42,16 +44,7 @@ export function attachDebugListeners(page: Page): void {
  * Host can be a hostname (e.g. "openproject.test") or a full URL.
  */
 export function urlForHost(path: string, host: string): RegExp {
-  const escapeForRegex = (value: string): string =>
-    value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const resolveHostname = (value: string): string => {
-    try {
-      return new URL(value).hostname;
-    } catch {
-      return value;
-    }
-  };
-  const escapedHost = escapeForRegex(resolveHostname(host));
+  const escapedHost = escapeForRegex(resolveHostname(host) || host);
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   const pathPattern = cleanPath.endsWith('/')
     ? cleanPath.slice(0, -1) + '/?'
@@ -61,10 +54,6 @@ export function urlForHost(path: string, host: string): RegExp {
 
 export const openProjectUrl = (path: string) =>
   urlForHost(path, testConfig.openproject.host);
-export const nextcloudUrl = (path: string) =>
-  urlForHost(path, testConfig.nextcloud.host);
-export const keycloakUrl = (path: string) =>
-  urlForHost(path, testConfig.keycloak.host);
 
 export const integrationTags = { tag: ['@regression', '@integration'] };
 

@@ -1,7 +1,6 @@
 import { Page } from '@playwright/test';
 import {
   AdminCredentials,
-  EnsureAdminResult,
   OpenProjectApiProjectStorage,
   OpenProjectApiStorage,
   deleteProject,
@@ -16,21 +15,10 @@ import type { TestUser } from './test-users';
 
 export { ensureUserIsAdmin, deleteProject };
 
-export interface ProjectRef {
-  id: number;
-  identifier: string;
-  name: string;
-}
-
-export interface ProjectStorageSummary {
-  id: number;
-  storageHref: string;
-}
-
-export async function ensureProjectExists(
+async function ensureProjectExists(
   keyOrName: string,
   credentials?: AdminCredentials
-): Promise<ProjectRef> {
+): Promise<{ id: number; identifier: string; name: string }> {
   const project = await findProjectByIdentifierOrName(keyOrName, credentials);
 
   if (!project) {
@@ -40,11 +28,7 @@ export async function ensureProjectExists(
     );
   }
 
-  return {
-    id: project.id,
-    identifier: project.identifier,
-    name: project.name,
-  };
+  return { id: project.id, identifier: project.identifier, name: project.name };
 }
 
 async function findNextcloudStorage(
@@ -61,19 +45,6 @@ async function findNextcloudStorage(
 function getStorageHrefFromLink(linkHref: string): string {
   const idx = linkHref.indexOf('/api/v3');
   return idx >= 0 ? linkHref.slice(idx) : linkHref;
-}
-
-export async function getProjectStorages(
-  projectIdentifier: string,
-  credentials?: AdminCredentials
-): Promise<ProjectStorageSummary[]> {
-  const project = await ensureProjectExists(projectIdentifier, credentials);
-  const storages = await listProjectStorages(project.id, credentials);
-
-  return storages.map((projectStorage) => ({
-    id: projectStorage.id,
-    storageHref: getStorageHrefFromLink(projectStorage._links.storage.href),
-  }));
 }
 
 export async function ensureProjectHasNextcloudStorage(
@@ -119,39 +90,6 @@ export async function ensureProjectHasNextcloudStorage(
   }
 
   await storagesPage.addNextcloudStorage();
-}
-
-export async function ensureProjectHasNoNextcloudStorage(
-  projectIdentifier: string,
-  credentials?: AdminCredentials
-): Promise<void> {
-  const project = await ensureProjectExists(projectIdentifier, credentials);
-  const projectStorages = await listProjectStorages(project.id, credentials);
-  const nextcloudStorage = await findNextcloudStorage(credentials);
-
-  if (!nextcloudStorage || projectStorages.length === 0) {
-    return;
-  }
-
-  const nextcloudStorageHref = `/api/v3/storages/${nextcloudStorage.id}`;
-  const linked = projectStorages.some((projectStorage: OpenProjectApiProjectStorage) => {
-    const storageHref = getStorageHrefFromLink(projectStorage._links.storage.href);
-    return storageHref === nextcloudStorageHref;
-  });
-
-  if (linked) {
-    throw new Error(
-      `API v3 does not expose write operations for project storages. ` +
-        `Please remove the Nextcloud storage for project '${project.identifier}' via the UI or admin settings.`
-    );
-  }
-}
-
-export async function ensureUserIsAdminWithRevokeFlag(
-  identifier: string,
-  credentials?: AdminCredentials
-): Promise<EnsureAdminResult> {
-  return ensureUserIsAdmin(identifier, credentials);
 }
 
 /**

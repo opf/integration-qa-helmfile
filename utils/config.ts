@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { resolveEnvName, resolveHosts } from './env-hosts';
-import { logInfo, logDebug } from './logger';
+import { logDebug } from './logger';
 
 export interface TestConfig {
   envName: string;

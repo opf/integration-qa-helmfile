@@ -1,7 +1,7 @@
-import { Agent } from 'undici';
 import { ADMIN_USER, OP_ADMIN_USER } from './test-users';
 import { getErrorMessage } from './error-utils';
 import { resolveEnvName, resolveHosts } from './env-hosts';
+import { getDispatcher } from './tls-dispatcher';
 import { logInfo, logWarn } from './logger';
 
 interface NextcloudCapabilitiesResponse {
@@ -45,18 +45,6 @@ export interface DetectedVersions {
 }
 
 /**
- * Returns an undici Agent that skips TLS verification for local/dev environments.
- * Mirrors the TLS logic used in openproject-api.ts.
- */
-function getDispatcher(): Agent | undefined {
-  const envName = resolveEnvName();
-  const allowInsecureTls = envName === 'local' || process.env.ALLOW_INSECURE_TLS === '1';
-  return allowInsecureTls
-    ? new Agent({ connect: { rejectUnauthorized: false } })
-    : undefined;
-}
-
-/**
  * Detect Nextcloud versions via the capabilities API.
  * Falls back to status.php for the base version if capabilities fails.
  * 
@@ -84,7 +72,7 @@ async function detectNextcloudVersions(host: string): Promise<{
       ...(dispatcher ? { dispatcher } : {}),
     });
     if (!response.ok) {
-      logWarn(`⚠️  Nextcloud capabilities API returned HTTP ${response.status} (${host})`);
+      logWarn(`Nextcloud capabilities API returned HTTP ${response.status} (${host})`);
       throw new Error(`HTTP ${response.status} ${response.statusText}`);
     }
     const data = (await response.json()) as NextcloudCapabilitiesResponse;
@@ -92,7 +80,7 @@ async function detectNextcloudVersions(host: string): Promise<{
 
     // Check if Nextcloud itself is reachable
     if (!ocs?.version?.string) {
-      logWarn(`⚠️  Nextcloud API response missing version data (${host})`);
+      logWarn(`Nextcloud API response missing version data (${host})`);
       return notReachable;
     }
 
@@ -107,10 +95,7 @@ async function detectNextcloudVersions(host: string): Promise<{
       teamFoldersVersion: hasGroupFolders || 'not-installed',
     };
   } catch (error: unknown) {
-    logWarn(
-      `⚠️  Nextcloud capabilities API failed (${host}):`,
-      getErrorMessage(error),
-    );
+    logWarn(`Nextcloud capabilities API failed (${host}):`, getErrorMessage(error));
   }
 
   // Fallback: try status.php for the base version
@@ -132,10 +117,7 @@ async function detectNextcloudVersions(host: string): Promise<{
       }
     }
   } catch (error: unknown) {
-    logWarn(
-      `⚠️  Nextcloud status.php fallback also failed (${host}):`,
-      getErrorMessage(error),
-    );
+    logWarn(`Nextcloud status.php fallback also failed (${host}):`, getErrorMessage(error));
   }
 
   return notReachable;
@@ -161,16 +143,13 @@ async function detectOpenProjectVersion(
       ...(dispatcher ? { dispatcher } : {}),
     });
     if (!response.ok) {
-      logWarn(`⚠️  OpenProject API returned HTTP ${response.status} (${host})`);
+      logWarn(`OpenProject API returned HTTP ${response.status} (${host})`);
       return 'not-reachable';
     }
     const data = (await response.json()) as OpenProjectRootResponse;
     return data.coreVersion || 'not-reachable';
   } catch (error: unknown) {
-    logWarn(
-      `⚠️  OpenProject API detection failed (${host}):`,
-      getErrorMessage(error),
-    );
+    logWarn(`OpenProject API detection failed (${host}):`, getErrorMessage(error));
     return 'not-reachable';
   }
 }
@@ -202,14 +181,14 @@ async function detectKeycloakVersion(
       },
     );
     if (!tokenResponse.ok) {
-      logWarn(`⚠️  Keycloak token request failed: HTTP ${tokenResponse.status} (${host})`);
+      logWarn(`Keycloak token request failed: HTTP ${tokenResponse.status} (${host})`);
       return 'not-reachable';
     }
     const tokenData = (await tokenResponse.json()) as KeycloakTokenResponse;
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
-      logWarn(`⚠️  Keycloak token response missing access_token (${host})`);
+      logWarn(`Keycloak token response missing access_token (${host})`);
       return 'not-reachable';
     }
 
@@ -219,16 +198,13 @@ async function detectKeycloakVersion(
       ...(dispatcher ? { dispatcher } : {}),
     });
     if (!infoResponse.ok) {
-      logWarn(`⚠️  Keycloak serverinfo request failed: HTTP ${infoResponse.status} (${host})`);
+      logWarn(`Keycloak serverinfo request failed: HTTP ${infoResponse.status} (${host})`);
       return 'not-reachable';
     }
     const infoData = (await infoResponse.json()) as KeycloakServerInfoResponse;
     return infoData.systemInfo?.version || 'not-reachable';
   } catch (error: unknown) {
-    logWarn(
-      `⚠️  Keycloak version detection failed (${host}):`,
-      getErrorMessage(error),
-    );
+    logWarn(`Keycloak version detection failed (${host}):`, getErrorMessage(error));
     return 'not-reachable';
   }
 }
