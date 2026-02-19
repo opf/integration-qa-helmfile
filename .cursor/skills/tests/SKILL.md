@@ -127,15 +127,25 @@ try {
 - To run in headed mode, use Playwright’s native CLI flags, e.g.:
   - `npx playwright test --headed`
 - Default worker configuration:
-  - Single worker (`workers: 1`) to keep tests predictable and avoid cross-test interference.
-- Common commands:
+  - Single worker (`workers: 1`), overridable via `E2E_WORKERS` or `--workers`.
+- **Native (Node.js on host):**
   - Run tests: `npx playwright test`
   - Run tests headed: `npx playwright test --headed`
   - Run tests and open report: `npx playwright test && npx playwright show-report`
+- **Docker (zero local Node/browser):**
+  - Run all tests: `./run-tests.sh` (default `E2E_ENV=local`)
+  - Target env: `E2E_ENV=edge ./run-tests.sh` or `E2E_ENV=stage ./run-tests.sh`
+  - Pass Playwright args: `./run-tests.sh --grep @smoke`; force rebuild: `./run-tests.sh --build`
+  - Reports and traces are bind-mounted to `playwright-report/` and `test-results/` on the host.
+
+## Writing Style
+
+- Keep all documentation, comments, and README files short and precise.
+- No emojis, no decorative characters, no redundant explanations.
+- Only comment non-obvious logic; do not narrate what the code does.
 
 ## Self-Improvement Directive
 
-- After completing significant refactoring, introducing new patterns, or making architectural changes to this E2E codebase:
-  - Update this `SKILL.md` to reflect the new conventions, helpers, and standards.
-  - Keep the file concise and focused on project-specific knowledge that future sessions should follow by default.
+- After significant refactoring or architectural changes, update this `SKILL.md` to reflect new conventions.
+- Keep this file concise and focused on project-specific knowledge.
 

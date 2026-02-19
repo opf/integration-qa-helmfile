@@ -9,7 +9,7 @@
   "scripts": {
     "test": "playwright test",
     "test:e2e": "playwright test",
-    "test:e2e:report": "playwright test && playwright show-report",
+    "test:e2e:report": "playwright test; playwright show-report",
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:e2e:firefox": "playwright test --project=firefox",
     "test:e2e:headed": "PWDEBUG=0 playwright test --headed",
@@ -18,8 +18,8 @@
     "test:edge": "E2E_ENV=edge playwright test",
     "test:stage": "E2E_ENV=stage playwright test",
     "test:local": "E2E_ENV=local playwright test",
-    "report:show": "playwright show-report",
-    "wait-for-setup": "ts-node scripts/wait-for-setup.ts",
+    "test:docker": "./run-tests.sh",
+    "report:show": "playwright show-report --host 0.0.0.0",
     "playwright:install": "playwright install --with-deps"
   },
   "dependencies": {
