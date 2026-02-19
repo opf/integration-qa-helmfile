@@ -13,4 +13,6 @@ playwright-report/
 test-results/
 .playwright-browsers/
 
+docker-compose.override.yml
+
 .DS_Store

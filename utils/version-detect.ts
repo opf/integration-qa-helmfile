@@ -79,7 +79,7 @@ async function detectNextcloudVersions(host: string): Promise<{
   };
 
   try {
-    const response = await fetch(`https://${host}/ocs/v1.php/cloud/capabilities`, {
+    const response = await fetch(`https://${host}/ocs/v1.php/cloud/capabilities?format=json`, {
       headers: { 'OCS-APIRequest': 'true' },
       ...(dispatcher ? { dispatcher } : {}),
     });
@@ -247,7 +247,7 @@ export async function detectAllVersions(): Promise<DetectedVersions> {
   const ncHost = hosts.nextcloud;
   const kcHost = hosts.keycloak;
 
-  logInfo('\n🔍 Detecting service versions via API...');
+  logInfo('Detecting service versions via API...');
 
   const [ncVersions, opVersion, kcVersion] = await Promise.all([
     detectNextcloudVersions(ncHost),
@@ -270,17 +270,8 @@ export async function detectAllVersions(): Promise<DetectedVersions> {
     keycloak: kcVersion,
   };
 
-  // Log detected versions in a formatted table
-  logInfo('\n' + '─'.repeat(50));
-  logInfo('🔍 API-Detected Versions');
-  logInfo('─'.repeat(50));
-  logInfo(`  OpenProject:      ${detected.openproject}`);
-  logInfo(`  Nextcloud:        ${detected.nextcloud}`);
-  logInfo(`  NC API Version:   ${detected.nextcloudApiVersion}`);
-  logInfo(`  Integration App:  ${detected.integrationApp}`);
-  logInfo(`  Team Folders:     ${detected.teamFolders}`);
-  logInfo(`  Keycloak:         ${detected.keycloak}`);
-  logInfo('─'.repeat(50) + '\n');
-
+  logInfo(
+    `Detected: OpenProject=${detected.openproject}, Nextcloud=${detected.nextcloud}, Keycloak=${detected.keycloak}`,
+  );
   return detected;
 }

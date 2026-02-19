@@ -1,9 +1,12 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { FullConfig } from '@playwright/test';
 import { waitForSetupJobComplete, setupJobExists, isSetupJobComplete } from './utils/pod-waiter';
 import { detectAllVersions } from './utils/version-detect';
 import { ensureKeycloakDirectAccessForNextcloud } from './utils/nextcloud-api';
 import { getErrorMessage } from './utils/error-utils';
 import { logInfo, logError, logWarn } from './utils/logger';
+import { resolveEnvName, resolveHosts } from './utils/env-hosts';
 
 /**
  * Global setup that runs before all tests.
@@ -44,14 +47,21 @@ async function globalSetup(config: FullConfig) {
     logInfo('⏭️  Skipping setup-job check (enable with SETUP_JOB_CHECK=true)');
   }
 
-  // ── Step 2: Detect service versions via API ─────────────────────
+  // Step 2: Detect service versions via API and persist for workers
+  const envName = resolveEnvName();
+  const hosts = resolveHosts(envName);
+  const setupMethod = process.env.SETUP_METHOD || 'sso-external';
+  let detectedVersions: Record<string, string> = {
+    OPENPROJECT_VERSION: 'not-detected',
+    NEXTCLOUD_VERSION: 'not-detected',
+    NEXTCLOUD_API_VERSION: 'not-detected',
+    INTEGRATION_APP_VERSION: 'not-detected',
+    NEXTCLOUD_TEAM_FOLDERS_VERSION: 'not-detected',
+    KEYCLOAK_VERSION: 'not-detected',
+  };
+
   try {
     const detected = await detectAllVersions();
-
-    // Store detected versions as env vars.
-    // Existing env vars take precedence (act as manual overrides).
-    // States like 'not-reachable' and 'not-installed' are preserved
-    // so tests can see which services/apps are unavailable.
     const envMap: Record<string, string> = {
       OPENPROJECT_VERSION: detected.openproject,
       NEXTCLOUD_VERSION: detected.nextcloud,
@@ -60,16 +70,33 @@ async function globalSetup(config: FullConfig) {
       NEXTCLOUD_TEAM_FOLDERS_VERSION: detected.teamFolders,
       KEYCLOAK_VERSION: detected.keycloak,
     };
-
     for (const [key, value] of Object.entries(envMap)) {
-      if (!process.env[key]) {
-        process.env[key] = value;
-      }
+      if (!process.env[key]) process.env[key] = value;
+      detectedVersions[key] = process.env[key]!;
     }
   } catch (error: unknown) {
-    logWarn('⚠️  Version detection failed:', getErrorMessage(error));
-    logWarn('   Tests will use "not-detected" as fallback.');
+    logWarn('Version detection failed:', getErrorMessage(error));
   }
+
+  const outDir = path.join(process.cwd(), 'test-results');
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(outDir, 'e2e-env.json'),
+    JSON.stringify(detectedVersions, null, 0),
+  );
+
+  logInfo('\n' + '='.repeat(60));
+  logInfo('Test Configuration');
+  logInfo('='.repeat(60));
+  logInfo(`Env:              ${envName}`);
+  logInfo(`Setup Method:     ${setupMethod}`);
+  logInfo(`OpenProject:      ${detectedVersions.OPENPROJECT_VERSION}  (${hosts.openproject})`);
+  logInfo(`Nextcloud:        ${detectedVersions.NEXTCLOUD_VERSION}  (${hosts.nextcloud})`);
+  logInfo(`NC API Version:   ${detectedVersions.NEXTCLOUD_API_VERSION}`);
+  logInfo(`Integration App:  ${detectedVersions.INTEGRATION_APP_VERSION}`);
+  logInfo(`Team Folders:     ${detectedVersions.NEXTCLOUD_TEAM_FOLDERS_VERSION}`);
+  logInfo(`Keycloak:         ${detectedVersions.KEYCLOAK_VERSION}  (${hosts.keycloak})`);
+  logInfo('='.repeat(60) + '\n');
 
   // ── Step 3: Enable direct access grants for Nextcloud WebDAV ────────
   try {

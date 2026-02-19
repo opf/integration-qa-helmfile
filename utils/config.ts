@@ -47,8 +47,19 @@ function loadDotEnvLocal(): void {
   }
 }
 
+const E2E_ENV_FILE = path.resolve(path.dirname(__dirname), 'test-results', 'e2e-env.json');
+
 export function loadConfig(): TestConfig {
   loadDotEnvLocal();
+
+  if (fs.existsSync(E2E_ENV_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(E2E_ENV_FILE, 'utf8')) as Record<string, string>;
+      for (const [k, v] of Object.entries(data)) if (v != null) process.env[k] = v;
+    } catch {
+      // use env defaults
+    }
+  }
 
   const envName = resolveEnvName();
 
@@ -69,22 +80,6 @@ export function loadConfig(): TestConfig {
   const integrationAppVersion = process.env.INTEGRATION_APP_VERSION || 'not-detected';
   const teamFoldersVersion = process.env.NEXTCLOUD_TEAM_FOLDERS_VERSION || 'not-detected';
   const keycloakVersion = process.env.KEYCLOAK_VERSION || 'not-detected';
-
-  logInfo('\n' + '='.repeat(60));
-  logInfo('📋 Test Configuration');
-  logInfo('='.repeat(60));
-  logInfo(`🔧 Env:              ${envName}`);
-  logInfo(`🔧 Setup Method:     ${setupMethod}${process.env.SETUP_METHOD ? ' (from env)' : getArgValue('--setupMethod') ? ' (from flag)' : ' (default)'}`);
-  logInfo(`📦 OpenProject:      ${openprojectVersion}`);
-  logInfo(`🌐 OpenProject Host: ${openprojectHost}`);
-  logInfo(`📦 Nextcloud:        ${nextcloudVersion}`);
-  logInfo(`📦 NC API Version:   ${nextcloudApiVersion}`);
-  logInfo(`🌐 Nextcloud Host:   ${nextcloudHost}`);
-  logInfo(`🔌 Integration App:  ${integrationAppVersion}`);
-  logInfo(`📁 Team Folders:     ${teamFoldersVersion}`);
-  logInfo(`🔐 Keycloak:         ${keycloakVersion}`);
-  logInfo(`🌐 Keycloak Host:    ${keycloakHost}`);
-  logInfo('='.repeat(60) + '\n');
 
   return {
     envName,

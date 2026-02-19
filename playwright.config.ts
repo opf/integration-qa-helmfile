@@ -20,19 +20,35 @@ if (!process.env.NODE_EXTRA_CA_CERTS) {
 const config = loadConfig();
 const baseURL = process.env.OPENPROJECT_URL || `https://${config.openproject.host}`;
 
+const workersFromEnv = process.env.E2E_WORKERS
+  ? parseInt(process.env.E2E_WORKERS, 10)
+  : 1;
+
+function runTimestamp(): string {
+  const d = new Date();
+  const Y = d.getFullYear();
+  const M = String(d.getMonth() + 1).padStart(2, '0');
+  const D = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return `${Y}-${M}-${D}_${h}-${m}-${s}`;
+}
+
+// Report and run artifacts in timestamped folder outside test-results (Playwright disallows HTML report inside test-results)
+const runDir = `playwright-report/run-${runTimestamp()}`;
+
 export default defineConfig({
   testDir: './tests',
   forbidOnly: !!process.env.CI,
-  // Default to serial execution; override with --workers <n> when needed
-  workers: 1,
-  // Do not retry tests automatically; fail fast so issues are visible
+  workers: Number.isNaN(workersFromEnv) ? 1 : workersFromEnv,
   retries: 0,
   globalSetup: require.resolve('./global-setup'),
   reporter: [
     ['list'],
-    ['html', { outputFolder: 'playwright-report' }],
-    ['json', { outputFile: 'test-results/results.json' }],
-    ['junit', { outputFile: 'test-results/junit.xml' }],
+    ['html', { outputFolder: `${runDir}/report`, open: 'never' }],
+    ['json', { outputFile: `${runDir}/results.json` }],
+    ['junit', { outputFile: `${runDir}/junit.xml` }],
   ],
   use: {
     baseURL: baseURL,
@@ -46,16 +62,13 @@ export default defineConfig({
     navigationTimeout: 30000,
   },
   projects: [
-    // Keycloak tests - run in parallel
     {
       name: 'keycloak-tests',
       use: { ...devices['Desktop Chrome'] },
       fullyParallel: false,
       workers: 1,
-      // Filter to only Keycloak test files
       testMatch: '**/kc-integration.spec.ts',
     },
-    // Nextcloud-focused integration tests
     {
       name: 'nextcloud-tests',
       use: { ...devices['Desktop Chrome'] },
@@ -63,13 +76,11 @@ export default defineConfig({
       workers: 1,
       testMatch: '**/nc-integration.spec.ts',
     },
-    // OpenProject integration tests - run sequentially (one at a time)
     {
       name: 'op-integration-tests',
       use: { ...devices['Desktop Chrome'] },
       fullyParallel: false,
       workers: 1,
-      // Filter to exclude Keycloak test files
       testMatch: '**/*.spec.ts',
       testIgnore: ['**/kc-integration.spec.ts', '**/nc-integration.spec.ts'],
     },
