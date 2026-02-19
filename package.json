@@ -23,13 +23,13 @@
     "playwright:install": "playwright install --with-deps"
   },
   "dependencies": {
-    "@playwright/test": "^1.57.0",
-    "dotenv": "^17.2.3",
-    "undici": "^7.18.2",
+    "dotenv": "^17.2.4",
+    "undici": "^7.21.0",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
-    "@types/node": "^25.0.9",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.2.3",
     "ts-node": "^10.9.2"
   },
   "overrides": {
