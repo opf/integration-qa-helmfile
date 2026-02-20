@@ -1,8 +1,8 @@
-import { Agent } from 'undici';
 import { ADMIN_USER } from './test-users';
 import { getErrorMessage } from './error-utils';
 import { resolveEnvName, resolveHosts } from './env-hosts';
-import { logWarn } from './logger';
+import { getDispatcher } from './tls-dispatcher';
+import { logInfo, logWarn } from './logger';
 import type { TestUser } from './test-users';
 
 const KC_REALM = process.env.E2E_KC_REALM || 'opnc';
@@ -23,14 +23,6 @@ interface NextcloudUserResponse {
   ocs?: {
     data?: { id?: string };
   };
-}
-
-function getDispatcher(): Agent | undefined {
-  const envName = resolveEnvName();
-  const allowInsecureTls = envName === 'local' || process.env.ALLOW_INSECURE_TLS === '1';
-  return allowInsecureTls
-    ? new Agent({ connect: { rejectUnauthorized: false } })
-    : undefined;
 }
 
 async function getKeycloakAdminToken(kcHost: string): Promise<string> {
@@ -118,7 +110,7 @@ async function ensureDirectAccessGrants(
   if (!putResponse.ok) {
     const text = await putResponse.text();
     logWarn(
-      `⚠️  Failed to enable direct access grants on Keycloak client: HTTP ${putResponse.status} - ${text}`
+      `Failed to enable direct access grants on Keycloak client: HTTP ${putResponse.status} - ${text}`
     );
     throw new Error(
       `Failed to enable direct access grants: HTTP ${putResponse.status}`
@@ -271,75 +263,9 @@ export async function deleteNextcloudFile(
   // Check if file exists before attempting deletion (idempotency check)
   const exists = await fileExists(ncHost, userId, filePath, bearerToken);
   if (!exists) {
-    console.log(`File not found (already deleted or never existed): ${filePath}`);
+    logInfo('File not found (already deleted or never existed): %s', filePath);
     return;
   }
   
   await deleteFile(ncHost, userId, filePath, bearerToken);
-}
-
-/**
- * List files in a folder via WebDAV PROPFIND.
- * Returns array of href paths (relative to /remote.php/dav/files/{userId}/).
- * Requires directAccessGrantsEnabled on the nextcloud client (set in global-setup.ts).
- */
-export async function listNextcloudFiles(
-  folderPath: string,
-  user: TestUser
-): Promise<string[]> {
-  const hosts = resolveHosts(resolveEnvName());
-  const kcHost = hosts.keycloak;
-  const ncHost = hosts.nextcloud;
-
-  const bearerToken = await getKeycloakTokenForUser(kcHost, user);
-  const userId = await resolveNextcloudUserId(ncHost, bearerToken);
-
-  const dispatcher = getDispatcher();
-  const encodedPath = folderPath
-    .split('/')
-    .filter(Boolean)
-    .map(encodeWebDavPath)
-    .join('/');
-  const base = encodedPath ? `/${encodedPath}` : '';
-  const url = `https://${ncHost}/remote.php/dav/files/${encodeURIComponent(userId)}${base}`;
-
-  const response = await fetch(url, {
-    method: 'PROPFIND',
-    headers: {
-      authorization: `Bearer ${bearerToken}`,
-      Depth: '1',
-      'Content-Type': 'application/xml',
-    },
-    body: `<?xml version="1.0"?>
-<d:propfind xmlns:d="DAV:">
-  <d:prop>
-    <d:displayname />
-    <d:resourcetype />
-  </d:prop>
-</d:propfind>`,
-    ...(dispatcher ? { dispatcher } : {}),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(
-      `Nextcloud WebDAV PROPFIND failed: HTTP ${response.status} ${response.statusText} - ${text}`
-    );
-  }
-
-  const xml = await response.text();
-  const hrefMatches = xml.matchAll(/<d:href>([^<]+)<\/d:href>/g);
-  const baseHref = `/remote.php/dav/files/${userId}${base}`.replace(/\/$/, '') + '/';
-  const paths: string[] = [];
-  for (const m of hrefMatches) {
-    const href = decodeURIComponent(m[1]);
-    if (href === baseHref || href === baseHref.replace(/\/$/, '')) {
-      continue;
-    }
-    const rel = href.replace(/^\/remote\.php\/dav\/files\/[^/]+\//, '');
-    if (rel) {
-      paths.push(rel);
-    }
-  }
-  return paths;
 }

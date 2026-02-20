@@ -2,6 +2,7 @@ import { Page } from '@playwright/test';
 import { KeycloakBasePage } from './KeycloakBasePage';
 import { KeycloakClientsPage } from './KeycloakClientsPage';
 import { getErrorMessage } from '../../utils/error-utils';
+import { logDebug, logWarn } from '../../utils/logger';
 
 export class KeycloakRealmsPage extends KeycloakBasePage {
   constructor(page: Page) {
@@ -34,7 +35,7 @@ export class KeycloakRealmsPage extends KeycloakBasePage {
       // Wait a bit for the table to be visible
       const cellCount = await realmCell.count();
       if (cellCount === 0) {
-        console.log(`[REALM CHECK] Realm "${realmName}" cell not found`);
+        logDebug('[REALM CHECK] Realm "%s" cell not found', realmName);
         return false;
       }
       
@@ -43,29 +44,24 @@ export class KeycloakRealmsPage extends KeycloakBasePage {
       const currentRealmBadge = realmCell.locator('span.pf-v5-c-badge.pf-m-read:has-text("Current realm")');
       const badgeCount = await currentRealmBadge.count();
       const isSelected = badgeCount > 0;
-      
-      console.log(`[REALM CHECK] Realm "${realmName}" is ${isSelected ? 'already selected' : 'not selected'}`);
+      logDebug('[REALM CHECK] Realm "%s" is %s', realmName, isSelected ? 'already selected' : 'not selected');
       return isSelected;
     } catch (error: unknown) {
-      console.log(
-        `[REALM CHECK] Could not determine if realm "${realmName}" is selected, assuming not. Error: ${getErrorMessage(error)}`
-      );
+      logDebug('[REALM CHECK] Could not determine if realm "%s" is selected, assuming not. Error:', realmName, getErrorMessage(error));
       return false;
     }
   }
 
   async selectRealm(realmName: string): Promise<void> {
-    console.log(`[REALM SELECTION] Selecting realm: ${realmName}`);
+    logDebug('[REALM SELECTION] Selecting realm: %s', realmName);
     const realmLink = this.page.locator(`a[href='#/${realmName}']`).filter({ hasText: realmName });
     await realmLink.waitFor({ state: 'visible', timeout: 10000 });
-    console.log(`[REALM SELECTION] Realm link found, clicking...`);
+    logDebug('[REALM SELECTION] Realm link found, clicking...');
     await realmLink.click();
-    // Wait for URL to update or realm to be selected
-    await this.page.waitForTimeout(3000); // Increased wait time for realm selection to complete
+    await this.page.waitForTimeout(3000);
     await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    // Additional wait for the badge to appear
     await this.page.waitForTimeout(1000);
-    console.log(`[REALM SELECTION] Realm selection completed`);
+    logDebug('[REALM SELECTION] Realm selection completed');
   }
 
   /**
@@ -73,22 +69,17 @@ export class KeycloakRealmsPage extends KeycloakBasePage {
    * and only selects it if necessary
    */
   async ensureRealmSelected(realmName: string): Promise<void> {
-    console.log(`[REALM SELECTION] Ensuring realm "${realmName}" is selected...`);
-    
+    logDebug('[REALM SELECTION] Ensuring realm "%s" is selected...', realmName);
     const isSelected = await this.isRealmSelected(realmName);
-    
     if (isSelected) {
-      console.log(`[REALM SELECTION] Realm "${realmName}" is already selected, skipping selection`);
+      logDebug('[REALM SELECTION] Realm "%s" is already selected, skipping selection', realmName);
       return;
     }
-    
-    console.log(`[REALM SELECTION] Realm "${realmName}" is not selected, selecting now...`);
+    logDebug('[REALM SELECTION] Realm "%s" is not selected, selecting now...', realmName);
     await this.selectRealm(realmName);
-    
-    // Verify the realm was selected successfully
     const verifySelected = await this.isRealmSelected(realmName);
     if (!verifySelected) {
-      console.warn(`[REALM SELECTION] Warning: Realm "${realmName}" may not have been selected successfully`);
+      logWarn('[REALM SELECTION] Realm "%s" may not have been selected successfully', realmName);
     }
   }
 

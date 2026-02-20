@@ -5,10 +5,18 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "strict": true,
-    "types": ["node", "@playwright/test"],
+    "types": [
+      "node",
+      "@playwright/test"
+    ],
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["tests/**/*", "pageobjects/**/*", "utils/**/*", "playwright.config.ts"]
+  "include": [
+    "tests/**/*",
+    "pageobjects/**/*",
+    "utils/**/*",
+    "playwright.config.ts",
+    "global-setup.ts"
+  ]
 }
-

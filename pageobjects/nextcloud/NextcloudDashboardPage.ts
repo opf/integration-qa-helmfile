@@ -3,6 +3,7 @@ import { NextcloudBasePage } from './NextcloudBasePage';
 import { NextcloudAdminOverviewPage } from './NextcloudAdminOverviewPage';
 import { NextcloudAppsDiscoverPage } from './NextcloudAppsDiscoverPage';
 import { NextcloudIntegrationAppPage } from './NextcloudIntegrationAppPage';
+import { logWarn } from '../../utils/logger';
 
 export class NextcloudDashboardPage extends NextcloudBasePage {
   constructor(page: Page) {
@@ -35,7 +36,7 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
       await closeButton.waitFor({ state: 'visible', timeout: 10000 });
       await closeButton.click();
       await closeButton.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {
-        console.log('Close button did not hide after click, modal may have closed differently');
+        logWarn('Close button did not hide after click, modal may have closed differently');
       });
       await this.page.waitForTimeout(300);
     } catch {

@@ -2,6 +2,7 @@ import { Page, Locator } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { resolveLocator, LocatorDescriptor, LocatorMap } from '../../utils/locator-resolver';
+import { logDebug } from '../../utils/logger';
 
 export interface LocatorsFile {
   url: string;
@@ -48,10 +49,10 @@ export abstract class BasePage {
    */
   async navigateTo(): Promise<void> {
     const url = process.env[this.getUrlEnvVar()] || this.locators.url;
-    console.log(`[PAGE NAVIGATION] Navigating to: ${url}`);
+    logDebug('[PAGE NAVIGATION] Navigating to:', url);
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    console.log(`[PAGE NAVIGATION] Current URL: ${this.page.url()}`);
-    console.log(`[PAGE NAVIGATION] Page title: ${await this.page.title()}`);
+    logDebug('[PAGE NAVIGATION] Current URL:', this.page.url());
+    logDebug('[PAGE NAVIGATION] Page title:', await this.page.title());
   }
 
   /**
@@ -71,7 +72,8 @@ export abstract class BasePage {
   }
 
   /**
-   * Take a screenshot
+   * Take a full-page screenshot to the project screenshots/ directory.
+   * For ad-hoc debugging; not used by the test suite.
    */
   async screenshot(filename: string): Promise<void> {
     const projectRoot = path.resolve(__dirname, '../..');

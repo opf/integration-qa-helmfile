@@ -219,6 +219,14 @@
     "copyProjectSubmitButton": {
       "by": "locator",
       "value": "button.Button--primary:has-text('Copy')"
+    },
+    "existingFileModalTitle": {
+      "by": "locator",
+      "value": ".spot-modal--header-title:has-text('This file already exists')"
+    },
+    "fileExistsReplaceButton": {
+      "by": "locator",
+      "value": ".spot-modal .spot-action-bar--right .button.-primary:has-text('Replace')"
     }
   }
 }

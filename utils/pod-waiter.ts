@@ -64,7 +64,7 @@ export async function waitForSetupJobComplete(
           }
         }
         
-        logInfo('✓ Setup job completed successfully');
+        logInfo('Setup job completed successfully');
         return;
       }
       

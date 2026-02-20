@@ -68,19 +68,3 @@ export const BRIAN_USER: TestUser = {
   lastName: 'Murphy',
   email: 'brian@example.com',
 };
-
-/**
- * Get all test users available for SSO External (Keycloak)
- */
-export function getSSOExternalUsers(): TestUser[] {
-  return [ALICE_USER, BRIAN_USER];
-}
-
-/**
- * Get a test user by username
- */
-export function getUserByUsername(username: string): TestUser | undefined {
-  const allUsers = [ADMIN_USER, ALICE_USER, BRIAN_USER];
-  return allUsers.find(user => user.username === username);
-}
-

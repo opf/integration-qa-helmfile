@@ -14,6 +14,7 @@ import {
 } from '../../utils/test-helpers';
 import { setUserAdmin } from '../../utils/openproject-api';
 import { testConfig } from '../../utils/config';
+import { logInfo, logWarn } from '../../utils/logger';
 
 test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   //OpenProject integration tests
@@ -90,12 +91,9 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     await chooseLocationButton.click();
 
     // Handle "file already exists" modal if it appears
-    const existingFileModalTitle = page
-      .locator('.spot-modal--header-title', { hasText: 'This file already exists' });
+    const existingFileModalTitle = homePage.getLocator('existingFileModalTitle');
     if (await existingFileModalTitle.isVisible({ timeout: 5000 }).catch(() => false)) {
-      const replaceButton = page
-        .locator('.spot-modal .spot-action-bar--right .button.-primary', { hasText: 'Replace' })
-        .first();
+      const replaceButton = homePage.getLocator('fileExistsReplaceButton').first();
       await replaceButton.waitFor({ state: 'visible', timeout: 10000 });
       await replaceButton.click();
     }
@@ -134,30 +132,29 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
         'Demo project (1)',
         ALICE_USER
       );
-      console.log('[Cleanup] Deleted uploaded test file from Demo project (1)');
+      logInfo('[Cleanup] Deleted uploaded test file from Demo project (1)');
     } catch (err) {
-      console.warn('[Cleanup] Failed to delete uploaded test file:', err);
+      logWarn('[Cleanup] Failed to delete uploaded test file:', err);
     }
 
     try {
       const deleted = await deleteProject('test');
       if (deleted) {
-        console.log('[Cleanup] Deleted copied project "test"');
+        logInfo('[Cleanup] Deleted copied project "test"');
       } else {
-        console.log('[Cleanup] Project "test" not found (already deleted or never created)');
+        logInfo('[Cleanup] Project "test" not found (already deleted or never created)');
       }
     } catch (err) {
-      console.warn('[Cleanup] Failed to delete project "test":', err);
+      logWarn('[Cleanup] Failed to delete project "test":', err);
     }
 
-    // Revoke admin permissions from Alice
     try {
       const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
       const { userId } = await ensureUserIsAdmin(loginIdentifier);
       await setUserAdmin(userId, false);
-      console.log('[Cleanup] Revoked admin permissions from Alice');
+      logInfo('[Cleanup] Revoked admin permissions from Alice');
     } catch (err) {
-      console.warn('[Cleanup] Failed to revoke admin permissions from Alice:', err);
+      logWarn('[Cleanup] Failed to revoke admin permissions from Alice:', err);
     }
   });
 
