@@ -110,7 +110,7 @@ go run ./cmd/pullpreview up /Users/crohr/dev/opf/integration-qa-helmfile \
   --proxy-tls openproject:8080 \
   --region nbg1 \
   --image ubuntu-24.04 \
-  --instance-type cpx22 \
+  --instance-type cpx42 \
   --dns rev2.click
 ```
 

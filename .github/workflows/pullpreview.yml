@@ -32,7 +32,7 @@ jobs:
           label: pullpreview
           region: nbg1
           image: ubuntu-24.04
-          instance_type: cpx22
+          instance_type: cpx42
           dns: rev2.click
           max_domain_length: "40"
           deployment_target: helm
