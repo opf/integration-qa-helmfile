@@ -1,0 +1,351 @@
+global:
+  security:
+    allowInsecureImages: true
+
+opnc-integration:
+  previewMode: true
+  integrationSetupMethod: sso-external
+
+  openprojectHost: preview.invalid
+  openprojectAssetHost: openproject-assets.preview.invalid
+  nextcloudHost: nextcloud.preview.invalid
+  keycloakHost: keycloak.preview.invalid
+
+  oidcProvider:
+    name: keycloak
+    openprojectClientId: openproject
+    openprojectClientSecret: openproject-secret
+
+  nextcloud:
+    enableApps:
+      - name: integration_openproject
+        version: ""
+        gitBranch: ""
+      - name: oidc
+        version: ""
+        gitBranch: ""
+      - name: user_oidc
+        version: ""
+        gitBranch: ""
+      - name: groupfolders
+        version: ""
+        gitBranch: ""
+
+  openproject:
+    dockerTag: "16"
+    gitSourceBranch: ""
+    localSourcePath: ""
+    customSourceMountPath: /home/app/openproject
+    standalone: false
+
+  ingress:
+    ingressClassName: traefik
+    tlsSecretName: opnc-tls-secret
+    existingTlsSecretName: ""
+
+  persistence:
+    storageClassName: local-path
+    accessModes:
+      - ReadWriteOnce
+
+openproject:
+  fullnameOverride: openproject
+
+  containerSecurityContext:
+    readOnlyRootFilesystem: false
+
+  image:
+    tag: "16"
+
+  persistence:
+    storageClassName: local-path
+    accessModes:
+      - ReadWriteOnce
+
+  ingress:
+    enabled: false
+
+  openproject:
+    https: true
+    host: preview.invalid
+    admin_user:
+      password_reset: "false"
+    tmpVolumesStorageClassName: local-path
+    oidc:
+      enabled: true
+      scope: "[openid offline_access]"
+      displayName: keycloak
+      identifier: openproject
+      secret: openproject-secret
+      authorizationEndpoint: /realms/opnc/protocol/openid-connect/auth
+      tokenEndpoint: /realms/opnc/protocol/openid-connect/token
+      userinfoEndpoint: /realms/opnc/protocol/openid-connect/userinfo
+      host: keycloak.preview.invalid
+
+  environment:
+    RAILS_ENV: production
+    OPENPROJECT_LOG__LEVEL: info
+    OPENPROJECT_EDITION: standard
+    OPENPROJECT_DISABLE__MIGRATIONS__CHECK: "true"
+    OPENPROJECT_DEV_EXTRA_HOSTS: preview.invalid
+    OPENPROJECT_APIV3__ENABLE__BASIC__AUTH: "true"
+    OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_USER: admin
+    OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: admin
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: https://keycloak.preview.invalid/realms/opnc
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: https://keycloak.preview.invalid/realms/opnc/protocol/openid-connect/certs
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: https://preview.invalid/
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_GRANT__TYPES__SUPPORTED: authorization_code implicit urn:ietf:params:oauth:grant-type:token-exchange
+    DATABASE_HOST: op-postgresql
+    OPENPROJECT_SEED__ENTERPRISE__TOKEN: ""
+    OP_GIT_SOURCE_BRANCH: ""
+
+  dbInit:
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        memory: 512Mi
+
+  appInit:
+    resources:
+      limits:
+        memory: 1Gi
+      requests:
+        memory: 1Gi
+
+  seederJob:
+    resources:
+      limits:
+        memory: 1Gi
+      requests:
+        memory: 512Mi
+
+  extraVolumes:
+    - name: entrypoint
+      configMap:
+        name: op-entry-configmap
+        defaultMode: 493
+
+  extraVolumeMounts:
+    - name: entrypoint
+      mountPath: /app/docker/prod/entrypoint.sh
+      subPath: entrypoint.sh
+
+  postgresql:
+    fullnameOverride: op-postgresql
+    image:
+      repository: bitnamilegacy/postgresql
+      tag: 17.5.0-debian-12-r16
+    auth:
+      password: openproject
+    primary:
+      podLabels:
+        app.kubernetes.io/name: op-postgresql
+      persistence:
+        enabled: false
+
+  memcached:
+    image:
+      repository: bitnamilegacy/memcached
+
+nextcloud:
+  fullnameOverride: nextcloud
+
+  image:
+    tag: "32"
+
+  persistence:
+    storageClassName: local-path
+
+  service:
+    port: 80
+
+  nextcloud:
+    host: nextcloud.preview.invalid
+    username: admin
+    password: admin
+    extraInitContainers:
+      - name: presetup
+        image: node:22
+        command:
+          - /docker-entrypoint-hooks.d/presetup.sh
+        env:
+          - name: NC_GIT_SOURCE_BRANCH
+            value: ""
+          - name: NEXTCLOUD_ENABLE_APPS
+            valueFrom:
+              configMapKeyRef:
+                name: nextcloud-enable-apps
+                key: enable-apps
+        volumeMounts:
+          - name: presetup
+            mountPath: /docker-entrypoint-hooks.d/presetup.sh
+            subPath: presetup.sh
+          - name: nc-git-source
+            mountPath: /usr/src/nc
+    extraEnv:
+      - name: NC_GIT_SOURCE_BRANCH
+        value: ""
+      - name: OVERWRITEPROTOCOL
+        value: https
+      - name: OVERWRITECLIURL
+        value: https://nextcloud.preview.invalid
+      - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID
+        value: nextcloud
+      - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET
+        value: nextcloud-secret
+      - name: OIDC_KEYCLOAK_PROVIDER_NAME
+        value: keycloak
+      - name: OIDC_KEYCLOAK_DISCOVERY_URL
+        value: https://keycloak.preview.invalid/realms/opnc/.well-known/openid-configuration
+      - name: NEXTCLOUD_ENABLE_APPS
+        valueFrom:
+          configMapKeyRef:
+            name: nextcloud-enable-apps
+            key: enable-apps
+    extraVolumes:
+      - name: presetup
+        configMap:
+          name: nc-presetup-configmap
+          defaultMode: 493
+      - name: beforestart
+        configMap:
+          name: nc-beforestart-configmap
+          defaultMode: 493
+      - name: entrypoint
+        configMap:
+          name: nc-entrypoint-configmap
+          defaultMode: 493
+      - name: nc-git-source
+        persistentVolumeClaim:
+          claimName: nc-gitsource-pvc
+    extraVolumeMounts:
+      - name: presetup
+        mountPath: /docker-entrypoint-hooks.d/presetup.sh
+        subPath: presetup.sh
+      - name: beforestart
+        mountPath: /docker-entrypoint-hooks.d/before-starting/beforestart.sh
+        subPath: beforestart.sh
+      - name: entrypoint
+        mountPath: /entrypoint.sh
+        subPath: entrypoint.sh
+      - name: nc-git-source
+        mountPath: /usr/src/nc
+
+  internalDatabase:
+    enabled: false
+
+  externalDatabase:
+    enabled: true
+    type: postgresql
+    host: nc-postgresql
+    user: nextcloud
+    password: nextcloud
+    database: nextcloud
+
+  postgresql:
+    enabled: true
+    fullnameOverride: nc-postgresql
+    image:
+      repository: bitnamilegacy/postgresql
+    global:
+      postgresql:
+        auth:
+          username: nextcloud
+          password: nextcloud
+          database: nextcloud
+    primary:
+      podLabels:
+        app.kubernetes.io/name: nc-postgresql
+
+  livenessProbe:
+    enabled: false
+
+  readinessProbe:
+    enabled: false
+
+keycloak:
+  fullnameOverride: keycloak
+
+  service:
+    ports:
+      http: 8080
+
+  image:
+    tag: 26.2.5
+    repository: bitnamilegacy/keycloak
+
+  command:
+    - /scripts/entrypoint.sh
+
+  usePasswordFiles: false
+
+  auth:
+    adminUser: admin
+    adminPassword: admin
+
+  extraEnvVars:
+    - name: KEYCLOAK_HOSTNAME
+      value: keycloak.preview.invalid
+    - name: KC_REALM_NAME
+      value: opnc
+    - name: KC_NEXTCLOUD_CLIENT_ID
+      value: nextcloud
+    - name: KC_NEXTCLOUD_CLIENT_SECRET
+      value: nextcloud-secret
+    - name: KC_NEXTCLOUD_CLIENT_HOST
+      value: nextcloud.preview.invalid
+    - name: KC_OPENPROJECT_CLIENT_ID
+      value: openproject
+    - name: KC_OPENPROJECT_CLIENT_SECRET
+      value: openproject-secret
+    - name: KC_OPENPROJECT_CLIENT_HOST
+      value: preview.invalid
+
+  extraVolumes:
+    - name: entrypoint
+      configMap:
+        name: kc-entry-configmap
+        defaultMode: 493
+
+  extraVolumeMounts:
+    - name: entrypoint
+      mountPath: /scripts/entrypoint.sh
+      subPath: entrypoint.sh
+
+  cache:
+    enabled: false
+
+  postgresql:
+    fullnameOverride: kc-postgresql
+    image:
+      repository: bitnamilegacy/postgresql
+    primary:
+      podLabels:
+        app.kubernetes.io/name: kc-postgresql
+      persistence:
+        enabled: false
+
+traefik:
+  fullnameOverride: traefik
+
+  ingressClass:
+    enabled: true
+    isDefaultClass: false
+    name: traefik
+
+  providers:
+    kubernetesIngress:
+      ingressClass: traefik
+
+  gateway:
+    enabled: false
+
+  gatewayClass:
+    enabled: false
+
+  api:
+    dashboard: false
+
+  service:
+    type: ClusterIP

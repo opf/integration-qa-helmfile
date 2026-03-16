@@ -78,7 +78,11 @@ $OCC maintenance:mode --off
 # Setup apps                      #
 ###################################
 $OCC security:certificates:import /etc/ssl/certs/ca-certificates.crt
-$OCC security:certificates:import "$SSL_CERT_FILE"
+if [[ -n "$SSL_CERT_FILE" && -f "$SSL_CERT_FILE" ]]; then
+    $OCC security:certificates:import "$SSL_CERT_FILE"
+else
+    echo "[INFO] Skipping custom CA import because SSL_CERT_FILE is not set to an existing file"
+fi
 # allow local remote servers
 $OCC config:system:set allow_local_remote_servers --value 1
 # setup user_oidc app

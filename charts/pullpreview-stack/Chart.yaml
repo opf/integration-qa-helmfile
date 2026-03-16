@@ -1,0 +1,21 @@
+apiVersion: v2
+name: pullpreview-stack
+description: PullPreview umbrella chart for the OpenProject integration stack
+type: application
+version: 0.1.0
+dependencies:
+  - name: opnc-integration
+    version: 0.1.0
+    repository: file://../opnc-integration
+  - name: openproject
+    version: 11.4.2
+    repository: file://../openproject
+  - name: nextcloud
+    version: ~7.0.0
+    repository: https://nextcloud.github.io/helm
+  - name: keycloak
+    version: ~24.7.5
+    repository: https://charts.bitnami.com/bitnami
+  - name: traefik
+    version: ~39.0.5
+    repository: https://traefik.github.io/charts

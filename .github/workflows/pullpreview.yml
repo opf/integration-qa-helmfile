@@ -1,0 +1,108 @@
+name: PullPreview
+
+on:
+  schedule:
+    - cron: "30 */6 * * *"
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+      - labeled
+      - unlabeled
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy:
+    if: github.event_name == 'schedule' || github.event.label.name == 'pullpreview' || contains(github.event.pull_request.labels.*.name, 'pullpreview')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: pullpreview
+        # Temporary branch ref until proxy_tls_hosts is merged upstream.
+        uses: pullpreview/action@poc/pullpreview-helm-multihost
+        with:
+          provider: hetzner
+          label: pullpreview
+          region: nbg1
+          image: ubuntu-24.04
+          instance_type: cpx22
+          dns: rev2.click
+          max_domain_length: "40"
+          deployment_target: helm
+          chart: ./charts/pullpreview-stack
+          proxy_tls: traefik:80
+          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
+          chart_set: >-
+            opnc-integration.openprojectHost={{ pullpreview_public_dns }},
+            opnc-integration.nextcloudHost=nextcloud.{{ pullpreview_public_dns }},
+            opnc-integration.keycloakHost=keycloak.{{ pullpreview_public_dns }},
+            openproject.openproject.host={{ pullpreview_public_dns }},
+            openproject.openproject.oidc.host=keycloak.{{ pullpreview_public_dns }},
+            openproject.environment.OPENPROJECT_DEV_EXTRA_HOSTS={{ pullpreview_public_dns }},
+            openproject.environment.OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER=https://keycloak.{{ pullpreview_public_dns }}/realms/opnc,
+            openproject.environment.OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI=https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs,
+            openproject.environment.OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI=https://{{ pullpreview_public_dns }}/,
+            nextcloud.nextcloud.host=nextcloud.{{ pullpreview_public_dns }},
+            nextcloud.nextcloud.extraEnv[0].name=NC_GIT_SOURCE_BRANCH,
+            nextcloud.nextcloud.extraEnv[0].value=,
+            nextcloud.nextcloud.extraEnv[1].name=OVERWRITEPROTOCOL,
+            nextcloud.nextcloud.extraEnv[1].value=https,
+            nextcloud.nextcloud.extraEnv[2].name=OVERWRITECLIURL,
+            nextcloud.nextcloud.extraEnv[2].value=https://nextcloud.{{ pullpreview_public_dns }},
+            nextcloud.nextcloud.extraEnv[3].name=OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID,
+            nextcloud.nextcloud.extraEnv[3].value=nextcloud,
+            nextcloud.nextcloud.extraEnv[4].name=OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET,
+            nextcloud.nextcloud.extraEnv[4].value=nextcloud-secret,
+            nextcloud.nextcloud.extraEnv[5].name=OIDC_KEYCLOAK_PROVIDER_NAME,
+            nextcloud.nextcloud.extraEnv[5].value=keycloak,
+            nextcloud.nextcloud.extraEnv[6].name=OIDC_KEYCLOAK_DISCOVERY_URL,
+            nextcloud.nextcloud.extraEnv[6].value=https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/.well-known/openid-configuration,
+            nextcloud.nextcloud.extraEnv[7].name=NEXTCLOUD_ENABLE_APPS,
+            nextcloud.nextcloud.extraEnv[7].valueFrom.configMapKeyRef.name=nextcloud-enable-apps,
+            nextcloud.nextcloud.extraEnv[7].valueFrom.configMapKeyRef.key=enable-apps,
+            keycloak.extraEnvVars[0].name=KEYCLOAK_HOSTNAME,
+            keycloak.extraEnvVars[0].value=keycloak.{{ pullpreview_public_dns }},
+            keycloak.extraEnvVars[1].name=KC_REALM_NAME,
+            keycloak.extraEnvVars[1].value=opnc,
+            keycloak.extraEnvVars[2].name=KC_NEXTCLOUD_CLIENT_ID,
+            keycloak.extraEnvVars[2].value=nextcloud,
+            keycloak.extraEnvVars[3].name=KC_NEXTCLOUD_CLIENT_SECRET,
+            keycloak.extraEnvVars[3].value=nextcloud-secret,
+            keycloak.extraEnvVars[4].name=KC_NEXTCLOUD_CLIENT_HOST,
+            keycloak.extraEnvVars[4].value=nextcloud.{{ pullpreview_public_dns }},
+            keycloak.extraEnvVars[5].name=KC_OPENPROJECT_CLIENT_ID,
+            keycloak.extraEnvVars[5].value=openproject,
+            keycloak.extraEnvVars[6].name=KC_OPENPROJECT_CLIENT_SECRET,
+            keycloak.extraEnvVars[6].value=openproject-secret,
+            keycloak.extraEnvVars[7].name=KC_OPENPROJECT_CLIENT_HOST,
+            keycloak.extraEnvVars[7].value={{ pullpreview_public_dns }}
+          ttl: 72h
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+
+      - name: Add secondary URLs to job summary
+        if: steps.pullpreview.outputs.live == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.pullpreview.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          {
+            echo ""
+            echo "### Additional preview URLs"
+            echo ""
+            echo "- Nextcloud: https://nextcloud.${preview_host}"
+            echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
+          } >> "${GITHUB_STEP_SUMMARY}"

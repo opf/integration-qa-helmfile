@@ -2,14 +2,20 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: opnc-ingress
+  {{- if not .Values.previewMode }}
   annotations:
     cert-manager.io/issuer: {{ include "opnc.issuerName" . }}
     {{ if eq .Values.ingress.ingressClassName "nginx" }}
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: 'true'
     {{ end }}
+  {{- else if eq .Values.ingress.ingressClassName "nginx" }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.ingressClassName | default "traefik" }}
+  {{- if not .Values.previewMode }}
   tls:
     - hosts:
         - {{ include "opnc.openprojectHost" . }}
@@ -19,6 +25,7 @@ spec:
         - {{ include "opnc.openprojectAssetHost" . }}
         {{ end }}
       secretName: {{ include "opnc.tlsSecretName" . }}
+  {{- end }}
   rules:
     - host: {{ include "opnc.openprojectHost" . }}
       http:

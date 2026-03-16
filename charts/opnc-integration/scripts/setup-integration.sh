@@ -6,6 +6,13 @@ echo "###################################"
 echo "# Setup integration app           #"
 echo "###################################"
 
+NEXTCLOUD_WAIT_URL="${NEXTCLOUD_WAIT_URL:-https://$NEXTCLOUD_HOST}"
+OPENPROJECT_WAIT_URL="${OPENPROJECT_WAIT_URL:-https://$OPENPROJECT_HOST}"
+KEYCLOAK_WAIT_URL="${KEYCLOAK_WAIT_URL:-https://$KEYCLOAK_HOST}"
+NEXTCLOUD_WAIT_HOST_HEADER="${NEXTCLOUD_WAIT_HOST_HEADER:-}"
+OPENPROJECT_WAIT_HOST_HEADER="${OPENPROJECT_WAIT_HOST_HEADER:-}"
+KEYCLOAK_WAIT_HOST_HEADER="${KEYCLOAK_WAIT_HOST_HEADER:-}"
+
 has_integration_setup() {
     local response
     local setup_without_project_folder
@@ -27,11 +34,16 @@ has_integration_setup() {
 # waits 5 minutes for the server to be ready
 wait_for_server() {
     local url="$1"
+    local host_header="${2:-}"
     local max_retry=60
     local retry=1
 
     while [[ $retry -le $max_retry ]]; do
-        server_status=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
+        curl_args=(-s -o /dev/null -w "%{http_code}")
+        if [[ -n "$host_header" ]]; then
+            curl_args+=(-H "Host: $host_header")
+        fi
+        server_status=$(curl "${curl_args[@]}" "$url" || echo "000")
         if [[ $server_status -ne 0 && $server_status -lt 400 ]]; then
             return 0
         fi
@@ -57,10 +69,10 @@ fi
 
 # wait for servers
 echo "[INFO] Waiting for Nextcloud to be ready..."
-wait_for_server "https://$NEXTCLOUD_HOST"
+wait_for_server "$NEXTCLOUD_WAIT_URL" "$NEXTCLOUD_WAIT_HOST_HEADER"
 echo "[INFO] Nextcloud is ready."
 echo "[INFO] Waiting for OpenProject to be ready..."
-wait_for_server "https://$OPENPROJECT_HOST"
+wait_for_server "$OPENPROJECT_WAIT_URL" "$OPENPROJECT_WAIT_HOST_HEADER"
 echo "[INFO] OpenProject is ready."
 
 SCRIPT_URL="https://raw.githubusercontent.com/nextcloud/integration_openproject/master"
@@ -108,7 +120,7 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
     echo "[INFO] Waiting for Keycloak to be ready..."
-    wait_for_server "https://$KEYCLOAK_HOST"
+    wait_for_server "$KEYCLOAK_WAIT_URL" "$KEYCLOAK_WAIT_HOST_HEADER"
     echo "[INFO] Keycloak is ready."
 
     curl -s $SCRIPT_URL/integration_oidc_setup.sh -o integration_oidc_setup.sh

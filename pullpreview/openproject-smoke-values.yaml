@@ -1,0 +1,25 @@
+fullnameOverride: openproject
+develop: true
+
+environment:
+  OPENPROJECT_DISABLE__MIGRATIONS__CHECK: "true"
+
+appInit:
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      memory: 1Gi
+
+persistence:
+  accessModes:
+    - ReadWriteOnce
+
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: false
+
+openproject:
+  https: true

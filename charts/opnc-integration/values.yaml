@@ -2,6 +2,8 @@
 # Options: 'oauth2', 'sso-nextcloud', 'sso-external'
 integrationSetupMethod: 'sso-external'
 
+previewMode: false
+
 openprojectHost: openproject.test
 openprojectAssetHost: openproject-assets.test
 nextcloudHost: nextcloud.test
