@@ -1,5 +1,7 @@
 fullnameOverride: openproject
-develop: true
+
+containerSecurityContext:
+  readOnlyRootFilesystem: false
 
 environment:
   OPENPROJECT_DISABLE__MIGRATIONS__CHECK: "true"
@@ -23,3 +25,4 @@ ingress:
 
 openproject:
   https: true
+  useTmpVolumes: false
