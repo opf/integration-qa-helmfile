@@ -30,7 +30,7 @@ jobs:
         with:
           provider: hetzner
           label: pullpreview
-          region: nbg1
+          region: fsn1
           image: ubuntu-24.04
           instance_type: cpx42
           dns: rev2.click

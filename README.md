@@ -106,7 +106,7 @@ pullpreview up /Users/crohr/dev/opf/integration-qa-helmfile \
   --chart-values pullpreview/openproject-smoke-values.yaml \
   --chart-set openproject.host={{ pullpreview_public_dns }} \
   --proxy-tls openproject:8080 \
-  --region nbg1 \
+  --region fsn1 \
   --image ubuntu-24.04 \
   --instance-type cpx42 \
   --dns rev2.click
