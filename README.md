@@ -92,16 +92,14 @@ nextcloud:
 
 ### Phase 1 smoke deployment
 
-Use the local PullPreview CLI from `/Users/crohr/dev/pullpreview/action` against the existing OpenProject chart and [`pullpreview/openproject-smoke-values.yaml`](/Users/crohr/dev/opf/integration-qa-helmfile/pullpreview/openproject-smoke-values.yaml):
+Use the installed PullPreview CLI against the existing OpenProject chart and [`pullpreview/openproject-smoke-values.yaml`](/Users/crohr/dev/opf/integration-qa-helmfile/pullpreview/openproject-smoke-values.yaml):
 
 ```bash
-cd /Users/crohr/dev/pullpreview/action
-
 PULLPREVIEW_PROVIDER=hetzner \
 PULLPREVIEW_MAX_DOMAIN_LENGTH=40 \
 HCLOUD_TOKEN=... \
 HETZNER_CA_KEY=... \
-go run ./cmd/pullpreview up /Users/crohr/dev/opf/integration-qa-helmfile \
+pullpreview up /Users/crohr/dev/opf/integration-qa-helmfile \
   --name opf-op-smoke \
   --deployment-target helm \
   --chart ./charts/openproject \
@@ -117,8 +115,7 @@ go run ./cmd/pullpreview up /Users/crohr/dev/opf/integration-qa-helmfile \
 Destroy the smoke deployment with:
 
 ```bash
-cd /Users/crohr/dev/pullpreview/action
-PULLPREVIEW_PROVIDER=hetzner go run ./cmd/pullpreview down --name opf-op-smoke
+PULLPREVIEW_PROVIDER=hetzner pullpreview down --name opf-op-smoke
 ```
 
 ### Phase 2 stack deployment
