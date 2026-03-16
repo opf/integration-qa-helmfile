@@ -347,5 +347,10 @@ traefik:
   api:
     dashboard: false
 
+  ports:
+    web:
+      forwardedHeaders:
+        insecure: true
+
   service:
     type: ClusterIP

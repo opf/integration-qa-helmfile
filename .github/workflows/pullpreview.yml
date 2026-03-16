@@ -106,3 +106,34 @@ jobs:
             echo "- Nextcloud: https://nextcloud.${preview_host}"
             echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Validate preview URLs
+        if: steps.pullpreview.outputs.live == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.pullpreview.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          curl_status() {
+            local url="$1"
+            /usr/bin/curl -skS -o /dev/null \
+              --connect-timeout 10 \
+              --retry 6 \
+              --retry-delay 10 \
+              --write-out '%{http_code}' \
+              "$url"
+          }
+
+          root_status="$(curl_status "https://${preview_host}/")"
+          login_status="$(curl_status "https://${preview_host}/login")"
+          nextcloud_status="$(curl_status "https://nextcloud.${preview_host}/status.php")"
+          keycloak_status="$(curl_status "https://keycloak.${preview_host}/realms/opnc")"
+
+          test "${root_status}" = "302"
+          test "${login_status}" = "200"
+          test "${nextcloud_status}" = "200"
+          test "${keycloak_status}" = "200"
