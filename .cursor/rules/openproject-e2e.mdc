@@ -1,0 +1,43 @@
+---
+description: OpenProject E2E Playwright conventions (page objects, locators, utils)
+globs:
+  - tests/**/*.ts
+  - pageobjects/**/*.ts
+  - utils/**/*.ts
+  - locators/**/*.json
+  - playwright.config.ts
+  - global-setup.ts
+alwaysApply: false
+---
+
+# OpenProject E2E
+
+Full detail: `.cursor/skills/tests/SKILL.md`. Summaries below.
+
+## Layout
+
+- `tests/` — specs; **no inline selectors** in spec files.
+- `pageobjects/` — extend `BasePage` or `OpenProjectBasePage` / `NextcloudBasePage` / `KeycloakBasePage`. Use `getLocator(key)`; selectors come from JSON only.
+- `locators/` — `openproject.json`, `nextcloud.json`, `keycloak.json`. Prefer `getByRole`, `getByLabel`, `getByText`; `getByTestId` when present; CSS/XPath `locator` last. See `utils/locators_guide.md`.
+- `utils/` — config, env hosts, APIs, logging, errors. Use `resolveEnvName` / `resolveHosts` from `utils/env-hosts.ts` and `testConfig` from `utils/config.ts`; do not duplicate env logic.
+
+## New tests
+
+Reuse or extend an existing page object before adding a new one. Export via domain `index.ts` barrels where used.
+
+## UI vs `test-helpers`
+
+Put navigations, clicks, and form flows in **page objects**. `utils/test-helpers.ts` is for API helpers and orchestration (API + optional page object), not standalone UI flows.
+
+## Logging and errors
+
+- `logDebug` / `logInfo` / `logWarn` / `logError` from `utils/logger.ts` — not `console.*`.
+- `catch (error: unknown)` and `getErrorMessage(error)` from `utils/error-utils.ts`. No `catch (error: any)`.
+
+## TypeScript
+
+`strict` is on. Prefer explicit types for APIs and config; avoid `Record<string, any>` in new code.
+
+## Running tests
+
+Headless by default; workers often `1` unless `E2E_WORKERS` / CLI. Native: `npx playwright test`. Docker: `./run-tests.sh`. Document new env vars in `README.md`.
