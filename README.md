@@ -23,6 +23,10 @@ E2E_ENV=local npx playwright test
 
 For more run options (envs, tags, report), see `.cursor/skills/tests/SKILL.md`.
 
+## `.claude`
+
+Optional documentation for the **`playwright-cli`** tool (interactive browser control, snapshots, tracing, session helpers). Entry point: `.claude/skills/playwright-cli/SKILL.md`; deeper topics live under `.claude/skills/playwright-cli/references/`. This is separate from `npx playwright test`: committed specs and page objects follow `.cursor/skills/tests/SKILL.md`.
+
 ## Environment Variables
 
 | Variable | Purpose | Default |

@@ -22,7 +22,7 @@ Page object inheritance:
 - Never put selectors directly into test code; always use locator rules and JSON files in `locators/`.
 - Locator file structure:
 
-```markdown
+```json
 {
   "url": "https://example/",
   "selectors": {
@@ -137,6 +137,16 @@ try {
   - Target env: `E2E_ENV=edge ./run-tests.sh` or `E2E_ENV=stage ./run-tests.sh`
   - Pass Playwright args: `./run-tests.sh --grep @smoke`; force rebuild: `./run-tests.sh --build`
   - Reports and traces are bind-mounted to `playwright-report/` and `test-results/` on the host.
+
+## Optional: Playwright CLI
+
+The `playwright-cli` tool is for **interactive** exploration against a live site: snapshots, optional tracing or video outside the normal `npx playwright test` run, and discovering selector strategies. Output lines that look like Playwright API calls are **hints** for locator design, not something to paste into this repo’s specs.
+
+- **Install / run:** use `playwright-cli` if installed globally; otherwise `npx playwright-cli` (see `.claude/skills/playwright-cli/SKILL.md` under "Local installation").
+- **Useful commands (subset):** `open`, `goto`, `snapshot`, `click`, `fill`, `close`; `tracing-start` / `tracing-stop`; `video-start` / `video-stop`; named sessions `-s=name`, `list`, `close-all`.
+- **Full command reference:** `.claude/skills/playwright-cli/SKILL.md` and its `references/` files.
+
+**This repository:** do not put raw selectors or CLI-generated `page.*` lines into `tests/`. Add stable keys to `locators/*.json`, use `getLocator` in page objects, and call page object methods from specs (see Locator Rules and Page Object Conventions above).
 
 ## Writing Style
 
