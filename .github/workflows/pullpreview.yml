@@ -127,22 +127,46 @@ jobs:
           preview_host="${preview_host%%/*}"
           preview_host="${preview_host%%:*}"
 
-          curl_status() {
-            local url="$1"
-            /usr/bin/curl -skS -o /dev/null \
-              --connect-timeout 10 \
-              --retry 6 \
-              --retry-delay 10 \
-              --write-out '%{http_code}' \
-              "$url"
+          check_url() {
+            local name="$1"
+            local url="$2"
+            local expected_status="$3"
+            local attempt
+            local attempts=3
+            local status=""
+            local curl_exit=0
+
+            for attempt in $(seq 1 "${attempts}"); do
+              set +e
+              status="$(
+                /usr/bin/curl -skS -o /dev/null \
+                  --connect-timeout 10 \
+                  --write-out '%{http_code}' \
+                  "$url" 2>/dev/null
+              )"
+              curl_exit=$?
+              set -e
+
+              if [[ "${curl_exit}" -eq 0 ]]; then
+                echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
+                if [[ "${status}" == "${expected_status}" ]]; then
+                  return 0
+                fi
+              else
+                status="curl-exit-${curl_exit}"
+                echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
+              fi
+
+              if [[ "${attempt}" -lt "${attempts}" ]]; then
+                sleep 5
+              fi
+            done
+
+            echo "::error::${name} endpoint was not ready: ${url} expected HTTP ${expected_status}, last result ${status}"
+            return 1
           }
 
-          root_status="$(curl_status "https://${preview_host}/")"
-          login_status="$(curl_status "https://${preview_host}/login")"
-          nextcloud_status="$(curl_status "https://nextcloud.${preview_host}/status.php")"
-          keycloak_status="$(curl_status "https://keycloak.${preview_host}/realms/opnc")"
-
-          test "${root_status}" = "302"
-          test "${login_status}" = "200"
-          test "${nextcloud_status}" = "200"
-          test "${keycloak_status}" = "200"
+          check_url "Main root" "https://${preview_host}/" "302"
+          check_url "Main login" "https://${preview_host}/login" "200"
+          check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200"
+          check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
