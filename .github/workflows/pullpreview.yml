@@ -33,7 +33,7 @@ jobs:
           region: fsn1
           image: ubuntu-24.04
           instance_type: cpx42
-          dns: rev2.click
+          dns: my.preview.run
           max_domain_length: "40"
           deployment_target: helm
           chart: ./charts/pullpreview-stack
@@ -101,8 +101,9 @@ jobs:
 
           {
             echo ""
-            echo "### Additional preview URLs"
+            echo "### Preview endpoints"
             echo ""
+            echo "- Main FQDN: https://${preview_host}"
             echo "- Nextcloud: https://nextcloud.${preview_host}"
             echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
           } >> "${GITHUB_STEP_SUMMARY}"

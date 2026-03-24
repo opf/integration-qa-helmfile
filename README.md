@@ -109,7 +109,7 @@ pullpreview up /Users/crohr/dev/opf/integration-qa-helmfile \
   --region fsn1 \
   --image ubuntu-24.04 \
   --instance-type cpx42 \
-  --dns rev2.click
+  --dns my.preview.run
 ```
 
 Destroy the smoke deployment with:
@@ -123,6 +123,7 @@ PULLPREVIEW_PROVIDER=hetzner pullpreview down --name opf-op-smoke
 [`charts/pullpreview-stack`](/Users/crohr/dev/opf/integration-qa-helmfile/charts/pullpreview-stack) packages the full OpenProject, Nextcloud, Keycloak, and integration setup as a single Helm release for PullPreview. It runs the integration chart in `previewMode`, which keeps the existing local k3d workflow unchanged while disabling the self-signed internal TLS path used by the README flow.
 
 The GitHub workflow is in [`pullpreview.yml`](/Users/crohr/dev/opf/integration-qa-helmfile/.github/workflows/pullpreview.yml) and expects repository secrets `HCLOUD_TOKEN` and `HETZNER_CA_KEY`, plus the trigger label `pullpreview`.
+It publishes the main OpenProject preview on the generated FQDN and exposes the related services on subdomains of that same host, for example `https://<fqdn>`, `https://nextcloud.<fqdn>`, and `https://keycloak.<fqdn>/realms/opnc`.
 
 ## Serve From Git Branch
 
