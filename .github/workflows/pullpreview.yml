@@ -17,12 +17,62 @@ permissions:
   pull-requests: write
 
 jobs:
+  prepare:
+    if: github.event_name == 'schedule' || github.event.label.name == 'pullpreview' || contains(github.event.pull_request.labels.*.name, 'pullpreview')
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    outputs:
+      auth_label_changed: ${{ steps.auth_label_change.outputs.changed }}
+      force_action: ${{ steps.auth_label_change.outputs.force_action }}
+    steps:
+      - id: auth_label_change
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          action="$(jq -r '.action // ""' "$GITHUB_EVENT_PATH")"
+          label="$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")"
+          has_pullpreview="$(jq -r '[.pull_request.labels[]?.name] | index("pullpreview") != null' "$GITHUB_EVENT_PATH")"
+
+          auth_label_changed=false
+          if [[ "$has_pullpreview" == "true" && ( "$action" == "labeled" || "$action" == "unlabeled" ) ]]; then
+            case "$label" in
+              auth-sso-external|auth-sso-nextcloud|auth-oauth2)
+                auth_label_changed=true
+                ;;
+            esac
+          fi
+
+          {
+            echo "changed=${auth_label_changed}"
+            if [[ "$auth_label_changed" == "true" ]]; then
+              echo "force_action=up"
+            else
+              echo "force_action="
+            fi
+          } >> "$GITHUB_OUTPUT"
+
   deploy:
     if: github.event_name == 'schedule' || github.event.label.name == 'pullpreview' || contains(github.event.pull_request.labels.*.name, 'pullpreview')
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
+
+      - name: Recreate preview before auth-mode change
+        if: needs.prepare.outputs.auth_label_changed == 'true'
+        # Temporary branch ref until proxy_tls_hosts is merged upstream.
+        uses: pullpreview/action@poc/pullpreview-helm-multihost
+        with:
+          provider: hetzner
+          label: pullpreview
+          force_action: down
+          deployment_target: helm
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
 
       - id: pullpreview
         # Temporary branch ref until proxy_tls_hosts is merged upstream.
@@ -30,6 +80,7 @@ jobs:
         with:
           provider: hetzner
           label: pullpreview
+          force_action: ${{ needs.prepare.outputs.force_action }}
           region: fsn1
           image: ubuntu-24.04
           instance_type: cpx42
@@ -37,52 +88,9 @@ jobs:
           max_domain_length: "40"
           deployment_target: helm
           chart: ./charts/pullpreview-stack
+          chart_values: pullpreview/pullpreview-stack-values.yaml
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
-          chart_set: >-
-            opnc-integration.openprojectHost={{ pullpreview_public_dns }},
-            opnc-integration.nextcloudHost=nextcloud.{{ pullpreview_public_dns }},
-            opnc-integration.keycloakHost=keycloak.{{ pullpreview_public_dns }},
-            openproject.openproject.host={{ pullpreview_public_dns }},
-            openproject.openproject.oidc.host=keycloak.{{ pullpreview_public_dns }},
-            openproject.environment.OPENPROJECT_DEV_EXTRA_HOSTS={{ pullpreview_public_dns }},
-            openproject.environment.OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER=https://keycloak.{{ pullpreview_public_dns }}/realms/opnc,
-            openproject.environment.OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI=https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs,
-            openproject.environment.OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI=https://{{ pullpreview_public_dns }}/,
-            nextcloud.nextcloud.host=nextcloud.{{ pullpreview_public_dns }},
-            nextcloud.nextcloud.extraEnv[0].name=NC_GIT_SOURCE_BRANCH,
-            nextcloud.nextcloud.extraEnv[0].value=,
-            nextcloud.nextcloud.extraEnv[1].name=OVERWRITEPROTOCOL,
-            nextcloud.nextcloud.extraEnv[1].value=https,
-            nextcloud.nextcloud.extraEnv[2].name=OVERWRITECLIURL,
-            nextcloud.nextcloud.extraEnv[2].value=https://nextcloud.{{ pullpreview_public_dns }},
-            nextcloud.nextcloud.extraEnv[3].name=OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID,
-            nextcloud.nextcloud.extraEnv[3].value=nextcloud,
-            nextcloud.nextcloud.extraEnv[4].name=OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET,
-            nextcloud.nextcloud.extraEnv[4].value=nextcloud-secret,
-            nextcloud.nextcloud.extraEnv[5].name=OIDC_KEYCLOAK_PROVIDER_NAME,
-            nextcloud.nextcloud.extraEnv[5].value=keycloak,
-            nextcloud.nextcloud.extraEnv[6].name=OIDC_KEYCLOAK_DISCOVERY_URL,
-            nextcloud.nextcloud.extraEnv[6].value=https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/.well-known/openid-configuration,
-            nextcloud.nextcloud.extraEnv[7].name=NEXTCLOUD_ENABLE_APPS,
-            nextcloud.nextcloud.extraEnv[7].valueFrom.configMapKeyRef.name=nextcloud-enable-apps,
-            nextcloud.nextcloud.extraEnv[7].valueFrom.configMapKeyRef.key=enable-apps,
-            keycloak.extraEnvVars[0].name=KEYCLOAK_HOSTNAME,
-            keycloak.extraEnvVars[0].value=keycloak.{{ pullpreview_public_dns }},
-            keycloak.extraEnvVars[1].name=KC_REALM_NAME,
-            keycloak.extraEnvVars[1].value=opnc,
-            keycloak.extraEnvVars[2].name=KC_NEXTCLOUD_CLIENT_ID,
-            keycloak.extraEnvVars[2].value=nextcloud,
-            keycloak.extraEnvVars[3].name=KC_NEXTCLOUD_CLIENT_SECRET,
-            keycloak.extraEnvVars[3].value=nextcloud-secret,
-            keycloak.extraEnvVars[4].name=KC_NEXTCLOUD_CLIENT_HOST,
-            keycloak.extraEnvVars[4].value=nextcloud.{{ pullpreview_public_dns }},
-            keycloak.extraEnvVars[5].name=KC_OPENPROJECT_CLIENT_ID,
-            keycloak.extraEnvVars[5].value=openproject,
-            keycloak.extraEnvVars[6].name=KC_OPENPROJECT_CLIENT_SECRET,
-            keycloak.extraEnvVars[6].value=openproject-secret,
-            keycloak.extraEnvVars[7].name=KC_OPENPROJECT_CLIENT_HOST,
-            keycloak.extraEnvVars[7].value={{ pullpreview_public_dns }}
           ttl: 72h
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
