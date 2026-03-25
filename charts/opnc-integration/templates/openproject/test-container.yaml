@@ -1,0 +1,52 @@
+{{ if .Values.openproject.enableTestSetup }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: op-test-container
+  labels:
+    app: op-test-container
+spec:
+  selector:
+    matchLabels:
+      app: op-test-container
+  template:
+    metadata:
+      labels:
+        app: op-test-container
+    spec:
+      containers:
+        - name: test-container
+          image: ruby:{{ .Values.openproject.rubyVersion | default "latest" }}
+          command: ["sh", "-c", "sleep infinity"]
+          {{- if .Values.environment }}
+          envFrom:
+            - secretRef:
+                name: op-environment
+          {{- end }}
+          ports:
+            - containerPort: 3000
+              name: op-test-server
+              protocol: TCP
+          volumeMounts:
+            - name: op-source-data
+              mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+      volumes:
+        - name: op-source-data
+          hostPath:
+            path: {{ .Values.openproject.localSourcePath }}
+            type: Directory
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: op-test-server
+spec:
+  selector:
+    app: op-test-container
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+{{ end }}

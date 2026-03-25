@@ -33,6 +33,9 @@ nextcloud:
       gitBranch: ''
 
 openproject:
+  # Ruby version to use to build the OP from source.
+  # It will be ignored if localSourcePath or gitSourceBranch is not set
+  rubyVersion: 'latest'
   # Git branch to use as the source
   # Example: dev
   gitSourceBranch: ''
@@ -41,6 +44,9 @@ openproject:
   dockerTag: ''
   customSourceMountPath: /home/app/openproject
   standalone: false
+  enableTestSetup: false
+# OpenProject environment variables
+environment: {}
 
 extraVolumes: []
 extraVolumeMounts: []

@@ -46,13 +46,25 @@ openproject:
   # Override 'gitSourceBranch'               #
   ############################################
   localSourcePath: ''
+  #####################################################
+  # Ruby to use to build the source                   #
+  # It will be ignored if localSourcePath             #
+  # or gitSourceBranch is not set                     #
+  #####################################################
+  rubyVersion: '3.4.7'
   ####################################################
   # Path to map custom OpenProject source inside pod #
   # NOTE: this will server as APP_PATH               #
   ####################################################
   customSourceMountPath: '/home/app/openproject'
+  #####################################################
+  # Starts pods necessary for testing                 #
+  #####################################################
+  enableTestSetup: false
   postgresql:
     host: op-postgresql
+    database: openproject
+    username: openproject
     password: openproject
   ############################################
   # Enterprise Token                         #
