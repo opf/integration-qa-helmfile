@@ -11,6 +11,11 @@ spec:
         - name: build-source
           image: openproject/openproject:{{ .Values.openproject.dockerTag | default "dev" }}
           command: ['/scripts/setup-op-source.sh']
+          {{- if .Values.environment }}
+          envFrom:
+            - secretRef:
+                name: op-environment
+          {{- end }}
           env:
             - name: OP_GIT_SOURCE_BRANCH
               value: '{{ .Values.openproject.gitSourceBranch }}'
@@ -24,6 +29,9 @@ spec:
               subPath: setup-op-source.sh
             - name: op-source-data
               mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+            - name: database-config
+              mountPath: /scripts/database.yaml
+              subPath: database.yaml
       volumes:
         - name: build-source-script
           configMap:
@@ -39,6 +47,10 @@ spec:
           hostPath:
             path: {{ .Values.openproject.localSourcePath }}
             type: Directory
+        - name: database-config
+          configMap:
+            name: op-database-configmap
+            defaultMode: 0755
         {{ end }}
 
 {{ if and .Values.openproject.gitSourceBranch (not .Values.openproject.localSourcePath) }}

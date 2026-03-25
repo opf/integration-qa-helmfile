@@ -27,4 +27,13 @@ metadata:
 data:
   serve-assets.sh: |
 {{ .Files.Get "scripts/openproject/serve-assets.sh" | indent 4 }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: op-database-configmap
+data:
+  database.yaml: |
+{{ .Files.Get "scripts/openproject/database.yaml" | indent 4 }}
 {{ end }}
