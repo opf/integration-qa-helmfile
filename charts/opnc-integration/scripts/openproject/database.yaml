@@ -1,0 +1,106 @@
+
+<%
+database_options = %w[
+  url
+  database
+  encoding
+  pool
+  username
+  password
+  passfile
+  sslmode
+  sslcompression
+  sslcert
+  sslkey
+  sslpassword
+  sslrootcert
+  sslcrl
+  ssl_min_protocol_version
+  application_name
+  statement_timeout
+  channel_binding
+  connect_timeout
+  client_encoding
+  keepalives
+  keepalives_idle
+  keepalives_interval
+  keepalives_count
+  gssencmode
+  replication
+]
+
+database_variables = %w[
+  statement_timeout
+]
+
+database_defaults = {
+  # Fallback to unprefixed DATABASE_URL if present
+  'url' => ENV['DATABASE_URL'],
+  'statement_timeout' => ENV.fetch("POSTGRES_STATEMENT_TIMEOUT", "90s"),
+  'encoding' => 'unicode',
+  'application_name' => 'openproject',
+}
+%>
+
+production:
+  adapter: postgresql
+  database: openproject
+  pool: 20
+  <% database_options.each do |option| %>
+  <% env_name = "OPENPROJECT_DB_#{option.upcase}" %>
+  <% value = ENV.fetch(env_name, database_defaults[option]) %>
+  <% unless value.nil? %>
+  <%= option %>: <%= value %>
+  <% end %>
+  <% end %>
+  variables:
+    <% database_variables.each do |option| %>
+    <% env_name = "OPENPROJECT_DB_#{option.upcase}" %>
+    <% value = ENV.fetch(env_name, database_defaults[option]) %>
+    <% unless value.nil? %>
+    <%= option %>: <%= value %>
+    <% end %>
+    <% end %>
+
+development:
+  adapter: postgresql
+  database: openproject
+  pool: 5
+  <% database_options.each do |option| %>
+  <% env_name = "OPENPROJECT_DB_#{option.upcase}" %>
+  <% value = ENV.fetch(env_name, database_defaults[option]) %>
+  <% unless value.nil? %>
+  <%= option %>: <%= value %>
+  <% end %>
+  <% end %>
+  variables:
+    <% database_variables.each do |option| %>
+    <% env_name = "OPENPROJECT_DB_#{option.upcase}" %>
+    <% value = ENV.fetch(env_name, database_defaults[option]) %>
+    <% unless value.nil? %>
+    <%= option %>: <%= value %>
+    <% end %>
+    <% end %>
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  adapter: postgresql
+  database: openproject
+  pool: 5
+  <% database_options.each do |option| %>
+  <% env_name = "OPENPROJECT_DB_#{option.upcase}" %>
+  <% value = ENV.fetch(env_name, database_defaults[option]) %>
+  <% unless value.nil? %>
+  <%= option %>: <%= value %>
+  <% end %>
+  <% end %>
+  variables:
+    <% database_variables.each do |option| %>
+    <% env_name = "OPENPROJECT_DB_#{option.upcase}" %>
+    <% value = ENV.fetch(env_name, database_defaults[option]) %>
+    <% unless value.nil? %>
+    <%= option %>: <%= value %>
+    <% end %>
+    <% end %>

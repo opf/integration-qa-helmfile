@@ -36,4 +36,12 @@ environment:
   BUNDLE_APP_CONFIG: ./.bundle
   BUNDLE_WITHOUT: ''
   BUNDLE_WITH: 'development test'
+
+  {{ if .Values.openproject.enableTestSetup }}
+  DATABASE_CLEANER_ALLOW_REMOTE_DATABASE_URL: "true"
+  SELENIUM_GRID_URL: http://op-test-selenium-svc:4444/wd/hub
+  CHROME_WS_URL: ws://op-test-chromedriver-svc:3000/chrome
+  CAPYBARA_SERVER_PORT: 3000
+  CAPYBARA_APP_HOSTNAME: op-test-server
+  {{ end }}
   {{ end }}
