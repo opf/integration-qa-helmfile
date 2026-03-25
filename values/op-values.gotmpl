@@ -53,7 +53,7 @@ appInit:
     requests:
       memory: '512Mi'
 seederJob:
-  enabled: {{ empty .Values.openproject.localSourcePath }}
+  enabled: {{ and (empty .Values.openproject.localSourcePath) (empty .Values.openproject.gitSourceBranch) }}
   resources:
     limits:
       memory: '1Gi'
@@ -67,16 +67,19 @@ extraVolumes:
   - name: ca-cert
     secret:
       secretName: {{ or .Values.ingress.tlsSecretName .Values.ingress.existingTlsSecretName }}
-  {{ if and .Values.openproject.gitSourceBranch (not .Values.openproject.localSourcePath) }}
-  - name: op-source-data
-    persistentVolumeClaim:
-      claimName: op-source-pvc
-  {{ end }}
+  {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
+  - name: empty-app-dir
+    emptyDir: {}
   {{ if .Values.openproject.localSourcePath }}
   - name: op-source-data
     hostPath:
       path: {{ .Values.openproject.localSourcePath }}
       type: Directory
+  {{ else if .Values.openproject.gitSourceBranch }}
+  - name: op-source-data
+    persistentVolumeClaim:
+      claimName: op-source-pvc
+  {{ end }}
   {{ end }}
 extraVolumeMounts:
   - name: entrypoint
@@ -88,6 +91,8 @@ extraVolumeMounts:
   {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
   - name: op-source-data
     mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+  - name: empty-app-dir
+    mountPath: /app
   {{ end }}
 postgresql:
   fullnameOverride: {{ .Values.openproject.postgresql.host }}

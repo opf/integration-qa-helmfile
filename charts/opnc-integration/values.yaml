@@ -33,15 +33,13 @@ nextcloud:
       gitBranch: ''
 
 openproject:
-  # Ruby version to use to build the OP from source.
-  # It will be ignored if localSourcePath or gitSourceBranch is not set
+  # Ruby version to use to build the OpenProject from source.
   rubyVersion: 'latest'
   # Git branch to use as the source
   # Example: dev
   gitSourceBranch: ''
   # Local host path to OpenProject source code
   localSourcePath: ''
-  dockerTag: ''
   customSourceMountPath: /home/app/openproject
   standalone: false
   enableTestSetup: false

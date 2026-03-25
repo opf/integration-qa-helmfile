@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: op-assets-server
-          image: openproject/openproject:{{ .Values.openproject.dockerTag | default "dev" }}
+          image: node:22
           workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
           command: ['/serve-assets.sh']
           env:

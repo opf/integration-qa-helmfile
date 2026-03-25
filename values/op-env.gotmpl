@@ -35,7 +35,7 @@ environment:
   OPENPROJECT_RAILS__ASSET__HOST: {{ .Values.openproject.assetHost }}
   BUNDLE_APP_CONFIG: ./.bundle
   BUNDLE_WITHOUT: ''
-  BUNDLE_WITH: 'development test'
+  BUNDLE_WITH: {{ if eq .Values.openproject.railsEnv "development" }}development{{ end }}{{ if .Values.openproject.enableTestSetup }} test{{ end }}
 
   {{ if .Values.openproject.enableTestSetup }}
   DATABASE_CLEANER_ALLOW_REMOTE_DATABASE_URL: "true"
