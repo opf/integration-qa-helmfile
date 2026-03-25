@@ -9,7 +9,8 @@ spec:
       restartPolicy: Never
       containers:
         - name: build-source
-          image: openproject/openproject:{{ .Values.openproject.dockerTag | default "dev" }}
+          image: ruby:{{ .Values.openproject.rubyVersion | default "latest" }}
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
           command: ['/scripts/setup-op-source.sh']
           {{- if .Values.environment }}
           envFrom:

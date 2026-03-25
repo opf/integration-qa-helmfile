@@ -47,14 +47,16 @@ openproject:
   ############################################
   localSourcePath: ''
   #####################################################
-  # Ruby to use to build the source                   #
-  # It will be ignored if localSourcePath             #
-  # or gitSourceBranch is not set                     #
+  # - Ruby to use to build the source.                #
+  # - MUST match with the ruby version required       #
+  #   by the OpenProject source code.                 #
+  # - It will be ignored if localSourcePath           #
+  #   or gitSourceBranch is not set.                  #
   #####################################################
   rubyVersion: '3.4.7'
   ####################################################
   # Path to map custom OpenProject source inside pod #
-  # NOTE: this will server as APP_PATH               #
+  # NOTE: this will serve as APP_PATH                #
   ####################################################
   customSourceMountPath: '/home/app/openproject'
   #####################################################
