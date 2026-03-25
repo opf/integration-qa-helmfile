@@ -17,7 +17,8 @@ spec:
       containers:
         - name: test-container
           image: ruby:{{ .Values.openproject.rubyVersion | default "latest" }}
-          command: ["sh", "-c", "sleep infinity"]
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          command: ["sh", "-c", "echo \"0.0.0.0 op-test-server\" >> /etc/hosts && sleep infinity"]
           {{- if .Values.environment }}
           envFrom:
             - secretRef:
