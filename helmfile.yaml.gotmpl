@@ -43,12 +43,14 @@ releases:
     chart: ./charts/opnc-integration
     values:
       - values/integration.gotmpl
+      - values/op-env.gotmpl
     needs:
       - cert-manager
   - name: openproject
     chart: ./charts/openproject
     values:
       - values/op-values.gotmpl
+      - values/op-env.gotmpl
     needs:
       - opnc-integration
   # Issues:
