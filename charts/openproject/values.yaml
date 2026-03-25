@@ -1146,6 +1146,7 @@ serviceAccount:
 
 # Options for the seeder job
 seederJob:
+  enabled: true
   ## Define custom seeder job annotations.
   #
   annotations: {}

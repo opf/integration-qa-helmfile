@@ -1,3 +1,4 @@
+{{- if .Values.seederJob.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -83,3 +84,4 @@ spec:
             {{- include "openproject.extraVolumeMounts" . | indent 12 }}
           {{- include "openproject.containerSecurityContext" . | indent 10 }}
       restartPolicy: OnFailure
+{{- end }}
