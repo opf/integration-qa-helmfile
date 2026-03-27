@@ -3,5 +3,4 @@ openproject:
   # DO NOT CHANGE THE FOLLOWING PATH
   localSourcePath: '/localDir/openproject'
   railsEnv: 'development'
-  rubyVersion: 'latest'
   enableTestSetup: true
