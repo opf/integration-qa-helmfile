@@ -2,7 +2,7 @@ environment:
   RAILS_ENV: {{ .Values.openproject.railsEnv | quote }}
   OPENPROJECT_LOG__LEVEL: info
   OPENPROJECT_EDITION: standard
-  OPENPROJECT_DEV_EXTRA_HOSTS: {{ .Values.openproject.host }},{{ .Values.openproject.assetHost }},openproject
+  OPENPROJECT_DEV_EXTRA_HOSTS: {{ .Values.openproject.host }}
   OPENPROJECT_APIV3__ENABLE__BASIC__AUTH: 'true'
   OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_USER: 'admin'
   OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: 'admin'
@@ -18,7 +18,7 @@ environment:
   OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: https://{{ .Values.keycloak.host }}/realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/certs
   OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: https://{{ .Values.openproject.host }}/
   OPENPROJECT_OPENID__CONNECT_KEYCLOAK_GRANT__TYPES__SUPPORTED: "authorization_code implicit urn:ietf:params:oauth:grant-type:token-exchange"
-  
+
   {{ else if .Values.integration.setupMethod | eq "sso-nextcloud" }}
   OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_ISSUER: https://{{ .Values.nextcloud.host }}
   OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_JWKS__URI: https://{{ .Values.nextcloud.host }}/remote.php/apps/oidc/jwks
@@ -30,12 +30,15 @@ environment:
   BUNDLE_APP_CONFIG: ./.bundle
   BUNDLE_WITHOUT: ''
   BUNDLE_WITH: {{ if ne .Values.openproject.railsEnv "production" }}development test{{ end }}
-  {{ end }}
 
   {{ if .Values.openproject.localSourcePath }}
   OP_USE_LOCAL_SOURCE: 'true'
   OPENPROJECT_CLI_PROXY: http://{{ .Values.openproject.assetHost }}
   OPENPROJECT_RAILS__ASSET__HOST: {{ .Values.openproject.assetHost }}
+  {{ else }}
+  OPENPROJECT_ENABLE__INTERNAL__ASSETS__SERVER: 'true'
+  OPENPROJECT_DISABLE_DEV_ASSET_PROXY: 'true'
+  {{ end }}
 
   {{ if and .Values.openproject.enableTestSetup (ne .Values.openproject.railsEnv "production") }}
   DATABASE_CLEANER_ALLOW_REMOTE_DATABASE_URL: "true"
