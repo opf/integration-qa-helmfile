@@ -1,0 +1,208 @@
+name: PullPreview Dispatch
+run-name: PullPreview Dispatch (${{ inputs.action }}) - ${{ inputs.preview_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "PullPreview action"
+        required: true
+        default: up
+        type: choice
+        options:
+          - up
+          - down
+      preview_name:
+        description: "Deterministic preview identifier (used as PullPreview label)"
+        required: true
+        type: string
+      integrationSetupMethod:
+        description: "Integration setup mode"
+        required: true
+        default: sso-external
+        type: choice
+        options:
+          - sso-external
+          - sso-nextcloud
+          - oauth2
+      openproject_version:
+        description: "Optional OpenProject docker tag override"
+        required: false
+        type: string
+      nextcloud_version:
+        description: "Optional Nextcloud image tag override"
+        required: false
+        type: string
+      keycloak_version:
+        description: "Optional Keycloak image tag override"
+        required: false
+        type: string
+      integration_app_version:
+        description: "Optional integration_openproject app version override"
+        required: false
+        type: string
+      openproject_branch:
+        description: "Optional OpenProject git source branch override"
+        required: false
+        type: string
+      nextcloud_branch:
+        description: "Optional Nextcloud git source branch override"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy_or_teardown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create dispatch override values
+        if: inputs.action == 'up'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > pullpreview/pullpreview-stack-values.dispatch.yaml <<EOF
+          opnc-integration:
+            openprojectHost: "{{ pullpreview_public_dns }}"
+            nextcloudHost: "nextcloud.{{ pullpreview_public_dns }}"
+            keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
+            integrationSetupMethod: "${{ inputs.integrationSetupMethod }}"
+            openproject:
+              dockerTag: "${{ inputs.openproject_version }}"
+              gitSourceBranch: "${{ inputs.openproject_branch }}"
+            nextcloud:
+              gitSourceBranch: "${{ inputs.nextcloud_branch }}"
+              enableApps:
+                - name: integration_openproject
+                  version: "${{ inputs.integration_app_version }}"
+          openproject:
+            image:
+              tag: "${{ inputs.openproject_version }}"
+          nextcloud:
+            image:
+              tag: "${{ inputs.nextcloud_version }}"
+          keycloak:
+            image:
+              tag: "${{ inputs.keycloak_version }}"
+          EOF
+
+      - id: pullpreview_up
+        if: inputs.action == 'up'
+        # Temporary branch ref until proxy_tls_hosts is merged upstream.
+        uses: pullpreview/action@poc/pullpreview-helm-multihost
+        with:
+          provider: hetzner
+          label: ${{ inputs.preview_name }}
+          force_action: up
+          region: fsn1
+          image: ubuntu-24.04
+          instance_type: cpx42
+          dns: my.preview.run
+          max_domain_length: "40"
+          deployment_target: helm
+          chart: ./charts/pullpreview-stack
+          chart_values: pullpreview/pullpreview-stack-values.dispatch.yaml
+          proxy_tls: traefik:80
+          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
+          ttl: 72h
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+
+      - name: Validate preview URLs
+        if: inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.pullpreview_up.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          check_url() {
+            local name="$1"
+            local url="$2"
+            local expected_status="$3"
+            local attempt
+            local attempts=12
+            local status=""
+            local curl_exit=0
+
+            for attempt in $(seq 1 "${attempts}"); do
+              set +e
+              status="$(
+                /usr/bin/curl -skS -o /dev/null \
+                  --connect-timeout 10 \
+                  --write-out '%{http_code}' \
+                  "$url" 2>/dev/null
+              )"
+              curl_exit=$?
+              set -e
+
+              if [[ "${curl_exit}" -eq 0 ]]; then
+                echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
+                if [[ "${status}" == "${expected_status}" ]]; then
+                  return 0
+                fi
+              else
+                echo "${name}: ${url} -> curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
+              fi
+
+              sleep 10
+            done
+
+            echo "::error::${name} endpoint was not ready: ${url} expected HTTP ${expected_status}, last result ${status}"
+            return 1
+          }
+
+          check_url "Main root" "https://${preview_host}/" "302"
+          check_url "Main login" "https://${preview_host}/login" "200"
+          check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200"
+          check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
+
+      - name: Build preview info artifact
+        if: inputs.action == 'up'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.pullpreview_up.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          cat > preview-info.json <<EOF
+          {
+            "preview_name": "${{ inputs.preview_name }}",
+            "preview_url": "${preview_url}",
+            "preview_host": "${preview_host}",
+            "nextcloud_url": "https://nextcloud.${preview_host}",
+            "keycloak_url": "https://keycloak.${preview_host}/realms/opnc",
+            "live": "${{ steps.pullpreview_up.outputs.live }}"
+          }
+          EOF
+
+      - name: Upload preview info artifact
+        if: inputs.action == 'up'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pullpreview-info
+          path: preview-info.json
+
+      - id: pullpreview_down
+        if: inputs.action == 'down'
+        # Temporary branch ref until proxy_tls_hosts is merged upstream.
+        uses: pullpreview/action@poc/pullpreview-helm-multihost
+        with:
+          provider: hetzner
+          label: ${{ inputs.preview_name }}
+          force_action: down
+          deployment_target: helm
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
