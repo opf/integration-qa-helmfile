@@ -1,4 +1,4 @@
-{{ if not .Values.ingress.existingTlsSecretName }}
+{{ if and (not .Values.previewMode) (not .Values.ingress.existingTlsSecretName) }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer

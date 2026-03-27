@@ -1,0 +1,18 @@
+dependencies:
+- name: opnc-integration
+  repository: file://../opnc-integration
+  version: 0.1.0
+- name: openproject
+  repository: file://../openproject
+  version: 11.4.2
+- name: nextcloud
+  repository: https://nextcloud.github.io/helm
+  version: 7.0.4
+- name: keycloak
+  repository: https://charts.bitnami.com/bitnami
+  version: 24.7.7
+- name: traefik
+  repository: https://traefik.github.io/charts
+  version: 39.0.5
+digest: sha256:d856d744bcd817517f237e418d5a4a19864f8fb2e67967a42458f6d7266c16fa
+generated: "2026-03-16T14:47:23.935173+01:00"

@@ -3,6 +3,7 @@
 - [Dependencies](#dependencies)
 - [Deploy Setup Locally (k3d)](#deploy-setup-locally-k3d)
 - [Configuring the Deployment](#configuring-the-deployment)
+- [PullPreview](#pullpreview)
 - [Serve From Git Branch](#serve-from-git-branch)
 - [Serve OpenProject From Local Branch](#serve-openproject-from-local-branch)
 - [Serve Standalone OpenProject (Local Branch)](#serve-standalone-openproject-local-branch)
@@ -86,6 +87,43 @@ nextcloud:
     - name: integration_openproject
       version: '2.8.1'
 ```
+
+## PullPreview
+
+### Phase 1 smoke deployment
+
+Use the installed PullPreview CLI against the existing OpenProject chart and [`pullpreview/openproject-smoke-values.yaml`](/Users/crohr/dev/opf/integration-qa-helmfile/pullpreview/openproject-smoke-values.yaml):
+
+```bash
+PULLPREVIEW_PROVIDER=hetzner \
+PULLPREVIEW_MAX_DOMAIN_LENGTH=40 \
+HCLOUD_TOKEN=... \
+HETZNER_CA_KEY=... \
+pullpreview up /Users/crohr/dev/opf/integration-qa-helmfile \
+  --name opf-op-smoke \
+  --deployment-target helm \
+  --chart ./charts/openproject \
+  --chart-values pullpreview/openproject-smoke-values.yaml \
+  --chart-set openproject.host={{ pullpreview_public_dns }} \
+  --proxy-tls openproject:8080 \
+  --region fsn1 \
+  --image ubuntu-24.04 \
+  --instance-type cpx42 \
+  --dns my.preview.run
+```
+
+Destroy the smoke deployment with:
+
+```bash
+PULLPREVIEW_PROVIDER=hetzner pullpreview down --name opf-op-smoke
+```
+
+### Phase 2 stack deployment
+
+[`charts/pullpreview-stack`](/Users/crohr/dev/opf/integration-qa-helmfile/charts/pullpreview-stack) packages the full OpenProject, Nextcloud, Keycloak, and integration setup as a single Helm release for PullPreview. It runs the integration chart in `previewMode`, which keeps the existing local k3d workflow unchanged while disabling the self-signed internal TLS path used by the README flow.
+
+The GitHub workflow is in [`pullpreview.yml`](/Users/crohr/dev/opf/integration-qa-helmfile/.github/workflows/pullpreview.yml) and expects repository secrets `HCLOUD_TOKEN` and `HETZNER_CA_KEY`, plus the trigger label `pullpreview`.
+It publishes the main OpenProject preview on the generated FQDN and exposes the related services on subdomains of that same host, for example `https://<fqdn>`, `https://nextcloud.<fqdn>`, and `https://keycloak.<fqdn>/realms/opnc`.
 
 ## Serve From Git Branch
 

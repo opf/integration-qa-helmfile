@@ -1,0 +1,28 @@
+fullnameOverride: openproject
+
+containerSecurityContext:
+  readOnlyRootFilesystem: false
+
+environment:
+  OPENPROJECT_DISABLE__MIGRATIONS__CHECK: "true"
+
+appInit:
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      memory: 1Gi
+
+persistence:
+  accessModes:
+    - ReadWriteOnce
+
+service:
+  type: ClusterIP
+
+ingress:
+  enabled: false
+
+openproject:
+  https: true
+  useTmpVolumes: false
