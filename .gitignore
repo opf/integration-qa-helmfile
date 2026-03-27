@@ -1,4 +1,5 @@
 charts/opnc-integration/charts/*
 charts/openproject/charts/*
+tmpcharts-*/
 helmfile-*/
 tmp/

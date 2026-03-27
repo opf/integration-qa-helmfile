@@ -40,39 +40,6 @@ openproject:
     userinfoEndpoint: /index.php/apps/oidc/userinfo
     host: {{ .Values.nextcloud.host }}
     {{ end }}
-environment:
-  RAILS_ENV: {{ .Values.openproject.railsEnv | quote }}
-  OPENPROJECT_LOG__LEVEL: info
-  OPENPROJECT_EDITION: standard
-  OPENPROJECT_DEV_EXTRA_HOSTS: {{ .Values.openproject.host }}
-  OPENPROJECT_APIV3__ENABLE__BASIC__AUTH: 'true'
-  OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_USER: 'admin'
-  OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: 'admin'
-
-  {{ if .Values.integration.setupMethod | eq "sso-external" }}
-  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: https://{{ .Values.keycloak.host }}/realms/{{ .Values.keycloak.realm.name }}
-  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: https://{{ .Values.keycloak.host }}/realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/certs
-  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: https://{{ .Values.openproject.host }}/
-  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_GRANT__TYPES__SUPPORTED: "authorization_code implicit urn:ietf:params:oauth:grant-type:token-exchange"
-  {{ else if .Values.integration.setupMethod | eq "sso-nextcloud" }}
-  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_ISSUER: https://{{ .Values.nextcloud.host }}
-  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_JWKS__URI: https://{{ .Values.nextcloud.host }}/remote.php/apps/oidc/jwks
-  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_POST__LOGOUT__REDIRECT__URI: https://{{ .Values.openproject.host }}/
-  {{ end }}
-
-  DATABASE_HOST: {{ .Values.openproject.postgresql.host }}
-  OPENPROJECT_SEED__ENTERPRISE__TOKEN: {{ toYaml .Values.openproject.enterpriseToken | indent 2 }}
-  CURL_CA_BUNDLE: {{ .Values.ingress.caCertFileMountPath }}
-  SSL_CERT_FILE: {{ .Values.ingress.caCertFileMountPath }}
-  OP_GIT_SOURCE_BRANCH: {{ .Values.openproject.gitSourceBranch | quote }}
-  {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
-  APP_PATH: {{ .Values.openproject.customSourceMountPath | quote }}
-  {{ end }}
-  {{ if .Values.openproject.localSourcePath }}
-  OP_USE_LOCAL_SOURCE: 'true'
-  OPENPROJECT_CLI_PROXY: https://{{ .Values.openproject.assetHost }}
-  OPENPROJECT_RAILS__ASSET__HOST: {{ .Values.openproject.assetHost }}
-  {{ end }}
 dbInit:
   resources:
     limits:
@@ -86,6 +53,7 @@ appInit:
     requests:
       memory: '512Mi'
 seederJob:
+  enabled: {{ empty .Values.openproject.localSourcePath }}
   resources:
     limits:
       memory: '1Gi'
@@ -127,6 +95,8 @@ postgresql:
     repository: bitnamilegacy/postgresql
     tag: '17.5.0-debian-12-r16'
   auth:
+    database: {{ .Values.openproject.postgresql.database }}
+    username: {{ .Values.openproject.postgresql.username }}
     password: {{ .Values.openproject.postgresql.password }}
   primary:
     podLabels:
