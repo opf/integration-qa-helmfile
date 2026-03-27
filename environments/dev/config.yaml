@@ -1,7 +1,7 @@
 openproject:
   # DO NOT CHANGE THE FOLLOWING PATH
-  localSourcePath: '/localDir/openproject'
+  # localSourcePath: '/localDir/openproject'
+  gitSourceBranch: 'stable/16'
+  version: '16'
   railsEnv: 'development'
-  version: 'dev'
-  rubyVersion: 'latest'
-  enableTestSetup: false
+  enableTestSetup: true

@@ -35,8 +35,8 @@ nextcloud:
       gitBranch: ''
 
 openproject:
-  # Ruby version to use to build the OpenProject from source.
-  rubyVersion: 'latest'
+  # OpenProject container image tag
+  dockerTag: ''
   # Git branch to use as the source
   # Example: dev
   gitSourceBranch: ''
@@ -45,6 +45,7 @@ openproject:
   customSourceMountPath: /home/app/openproject
   standalone: false
   enableTestSetup: false
+  railsEnv: 'production'
 # OpenProject environment variables
 environment: {}
 

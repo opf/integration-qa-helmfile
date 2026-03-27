@@ -1,4 +1,4 @@
-{{ if .Values.openproject.enableTestSetup }}
+{{ if and .Values.openproject.enableTestSetup (ne .Values.openproject.railsEnv "production") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

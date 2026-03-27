@@ -6,6 +6,7 @@ fullnameOverride: {{ .Values.openproject.fullnameOverride }}
 containerSecurityContext:
   readOnlyRootFilesystem: false
 image:
+  imagePullPolicy: "IfNotPresent"
   tag: {{ .Values.openproject.version | quote  }}
 persistence:
   storageClassName: {{ .Values.persistence.storageClassName | quote }}
