@@ -31,9 +31,6 @@ openproject:
   #####################################################
   # Pod container image tag                           #
   # Examples: 16.2, dev                               #
-  # NOTE: you might also need to change the image tag #
-  #   to get the proper ruby version                  #
-  #   if you are using 'gitSourceBranch'              #
   #####################################################
   version: '16'
   ############################################
@@ -48,11 +45,17 @@ openproject:
   localSourcePath: ''
   ####################################################
   # Path to map custom OpenProject source inside pod #
-  # NOTE: this will server as APP_PATH               #
+  # NOTE: this will serve as APP_PATH                #
   ####################################################
   customSourceMountPath: '/home/app/openproject'
+  #####################################################
+  # Starts pods necessary for testing                 #
+  #####################################################
+  enableTestSetup: false
   postgresql:
     host: op-postgresql
+    database: openproject
+    username: openproject
     password: openproject
   ############################################
   # Enterprise Token                         #

@@ -1,0 +1,67 @@
+{{ if and .Values.openproject.enableTestSetup (ne .Values.openproject.railsEnv "production") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: op-test-container
+  labels:
+    app: op-test-container
+spec:
+  selector:
+    matchLabels:
+      app: op-test-container
+  template:
+    metadata:
+      labels:
+        app: op-test-container
+    spec:
+      containers:
+        - name: test-container
+          image: openproject/openproject:{{ .Values.openproject.dockerTag | default "dev" }}
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          command: ["sh", "-c", "echo \"0.0.0.0 op-test-server\" >> /etc/hosts && sleep infinity"]
+          {{- if .Values.environment }}
+          envFrom:
+            - secretRef:
+                name: op-environment
+          {{- end }}
+          ports:
+            - containerPort: 3000
+              name: op-test-server
+              protocol: TCP
+          {{ if or .Values.openproject.localSourcePath .Values.openproject.gitSourceBranch }}
+          volumeMounts:
+            - name: empty-app-dir
+              mountPath: /app
+            - name: op-source-data
+              mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+          {{ end }}
+      volumes:
+        {{ if or .Values.openproject.localSourcePath .Values.openproject.gitSourceBranch }}
+        - name: empty-app-dir
+          emptyDir: {}
+        {{ if .Values.openproject.localSourcePath }}
+        - name: op-source-data
+          hostPath:
+            path: {{ .Values.openproject.localSourcePath }}
+            type: Directory
+        {{ else if .Values.openproject.gitSourceBranch }}
+        - name: op-source-data
+          persistentVolumeClaim:
+            claimName: op-source-pvc
+        {{ end }}
+        {{ end }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: op-test-server
+spec:
+  selector:
+    app: op-test-container
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+{{ end }}
