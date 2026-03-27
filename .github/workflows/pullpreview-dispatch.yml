@@ -69,9 +69,44 @@ jobs:
           cat > "${out}" <<EOF
           opnc-integration:
             openprojectHost: "{{ pullpreview_public_dns }}"
+            openprojectAssetHost: "openproject-assets.{{ pullpreview_public_dns }}"
             nextcloudHost: "nextcloud.{{ pullpreview_public_dns }}"
             keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
             integrationSetupMethod: "${{ inputs.integrationSetupMethod }}"
+          EOF
+
+          # Ensure the subcharts themselves are configured for the real PullPreview FQDNs.
+          # Otherwise OpenProject (Rails) may reject requests to unknown hosts and return 400.
+          cat >> "${out}" <<EOF
+          openproject:
+            openproject:
+              host: "{{ pullpreview_public_dns }}"
+              oidc:
+                host: "keycloak.{{ pullpreview_public_dns }}"
+            environment:
+              OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"
+              OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"
+              OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"
+              OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"
+
+          nextcloud:
+            nextcloud:
+              host: "nextcloud.{{ pullpreview_public_dns }}"
+            nextcloud:
+              extraEnv:
+                - name: OVERWRITECLIURL
+                  value: "https://nextcloud.{{ pullpreview_public_dns }}"
+                - name: OIDC_KEYCLOAK_DISCOVERY_URL
+                  value: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/.well-known/openid-configuration"
+
+          keycloak:
+            extraEnvVars:
+              - name: KEYCLOAK_HOSTNAME
+                value: "keycloak.{{ pullpreview_public_dns }}"
+              - name: KC_NEXTCLOUD_CLIENT_HOST
+                value: "nextcloud.{{ pullpreview_public_dns }}"
+              - name: KC_OPENPROJECT_CLIENT_HOST
+                value: "{{ pullpreview_public_dns }}"
           EOF
 
           # Only set overrides when non-empty. Empty tags render invalid image strings like "repo:".
