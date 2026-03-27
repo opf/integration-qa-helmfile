@@ -23,10 +23,16 @@ cp /scripts/database.yaml ./config/database.yml
 
 export SECRET_KEY_BASE=1
 rails_with=""
-db_cmd="db:seed"
+setup_cmd="db:seed"
 if [[ "$RAILS_ENV" != "production" ]]; then
     rails_with="development test"
-    db_cmd="$db_cmd db:test:prepare"
+    setup_cmd="$setup_cmd db:test:prepare"
+
+    if [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
+        setup_cmd="$setup_cmd assets:precompile"
+    fi
+else
+    setup_cmd="$setup_cmd assets:precompile"
 fi
 
 bundle config set --local path "./vendor/bundle"
@@ -36,7 +42,7 @@ bundle config set --local with "$rails_with"
 timeout 300s bash -c "until psql $DATABASE_URL -c '\q'; do echo 'Waiting for database...'; sleep 2; done"
 
 bin/setup_dev
-bin/rails $db_cmd
+bin/rails $setup_cmd
 
 chown "$APP_USER":"$APP_USER" -R "$APP_PATH"
 # set sticky bit on app path and tmp directory
