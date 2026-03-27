@@ -65,30 +65,57 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > pullpreview/pullpreview-stack-values.dispatch.yaml <<EOF
+          out="pullpreview/pullpreview-stack-values.dispatch.yaml"
+          cat > "${out}" <<EOF
           opnc-integration:
             openprojectHost: "{{ pullpreview_public_dns }}"
             nextcloudHost: "nextcloud.{{ pullpreview_public_dns }}"
             keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
             integrationSetupMethod: "${{ inputs.integrationSetupMethod }}"
+          EOF
+
+          # Only set overrides when non-empty. Empty tags render invalid image strings like "repo:".
+          if [ -n "${{ inputs.openproject_version }}" ] || [ -n "${{ inputs.openproject_branch }}" ]; then
+            cat >> "${out}" <<EOF
             openproject:
               dockerTag: "${{ inputs.openproject_version }}"
               gitSourceBranch: "${{ inputs.openproject_branch }}"
+          EOF
+          fi
+
+          if [ -n "${{ inputs.nextcloud_branch }}" ] || [ -n "${{ inputs.integration_app_version }}" ]; then
+            cat >> "${out}" <<EOF
             nextcloud:
               gitSourceBranch: "${{ inputs.nextcloud_branch }}"
               enableApps:
                 - name: integration_openproject
                   version: "${{ inputs.integration_app_version }}"
+          EOF
+          fi
+
+          if [ -n "${{ inputs.openproject_version }}" ]; then
+            cat >> "${out}" <<EOF
           openproject:
             image:
               tag: "${{ inputs.openproject_version }}"
+          EOF
+          fi
+
+          if [ -n "${{ inputs.nextcloud_version }}" ]; then
+            cat >> "${out}" <<EOF
           nextcloud:
             image:
               tag: "${{ inputs.nextcloud_version }}"
+          EOF
+          fi
+
+          if [ -n "${{ inputs.keycloak_version }}" ]; then
+            cat >> "${out}" <<EOF
           keycloak:
             image:
               tag: "${{ inputs.keycloak_version }}"
           EOF
+          fi
 
       - id: pullpreview_up
         if: inputs.action == 'up'
