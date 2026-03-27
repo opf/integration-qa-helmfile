@@ -31,9 +31,6 @@ openproject:
   #####################################################
   # Pod container image tag                           #
   # Examples: 16.2, dev                               #
-  # NOTE: you might also need to change the image tag #
-  #   to get the proper ruby version                  #
-  #   if you are using 'gitSourceBranch'              #
   #####################################################
   version: '16'
   ############################################
@@ -46,14 +43,6 @@ openproject:
   # Override 'gitSourceBranch'               #
   ############################################
   localSourcePath: ''
-  #####################################################
-  # - Ruby to use to build the source.                #
-  # - MUST match with the ruby version required       #
-  #   by the OpenProject source code.                 #
-  # - It will be ignored if localSourcePath           #
-  #   or gitSourceBranch is not set.                  #
-  #####################################################
-  rubyVersion: '3.4.7'
   ####################################################
   # Path to map custom OpenProject source inside pod #
   # NOTE: this will serve as APP_PATH                #
