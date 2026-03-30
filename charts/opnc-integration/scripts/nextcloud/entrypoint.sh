@@ -265,7 +265,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
                     echo "Starting nextcloud installation"
                     max_retries=10
                     try=0
-                    until  [ "$try" -gt "$max_retries" ] || run_as "php /var/www/html/occ maintenance:install $install_options" 
+                    until  [ "$try" -gt "$max_retries" ] || run_as "cd /var/www/html && php occ maintenance:install $install_options"
                     do
                         echo "Retrying install..."
                         try=$((try+1))
@@ -281,7 +281,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
                         NC_TRUSTED_DOMAIN_IDX=1
                         for DOMAIN in ${NEXTCLOUD_TRUSTED_DOMAINS}; do
                             DOMAIN=$(echo "${DOMAIN}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-                            run_as "php /var/www/html/occ config:system:set trusted_domains $NC_TRUSTED_DOMAIN_IDX --value=\"${DOMAIN}\""
+                            run_as "cd /var/www/html && php occ config:system:set trusted_domains $NC_TRUSTED_DOMAIN_IDX --value=\"${DOMAIN}\""
                             NC_TRUSTED_DOMAIN_IDX=$((NC_TRUSTED_DOMAIN_IDX+1))
                         done
                         set +f # turn glob back on
@@ -313,7 +313,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
 
         # Update htaccess after init if requested
         if [ -n "${NEXTCLOUD_INIT_HTACCESS+x}" ] && [ "$installed_version" != "0.0.0.0" ]; then
-            run_as 'php /var/www/html/occ maintenance:update:htaccess'
+            run_as 'cd /var/www/html && php occ maintenance:update:htaccess'
         fi
     ) 9> /var/www/html/nextcloud-init-sync.lock
 
