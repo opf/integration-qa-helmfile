@@ -92,7 +92,6 @@ jobs:
           nextcloud:
             nextcloud:
               host: "nextcloud.{{ pullpreview_public_dns }}"
-            nextcloud:
               extraEnv:
                 - name: OVERWRITECLIURL
                   value: "https://nextcloud.{{ pullpreview_public_dns }}"
