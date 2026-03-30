@@ -8,7 +8,8 @@ OCC="${OCC:-php occ}"
 run_occ() {
     (
         cd /var/www/html
-        sh -c "$OCC \"\$@\"" occ "$@"
+        # shellcheck disable=SC2086
+        $OCC "$@"
     )
 }
 
