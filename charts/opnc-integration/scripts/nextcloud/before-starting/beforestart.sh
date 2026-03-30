@@ -3,11 +3,12 @@
 set -eo pipefail
 
 WORKING_DIR=$(pwd)
+OCC="${OCC:-php occ}"
 
-occ() {
+run_occ() {
     (
         cd /var/www/html
-        php occ "$@"
+        sh -c "$OCC \"\$@\"" occ "$@"
     )
 }
 
@@ -15,7 +16,7 @@ disable_app() {
     local app_name="$1"
 
     # Fresh previews may not have the app installed yet.
-    occ app:disable "$app_name" >/dev/null 2>&1 || true
+    run_occ app:disable "$app_name" >/dev/null 2>&1 || true
 }
 
 ###################################
@@ -40,7 +41,7 @@ for app in $NEXTCLOUD_ENABLE_APPS; do
         disable_app "$app_name"
         rm -rf "$APP_DIR" || true
         echo "[INFO] Installing app '$app_name': latest"
-        if ! occ app:install --keep-disabled "$app_name"; then
+        if ! run_occ app:install --keep-disabled "$app_name"; then
             echo "[INFO] Falling back to enabling existing installation for '$app_name'"
         fi
     elif [[ "$app_version" =~ "git="* ]]; then
@@ -82,32 +83,32 @@ for app in $NEXTCLOUD_ENABLE_APPS; do
 
     cd "$WORKING_DIR"
     # enable the app
-    occ app:enable -f "$app_name"
+    run_occ app:enable -f "$app_name"
 done
 IFS=$OLD_IFS
 
 # upgrade Nextcloud apps
-occ upgrade
-occ maintenance:mode --off
+run_occ upgrade
+run_occ maintenance:mode --off
 
 ###################################
 # Setup apps                      #
 ###################################
-occ security:certificates:import /etc/ssl/certs/ca-certificates.crt
+run_occ security:certificates:import /etc/ssl/certs/ca-certificates.crt
 if [[ -n "$SSL_CERT_FILE" && -f "$SSL_CERT_FILE" ]]; then
-    occ security:certificates:import "$SSL_CERT_FILE"
+    run_occ security:certificates:import "$SSL_CERT_FILE"
 else
     echo "[INFO] Skipping custom CA import because SSL_CERT_FILE is not set to an existing file"
 fi
 # allow local remote servers
-occ config:system:set allow_local_remote_servers --value 1
+run_occ config:system:set allow_local_remote_servers --value 1
 # setup user_oidc app
-occ config:app:set --value=1 user_oidc store_login_token
-occ config:system:set user_oidc --type boolean --value="true" oidc_provider_bearer_validation
-occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" \
+run_occ config:app:set --value=1 user_oidc store_login_token
+run_occ config:system:set user_oidc --type boolean --value="true" oidc_provider_bearer_validation
+run_occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" \
     -c "$OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID" \
     -s "$OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET" \
     -d "$OIDC_KEYCLOAK_DISCOVERY_URL" \
     -o "openid profile email api_v3"
-occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" --check-bearer 1
-occ config:app:set oidc refresh_expire_time --value "never"
+run_occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" --check-bearer 1
+run_occ config:app:set oidc refresh_expire_time --value "never"
