@@ -89,7 +89,7 @@ file_env() {
 }
 
 SRC_DIR=/usr/src/nextcloud
-if [ -n "$NC_GIT_SOURCE_BRANCH" ]; then
+if [ -n "${NC_GIT_SOURCE_BRANCH:-}" ]; then
     SRC_DIR=/usr/src/nc
 fi
 

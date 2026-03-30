@@ -102,8 +102,18 @@ jobs:
             extraEnvVars:
               - name: KEYCLOAK_HOSTNAME
                 value: "keycloak.{{ pullpreview_public_dns }}"
+              - name: KC_REALM_NAME
+                value: "opnc"
+              - name: KC_NEXTCLOUD_CLIENT_ID
+                value: "nextcloud"
+              - name: KC_NEXTCLOUD_CLIENT_SECRET
+                value: "nextcloud-secret"
               - name: KC_NEXTCLOUD_CLIENT_HOST
                 value: "nextcloud.{{ pullpreview_public_dns }}"
+              - name: KC_OPENPROJECT_CLIENT_ID
+                value: "openproject"
+              - name: KC_OPENPROJECT_CLIENT_SECRET
+                value: "openproject-secret"
               - name: KC_OPENPROJECT_CLIENT_HOST
                 value: "{{ pullpreview_public_dns }}"
           EOF
