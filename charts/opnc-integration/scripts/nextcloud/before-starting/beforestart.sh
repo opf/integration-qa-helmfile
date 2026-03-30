@@ -5,6 +5,13 @@ set -eo pipefail
 WORKING_DIR=$(pwd)
 OCC=/var/www/html/occ
 
+disable_app() {
+    local app_name="$1"
+
+    # Fresh previews may not have the app installed yet.
+    $OCC app:disable "$app_name" >/dev/null 2>&1 || true
+}
+
 ###################################
 # Enable apps                     #
 ###################################
@@ -24,14 +31,17 @@ for app in $NEXTCLOUD_ENABLE_APPS; do
     fi
 
     if [[ -z "$app_version" ]]; then
-        $OCC app:disable "$app_name"
+        disable_app "$app_name"
         rm -rf "$APP_DIR" || true
-        echo "[INFO] Enabling app '$app_name': latest"
+        echo "[INFO] Installing app '$app_name': latest"
+        if ! $OCC app:install --keep-disabled "$app_name"; then
+            echo "[INFO] Falling back to enabling existing installation for '$app_name'"
+        fi
     elif [[ "$app_version" =~ "git="* ]]; then
         app_branch=${app_version#git=}
         echo "[INFO] Enabling app '$app_name': '$app_branch' branch"
     else
-        $OCC app:disable "$app_name"
+        disable_app "$app_name"
         rm -rf "$APP_DIR" || true
         mkdir -p "$APP_DIR"
         # remove 'v' prefix if exists
