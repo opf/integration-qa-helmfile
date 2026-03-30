@@ -3,7 +3,22 @@
 set -eo pipefail
 
 WORKING_DIR=$(pwd)
-OCC=/var/www/html/occ
+OCC="${OCC:-php occ}"
+
+run_occ() {
+    (
+        cd /var/www/html
+        # shellcheck disable=SC2086
+        $OCC "$@"
+    )
+}
+
+disable_app() {
+    local app_name="$1"
+
+    # Fresh previews may not have the app installed yet.
+    run_occ app:disable "$app_name" >/dev/null 2>&1 || true
+}
 
 ###################################
 # Enable apps                     #
@@ -24,14 +39,17 @@ for app in $NEXTCLOUD_ENABLE_APPS; do
     fi
 
     if [[ -z "$app_version" ]]; then
-        $OCC app:disable "$app_name"
+        disable_app "$app_name"
         rm -rf "$APP_DIR" || true
-        echo "[INFO] Enabling app '$app_name': latest"
+        echo "[INFO] Installing app '$app_name': latest"
+        if ! run_occ app:install --keep-disabled "$app_name"; then
+            echo "[INFO] Falling back to enabling existing installation for '$app_name'"
+        fi
     elif [[ "$app_version" =~ "git="* ]]; then
         app_branch=${app_version#git=}
         echo "[INFO] Enabling app '$app_name': '$app_branch' branch"
     else
-        $OCC app:disable "$app_name"
+        disable_app "$app_name"
         rm -rf "$APP_DIR" || true
         mkdir -p "$APP_DIR"
         # remove 'v' prefix if exists
@@ -66,32 +84,32 @@ for app in $NEXTCLOUD_ENABLE_APPS; do
 
     cd "$WORKING_DIR"
     # enable the app
-    $OCC app:enable -f "$app_name"
+    run_occ app:enable -f "$app_name"
 done
 IFS=$OLD_IFS
 
 # upgrade Nextcloud apps
-$OCC upgrade
-$OCC maintenance:mode --off
+run_occ upgrade
+run_occ maintenance:mode --off
 
 ###################################
 # Setup apps                      #
 ###################################
-$OCC security:certificates:import /etc/ssl/certs/ca-certificates.crt
+run_occ security:certificates:import /etc/ssl/certs/ca-certificates.crt
 if [[ -n "$SSL_CERT_FILE" && -f "$SSL_CERT_FILE" ]]; then
-    $OCC security:certificates:import "$SSL_CERT_FILE"
+    run_occ security:certificates:import "$SSL_CERT_FILE"
 else
     echo "[INFO] Skipping custom CA import because SSL_CERT_FILE is not set to an existing file"
 fi
 # allow local remote servers
-$OCC config:system:set allow_local_remote_servers --value 1
+run_occ config:system:set allow_local_remote_servers --value 1
 # setup user_oidc app
-$OCC config:app:set --value=1 user_oidc store_login_token
-$OCC config:system:set user_oidc --type boolean --value="true" oidc_provider_bearer_validation
-$OCC user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" \
+run_occ config:app:set --value=1 user_oidc store_login_token
+run_occ config:system:set user_oidc --type boolean --value="true" oidc_provider_bearer_validation
+run_occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" \
     -c "$OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID" \
     -s "$OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET" \
     -d "$OIDC_KEYCLOAK_DISCOVERY_URL" \
     -o "openid profile email api_v3"
-$OCC user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" --check-bearer 1
-$OCC config:app:set oidc refresh_expire_time --value "never"
+run_occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" --check-bearer 1
+run_occ config:app:set oidc refresh_expire_time --value "never"

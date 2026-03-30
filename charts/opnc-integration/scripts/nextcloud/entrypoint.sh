@@ -24,6 +24,12 @@ run_as() {
     fi
 }
 
+OCC="${OCC:-php occ}"
+
+run_occ() {
+    run_as "cd /var/www/html && $OCC $*"
+}
+
 # Execute all executable files in a given directory in alphanumeric order
 run_path() {
     local hook_folder_path="/docker-entrypoint-hooks.d/$1"
@@ -89,7 +95,7 @@ file_env() {
 }
 
 SRC_DIR=/usr/src/nextcloud
-if [ -n "$NC_GIT_SOURCE_BRANCH" ]; then
+if [ -n "${NC_GIT_SOURCE_BRANCH:-}" ]; then
     SRC_DIR=/usr/src/nc
 fi
 
@@ -172,7 +178,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
             installed_version="$(php -r 'require "/var/www/html/version.php"; echo implode(".", $OC_Version);')"
         fi
         # shellcheck disable=SC2016
-        image_version=$(php -r "require '$SRC_DIR/version.php'; echo implode('.', \$OC_Version);")=
+        image_version=$(php -r "require '$SRC_DIR/version.php'; echo implode('.', \$OC_Version);")
 
         if version_greater "$installed_version" "$image_version"; then
             echo "Can't start Nextcloud because the version of the data ($installed_version) is higher than the docker image version ($image_version) and downgrading is not supported. Are you sure you have pulled the newest image version?"
@@ -265,7 +271,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
                     echo "Starting nextcloud installation"
                     max_retries=10
                     try=0
-                    until  [ "$try" -gt "$max_retries" ] || run_as "php /var/www/html/occ maintenance:install $install_options" 
+                    until  [ "$try" -gt "$max_retries" ] || run_occ "maintenance:install $install_options"
                     do
                         echo "Retrying install..."
                         try=$((try+1))
@@ -281,7 +287,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
                         NC_TRUSTED_DOMAIN_IDX=1
                         for DOMAIN in ${NEXTCLOUD_TRUSTED_DOMAINS}; do
                             DOMAIN=$(echo "${DOMAIN}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-                            run_as "php /var/www/html/occ config:system:set trusted_domains $NC_TRUSTED_DOMAIN_IDX --value=\"${DOMAIN}\""
+                            run_occ "config:system:set trusted_domains $NC_TRUSTED_DOMAIN_IDX --value=\"${DOMAIN}\""
                             NC_TRUSTED_DOMAIN_IDX=$((NC_TRUSTED_DOMAIN_IDX+1))
                         done
                         set +f # turn glob back on
@@ -313,7 +319,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
 
         # Update htaccess after init if requested
         if [ -n "${NEXTCLOUD_INIT_HTACCESS+x}" ] && [ "$installed_version" != "0.0.0.0" ]; then
-            run_as 'php /var/www/html/occ maintenance:update:htaccess'
+            run_occ "maintenance:update:htaccess"
         fi
     ) 9> /var/www/html/nextcloud-init-sync.lock
 
