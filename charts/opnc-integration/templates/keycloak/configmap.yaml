@@ -4,4 +4,4 @@ metadata:
   name: kc-entry-configmap
 data:
   entrypoint.sh: |
-{{ .Files.Get "scripts/keycloak.sh" | indent 4 }}}}
+{{ .Files.Get "scripts/keycloak.sh" | indent 4 }}
