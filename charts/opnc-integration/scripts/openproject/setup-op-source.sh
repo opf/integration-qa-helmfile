@@ -4,6 +4,25 @@ set -eo pipefail
 
 APP_PATH=/home/app/openproject
 
+PKG_TO_INSTALL=""
+BUILD_DEPS="gcc make pkg-config openssl"
+for pkg in $BUILD_DEPS; do
+    if ! which "$pkg" >/dev/null 2>&1; then
+        PKG_TO_INSTALL="$PKG_TO_INSTALL $pkg"
+    fi
+done
+
+if [[ -n "$PKG_TO_INSTALL" ]]; then
+    echo "[INFO] Installing build dependencies: $PKG_TO_INSTALL"
+    apt update >/dev/null
+    apt install -y --no-install-recommends \
+        ruby-dev \
+        build-essential \
+        libyaml-dev \
+        libssl-dev \
+        pkg-config >/dev/null
+fi
+
 echo "[INFO] Building OpenProject from source..."
 
 if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]] && [[ -f "$APP_PATH/files/build-completed" ]]; then
