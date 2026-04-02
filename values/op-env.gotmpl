@@ -6,8 +6,9 @@ environment:
   OPENPROJECT_APIV3__ENABLE__BASIC__AUTH: 'true'
   OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_USER: 'admin'
   OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: 'admin'
-  # DATABASE_HOST: {{ .Values.openproject.postgresql.host }}
-  DATABASE_URL: postgresql://{{ .Values.openproject.postgresql.username }}:{{ .Values.openproject.postgresql.password }}@{{ .Values.openproject.postgresql.host }}/{{ .Values.openproject.postgresql.database }}
+  # 'DATABASE_HOST' is used by the db seeder in production mode.
+  DATABASE_HOST: {{ .Values.openproject.postgresql.host }}
+  DATABASE_URL: postgresql://{{ .Values.openproject.postgresql.username }}:{{ .Values.openproject.postgresql.password }}@{{ .Values.openproject.postgresql.host }}/{{ .Values.openproject.postgresql.database }}{{ if eq .Values.openproject.railsEnv "development" }}_dev{{ end }}
   OPENPROJECT_SEED__ENTERPRISE__TOKEN: {{ toYaml .Values.openproject.enterpriseToken | indent 2 }}
   CURL_CA_BUNDLE: {{ .Values.ingress.caCertFileMountPath }}
   SSL_CERT_FILE: {{ .Values.ingress.caCertFileMountPath }}
