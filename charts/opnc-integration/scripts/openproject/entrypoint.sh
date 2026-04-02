@@ -9,9 +9,6 @@ if [[ -n "$OP_GIT_SOURCE_BRANCH" || "$OP_USE_LOCAL_SOURCE" == 'true' ]]; then
         echo "[INFO] Waiting build from source to complete..."
         sleep 10
     done
-    if [[ "$OP_USE_LOCAL_SOURCE" == 'true' ]]; then
-        export BUNDLE_APP_CONFIG=./.bundle
-    fi
 fi
 
 args=()

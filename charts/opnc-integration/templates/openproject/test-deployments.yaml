@@ -1,0 +1,125 @@
+{{ if and .Values.openproject.enableTestSetup (ne .Values.openproject.railsEnv "production") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: op-test-selenium
+  labels:
+    app: op-test-selenium
+spec:
+  selector:
+    matchLabels:
+      app: op-test-selenium
+  template:
+    metadata:
+      labels:
+        app: op-test-selenium
+    spec:
+      containers:
+        - name: op-test-selenium
+          image: selenium/hub:4
+          env:
+            - name: GRID_MAX_SESSION
+              value: '4'
+          ports:
+            - containerPort: 4444
+              name: selenium-hub
+              protocol: TCP
+            - containerPort: 4442
+              name: se-publish
+              protocol: TCP
+            - containerPort: 4443
+              name: se-subscribe
+              protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: op-test-selenium-svc
+spec:
+  selector:
+    app: op-test-selenium
+  ports:
+    - name: selenium-hub
+      port: 4444
+      targetPort: 4444
+    - name: se-publish
+      port: 4442
+      targetPort: 4442
+    - name: se-subscribe
+      port: 4443
+      targetPort: 4443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: op-test-chrome
+  labels:
+    app: op-test-chrome
+spec:
+  selector:
+    matchLabels:
+      app: op-test-chrome
+  template:
+    metadata:
+      labels:
+        app: op-test-chrome
+    spec:
+      containers:
+        - name: op-test-chrome
+          image: selenium/node-chrome:4
+          env:
+            - name: SE_EVENT_BUS_HOST
+              value: op-test-selenium-svc
+            - name: SE_EVENT_BUS_PUBLISH_PORT
+              value: '4442'
+            - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+              value: '4443'
+            - name: SCREEN_WIDTH
+              value: '1920'
+            - name: SCREEN_HEIGHT
+              value: '1080'
+            - name: NODE_MAX_INSTANCES
+              value: '4'
+            - name: NODE_MAX_SESSION
+              value: '4'
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: op-test-chromedriver
+  labels:
+    app: op-test-chromedriver
+spec:
+  selector:
+    matchLabels:
+      app: op-test-chromedriver
+  template:
+    metadata:
+      labels:
+        app: op-test-chromedriver
+    spec:
+      containers:
+        - name: op-test-chromedriver
+          image: ghcr.io/browserless/chrome:latest
+          env:
+            - name: HOST
+              value: '0.0.0.0'
+            - name: CONNECTION_TIMEOUT
+              value: '600000'
+          ports:
+            - containerPort: 3000
+              name: chromedriver
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: op-test-chromedriver-svc
+spec:
+  selector:
+    app: op-test-chromedriver
+  ports:
+    - name: chromedriver
+      port: 3000
+      targetPort: 3000
+{{ end }}

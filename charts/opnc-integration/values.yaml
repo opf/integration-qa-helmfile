@@ -35,14 +35,19 @@ nextcloud:
       gitBranch: ''
 
 openproject:
+  # OpenProject container image tag
+  dockerTag: ''
   # Git branch to use as the source
   # Example: dev
   gitSourceBranch: ''
   # Local host path to OpenProject source code
   localSourcePath: ''
-  dockerTag: ''
   customSourceMountPath: /home/app/openproject
   standalone: false
+  enableTestSetup: false
+  railsEnv: 'production'
+# OpenProject environment variables
+environment: {}
 
 extraVolumes: []
 extraVolumeMounts: []
