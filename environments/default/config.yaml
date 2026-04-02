@@ -63,7 +63,7 @@ openproject:
   enterpriseToken: ''
   ############################################
   # Rails environment                        #
-  # Examples: production, development, tests #
+  # Examples: production, development        #
   ############################################
   railsEnv: 'production'
 

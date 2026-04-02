@@ -45,7 +45,6 @@ rails_with=""
 setup_cmd="db:seed"
 if [[ "$RAILS_ENV" != "production" ]]; then
     rails_with="development test"
-    setup_cmd="$setup_cmd db:test:prepare"
 
     if [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
         setup_cmd="$setup_cmd assets:precompile"
@@ -59,6 +58,25 @@ bundle config set --local with "$rails_with"
 
 # wait for database to be ready
 timeout 300s bash -c "until psql $DATABASE_URL -c '\q'; do echo 'Waiting for database...'; sleep 2; done"
+
+function create_database() {
+    local db_name="$1"
+    if ! psql "$DATABASE_URL" -lqt | cut -d \| -f 1 | grep -qw "$db_name"; then
+        echo "[INFO] Creating database '$db_name'..."
+        psql "$DATABASE_URL" -c "CREATE DATABASE $db_name"
+    fi
+}
+# create development and test databases if they don't exist
+if [[ "$RAILS_ENV" != "production" ]]; then
+    # create_database "openproject_dev"
+    create_database "openproject_test"
+    test_db_url="${DATABASE_URL%/*}/openproject_test"
+    # add the db url to database.yml
+    sed -i "/^development:/a\  url: $DATABASE_URL" ./config/database.yml
+    sed -i "/^test:/a\  url: $test_db_url" ./config/database.yml
+else
+    sed -i "/^production:/a\  url: $DATABASE_URL" ./config/database.yml
+fi
 
 bin/setup_dev
 bin/rails $setup_cmd
