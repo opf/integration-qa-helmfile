@@ -63,7 +63,15 @@ on:
         required: false
         type: string
       integration_app_version:
-        description: "Optional integration_openproject app version override"
+        description: "Optional integration_openproject app version (alias if integration_openproject_version is empty)"
+        required: false
+        type: string
+      integration_openproject_version:
+        description: "integration_openproject app version (overrides integration_app_version when set)"
+        required: false
+        type: string
+      integration_openproject_git_branch:
+        description: "integration_openproject git branch (version ignored when set)"
         required: false
         type: string
       openproject_branch:
@@ -85,6 +93,7 @@ jobs:
       CI: true
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Checkout
@@ -154,6 +163,8 @@ jobs:
             --arg nextcloud_version "${{ github.event.inputs.nextcloud_version }}" \
             --arg keycloak_version "${{ github.event.inputs.keycloak_version }}" \
             --arg integration_app_version "${{ github.event.inputs.integration_app_version }}" \
+            --arg integration_openproject_version "${{ github.event.inputs.integration_openproject_version }}" \
+            --arg integration_openproject_git_branch "${{ github.event.inputs.integration_openproject_git_branch }}" \
             --arg openproject_branch "${{ github.event.inputs.openproject_branch }}" \
             --arg nextcloud_branch "${{ github.event.inputs.nextcloud_branch }}" \
             '{
@@ -166,6 +177,8 @@ jobs:
                 nextcloud_version: $nextcloud_version,
                 keycloak_version: $keycloak_version,
                 integration_app_version: $integration_app_version,
+                integration_openproject_version: $integration_openproject_version,
+                integration_openproject_git_branch: $integration_openproject_git_branch,
                 openproject_branch: $openproject_branch,
                 nextcloud_branch: $nextcloud_branch
               }
