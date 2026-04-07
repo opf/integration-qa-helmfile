@@ -6,7 +6,11 @@ import { OP_ADMIN_USER } from '../../utils/test-users';
 import { testConfig } from '../../utils/config';
 import { escapeForRegex, resolveHostname } from '../../utils/url-helpers';
 
-const keycloakHost = resolveHostname(process.env.KEYCLOAK_URL) || resolveHostname(testConfig.keycloak.host) || 'keycloak.test';
+const keycloakHost =
+  resolveHostname(process.env.KEYCLOAK_URL) ||
+  resolveHostname(process.env.KEYCLOAK_HOST) ||
+  resolveHostname(testConfig.keycloak.host) ||
+  'keycloak.test';
 const keycloakHostPattern = new RegExp(`.*${escapeForRegex(keycloakHost)}.*`);
 
 export class OpenProjectLoginPage extends OpenProjectBasePage {
