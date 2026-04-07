@@ -26,7 +26,7 @@ spec:
           {{- end }}
           ports:
             - containerPort: 3000
-              name: op-test-server
+              name: test-server
               protocol: TCP
           {{ if or .Values.openproject.localSourcePath .Values.openproject.gitSourceBranch }}
           volumeMounts:

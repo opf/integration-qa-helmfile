@@ -4,8 +4,23 @@ set -eo pipefail
 
 APP_PATH=/home/app/openproject
 
+if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
+    rm -f "$APP_PATH"/files/build-completed
+    # clean up previous build artifacts
+    rm -rf \
+        "$APP_PATH"/node_modules \
+        "$APP_PATH"/frontend/node_modules \
+        "$APP_PATH"/config/frontend_assets.manifest.json \
+        "$APP_PATH"/public/assets \
+        "$APP_PATH"/.bundle \
+        "$APP_PATH"/.cache \
+        "$APP_PATH"/vendor/bundle \
+        "$APP_PATH"/alias \
+        "$APP_PATH"/versions
+fi
+
 PKG_TO_INSTALL=""
-BUILD_DEPS="gcc make pkg-config openssl"
+BUILD_DEPS="gcc make openssl"
 for pkg in $BUILD_DEPS; do
     if ! which "$pkg" >/dev/null 2>&1; then
         PKG_TO_INSTALL="$PKG_TO_INSTALL $pkg"
@@ -24,10 +39,6 @@ if [[ -n "$PKG_TO_INSTALL" ]]; then
 fi
 
 echo "[INFO] Building OpenProject from source..."
-
-if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]] && [[ -f "$APP_PATH/files/build-completed" ]]; then
-    rm -f "$APP_PATH/files/build-completed"
-fi
 
 set -x
 
@@ -80,6 +91,10 @@ fi
 
 bin/setup_dev
 bin/rails $setup_cmd
+
+if [[ "$RAILS_ENV" != "production" ]]; then
+    RAILS_ENV="test" bin/rails db:migrate db:test:prepare
+fi
 
 chown "$APP_USER":"$APP_USER" -R "$APP_PATH"
 # set sticky bit on app path and tmp directory
