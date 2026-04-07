@@ -330,6 +330,8 @@ jobs:
             echo "OPENPROJECT_HOST=${preview_host}"
             echo "NEXTCLOUD_HOST=nextcloud.${preview_host}"
             echo "KEYCLOAK_HOST=keycloak.${preview_host}"
+            echo "OPENPROJECT_URL=${preview_url}"
+            echo "NEXTCLOUD_URL=${nextcloud_url}"
             echo "E2E_ENV=pullpreview"
           } >> "$GITHUB_ENV"
 

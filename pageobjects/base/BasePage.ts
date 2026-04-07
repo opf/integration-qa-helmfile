@@ -48,11 +48,19 @@ export abstract class BasePage {
    * Navigate to the page URL
    */
   async navigateTo(): Promise<void> {
-    const url = process.env[this.getUrlEnvVar()] || this.locators.url;
+    const url = this.resolveNavigationUrl();
     logDebug('[PAGE NAVIGATION] Navigating to:', url);
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
     logDebug('[PAGE NAVIGATION] Current URL:', this.page.url());
     logDebug('[PAGE NAVIGATION] Page title:', await this.page.title());
+  }
+
+  /**
+   * Resolved start URL for this page. Domain base pages override to honor *_HOST and testConfig.
+   */
+  protected resolveNavigationUrl(): string {
+    const key = this.getUrlEnvVar();
+    return (key && process.env[key]) || this.locators.url;
   }
 
   /**

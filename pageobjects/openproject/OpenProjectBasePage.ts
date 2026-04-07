@@ -1,9 +1,13 @@
 import { Page } from '@playwright/test';
 import { BasePage } from '../base/BasePage';
 import { testConfig } from '../../utils/config';
-import { escapeForRegex, resolveHostname } from '../../utils/url-helpers';
+import { escapeForRegex, resolveHostname, resolveServiceNavigationUrl, resolveServiceOrigin } from '../../utils/url-helpers';
 
-const openProjectHost = resolveHostname(process.env.OPENPROJECT_URL) || resolveHostname(testConfig.openproject.host) || 'openproject.test';
+const openProjectHost =
+  resolveHostname(process.env.OPENPROJECT_URL) ||
+  resolveHostname(process.env.OPENPROJECT_HOST) ||
+  resolveHostname(testConfig.openproject.host) ||
+  'openproject.test';
 const openProjectHostPattern = new RegExp(`.*${escapeForRegex(openProjectHost)}.*`);
 
 export abstract class OpenProjectBasePage extends BasePage {
@@ -15,8 +19,22 @@ export abstract class OpenProjectBasePage extends BasePage {
     return 'OPENPROJECT_URL';
   }
 
+  protected resolveNavigationUrl(): string {
+    return resolveServiceNavigationUrl(
+      process.env.OPENPROJECT_URL,
+      process.env.OPENPROJECT_HOST,
+      testConfig.openproject.host,
+      this.locators.url,
+    );
+  }
+
   protected get baseUrl(): string {
-    return process.env.OPENPROJECT_URL || this.locators.url.replace('/login', '');
+    return resolveServiceOrigin(
+      process.env.OPENPROJECT_URL,
+      process.env.OPENPROJECT_HOST,
+      testConfig.openproject.host,
+      this.locators.url,
+    );
   }
 
   // URL path constants
