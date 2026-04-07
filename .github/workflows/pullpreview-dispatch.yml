@@ -38,7 +38,15 @@ on:
         required: false
         type: string
       integration_app_version:
-        description: "Optional integration_openproject app version override"
+        description: "Optional integration_openproject app version (alias if integration_openproject_version is empty)"
+        required: false
+        type: string
+      integration_openproject_version:
+        description: "integration_openproject app version (overrides integration_app_version when set)"
+        required: false
+        type: string
+      integration_openproject_git_branch:
+        description: "integration_openproject git branch (ignored if empty; version ignored when set)"
         required: false
         type: string
       openproject_branch:
@@ -57,6 +65,8 @@ jobs:
   deploy_or_teardown:
     runs-on: ubuntu-latest
     timeout-minutes: 70
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - uses: actions/checkout@v6
 
@@ -66,90 +76,117 @@ jobs:
         run: |
           set -euo pipefail
           out="pullpreview/pullpreview-stack-values.dispatch.yaml"
-          cat > "${out}" <<EOF
-          opnc-integration:
-            openprojectHost: "{{ pullpreview_public_dns }}"
-            openprojectAssetHost: "openproject-assets.{{ pullpreview_public_dns }}"
-            nextcloudHost: "nextcloud.{{ pullpreview_public_dns }}"
-            keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
-            integrationSetupMethod: "${{ inputs.integrationSetupMethod }}"
-          EOF
+          mkdir -p pullpreview
 
-          # Ensure the subcharts themselves are configured for the real PullPreview FQDNs.
-          # Otherwise OpenProject (Rails) may reject requests to unknown hosts and return 400.
-          cat >> "${out}" <<EOF
-          openproject:
-            openproject:
-              host: "{{ pullpreview_public_dns }}"
-              oidc:
-                host: "keycloak.{{ pullpreview_public_dns }}"
-            environment:
-              OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"
-              OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"
-              OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"
-              OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"
-
-          nextcloud:
-            nextcloud:
-              host: "nextcloud.{{ pullpreview_public_dns }}"
-            nextcloud:
-              extraEnv:
-                - name: OVERWRITECLIURL
-                  value: "https://nextcloud.{{ pullpreview_public_dns }}"
-                - name: OIDC_KEYCLOAK_DISCOVERY_URL
-                  value: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/.well-known/openid-configuration"
-
-          keycloak:
-            extraEnvVars:
-              - name: KEYCLOAK_HOSTNAME
-                value: "keycloak.{{ pullpreview_public_dns }}"
-              - name: KC_NEXTCLOUD_CLIENT_HOST
-                value: "nextcloud.{{ pullpreview_public_dns }}"
-              - name: KC_OPENPROJECT_CLIENT_HOST
-                value: "{{ pullpreview_public_dns }}"
-          EOF
-
-          # Only set overrides when non-empty. Empty tags render invalid image strings like "repo:".
-          if [ -n "${{ inputs.openproject_version }}" ] || [ -n "${{ inputs.openproject_branch }}" ]; then
-            cat >> "${out}" <<EOF
-            openproject:
-              dockerTag: "${{ inputs.openproject_version }}"
-              gitSourceBranch: "${{ inputs.openproject_branch }}"
-          EOF
+          # integration_openproject: prefer explicit inputs; fall back to integration_app_version for version
+          IO_VER="${{ inputs.integration_openproject_version }}"
+          IO_GIT="${{ inputs.integration_openproject_git_branch }}"
+          LEGACY_VER="${{ inputs.integration_app_version }}"
+          if [ -n "${IO_VER}" ]; then
+            APP_VER="${IO_VER}"
+          else
+            APP_VER="${LEGACY_VER}"
           fi
 
-          if [ -n "${{ inputs.nextcloud_branch }}" ] || [ -n "${{ inputs.integration_app_version }}" ]; then
-            cat >> "${out}" <<EOF
-            nextcloud:
-              gitSourceBranch: "${{ inputs.nextcloud_branch }}"
-              enableApps:
-                - name: integration_openproject
-                  version: "${{ inputs.integration_app_version }}"
-          EOF
-          fi
+          {
+            echo "opnc-integration:"
+            echo "  openprojectHost: \"{{ pullpreview_public_dns }}\""
+            echo "  openprojectAssetHost: \"openproject-assets.{{ pullpreview_public_dns }}\""
+            echo "  nextcloudHost: \"nextcloud.{{ pullpreview_public_dns }}\""
+            echo "  keycloakHost: \"keycloak.{{ pullpreview_public_dns }}\""
+            echo "  integrationSetupMethod: \"${{ inputs.integrationSetupMethod }}\""
 
+            if [ -n "${{ inputs.openproject_version }}" ] || [ -n "${{ inputs.openproject_branch }}" ]; then
+              echo "  openproject:"
+              echo "    dockerTag: \"${{ inputs.openproject_version }}\""
+              echo "    gitSourceBranch: \"${{ inputs.openproject_branch }}\""
+            fi
+
+            if [ -n "${{ inputs.nextcloud_branch }}" ] || [ -n "${APP_VER}" ] || [ -n "${IO_GIT}" ]; then
+              echo "  nextcloud:"
+              echo "    gitSourceBranch: \"${{ inputs.nextcloud_branch }}\""
+              echo "    enableApps:"
+              echo "      - name: integration_openproject"
+              echo "        version: \"${APP_VER}\""
+              echo "        gitBranch: \"${IO_GIT}\""
+            fi
+
+            printf '%s\n' \
+              'openproject:' \
+              '  openproject:' \
+              '    host: "{{ pullpreview_public_dns }}"' \
+              '    oidc:' \
+              '      host: "keycloak.{{ pullpreview_public_dns }}"' \
+              '  environment:' \
+              '    OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"' \
+              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"' \
+              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"' \
+              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"' \
+              '' \
+              'nextcloud:' \
+              '  nextcloud:' \
+              '    host: "nextcloud.{{ pullpreview_public_dns }}"' \
+              '    extraEnv:' \
+              '      - name: NC_GIT_SOURCE_BRANCH' \
+              '        value: ""' \
+              '      - name: OVERWRITEPROTOCOL' \
+              '        value: https' \
+              '      - name: OVERWRITECLIURL' \
+              '        value: "https://nextcloud.{{ pullpreview_public_dns }}"' \
+              '      - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID' \
+              '        value: nextcloud' \
+              '      - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET' \
+              '        value: nextcloud-secret' \
+              '      - name: OIDC_KEYCLOAK_PROVIDER_NAME' \
+              '        value: keycloak' \
+              '      - name: OIDC_KEYCLOAK_DISCOVERY_URL' \
+              '        value: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/.well-known/openid-configuration"' \
+              '      - name: NEXTCLOUD_ENABLE_APPS' \
+              '        valueFrom:' \
+              '          configMapKeyRef:' \
+              '            name: nextcloud-enable-apps' \
+              '            key: enable-apps' \
+              '' \
+              'keycloak:' \
+              '  extraEnvVars:' \
+              '    - name: KEYCLOAK_HOSTNAME' \
+              '      value: "keycloak.{{ pullpreview_public_dns }}"' \
+              '    - name: KC_REALM_NAME' \
+              '      value: "opnc"' \
+              '    - name: KC_NEXTCLOUD_CLIENT_ID' \
+              '      value: "nextcloud"' \
+              '    - name: KC_NEXTCLOUD_CLIENT_SECRET' \
+              '      value: "nextcloud-secret"' \
+              '    - name: KC_NEXTCLOUD_CLIENT_HOST' \
+              '      value: "nextcloud.{{ pullpreview_public_dns }}"' \
+              '    - name: KC_OPENPROJECT_CLIENT_ID' \
+              '      value: "openproject"' \
+              '    - name: KC_OPENPROJECT_CLIENT_SECRET' \
+              '      value: "openproject-secret"' \
+              '    - name: KC_OPENPROJECT_CLIENT_HOST' \
+              '      value: "{{ pullpreview_public_dns }}"'
+          } > "${out}"
+
+          # Image tags only at top level (Helm merges with block above)
           if [ -n "${{ inputs.openproject_version }}" ]; then
-            cat >> "${out}" <<EOF
-          openproject:
-            image:
-              tag: "${{ inputs.openproject_version }}"
-          EOF
+            printf '%s\n' \
+              'openproject:' \
+              '  image:' \
+              "    tag: \"${{ inputs.openproject_version }}\"" >> "${out}"
           fi
 
           if [ -n "${{ inputs.nextcloud_version }}" ]; then
-            cat >> "${out}" <<EOF
-          nextcloud:
-            image:
-              tag: "${{ inputs.nextcloud_version }}"
-          EOF
+            printf '%s\n' \
+              'nextcloud:' \
+              '  image:' \
+              "    tag: \"${{ inputs.nextcloud_version }}\"" >> "${out}"
           fi
 
           if [ -n "${{ inputs.keycloak_version }}" ]; then
-            cat >> "${out}" <<EOF
-          keycloak:
-            image:
-              tag: "${{ inputs.keycloak_version }}"
-          EOF
+            printf '%s\n' \
+              'keycloak:' \
+              '  image:' \
+              "    tag: \"${{ inputs.keycloak_version }}\"" >> "${out}"
           fi
 
       - id: pullpreview_up
@@ -218,6 +255,9 @@ jobs:
               sleep 10
             done
 
+            echo "::group::Debug: response headers for ${name}"
+            /usr/bin/curl -skS -D- -o /dev/null "$url" 2>&1 | head -n 50 || true
+            echo "::endgroup::"
             echo "::error::${name} endpoint was not ready: ${url} expected HTTP ${expected_status}, last result ${status}"
             return 1
           }
