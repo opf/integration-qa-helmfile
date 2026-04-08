@@ -32,7 +32,7 @@ openproject:
   # Pod container image tag                           #
   # Examples: 16.2, dev                               #
   #####################################################
-  version: '16'
+  version: '17'
   ############################################
   # Git branch to use as the source          #
   # Example: dev                             #
