@@ -59,15 +59,14 @@ if [[ -n "$NC_GIT_SOURCE_BRANCH" ]]; then
     git submodule update --init
     mkdir -p custom_apps
     mkdir -p data
-    npm ci
-    npm run dev
+    # Add activity app. Required for integration_openproject app
+    git clone --single-branch -b "${NC_GIT_SOURCE_BRANCH}" --depth 1 https://github.com/nextcloud/activity.git $SRC_DIR/apps/activity
     set +x
 fi
 
 ####################################################
 # build apps from git sources if specified         #
 ####################################################
-echo "[INFO] Enabling Nextcloud apps: $BUILD_GIT_APPS"
 for app in $BUILD_GIT_APPS; do
     IFS="@" read -r app_name app_version <<<"$app"
 
@@ -90,7 +89,7 @@ for app in $BUILD_GIT_APPS; do
 
         cd "$APP_DIR"
         composer install --no-dev
-        npm ci && npm run dev
+        npm ci && npm run build
 
         set +x
         cd "$SRC_DIR"
