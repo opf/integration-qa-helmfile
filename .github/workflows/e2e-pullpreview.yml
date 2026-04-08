@@ -326,6 +326,11 @@ jobs:
             exit 1
           fi
 
+          # Normalize https default port to avoid https://host:443 form.
+          if [[ "${preview_url}" == *:443 ]]; then
+            preview_url="${preview_url%:443}"
+          fi
+
           {
             echo "OPENPROJECT_HOST=${preview_host}"
             echo "NEXTCLOUD_HOST=nextcloud.${preview_host}"
