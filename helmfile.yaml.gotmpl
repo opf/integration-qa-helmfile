@@ -74,7 +74,7 @@ releases:
       - opnc-integration
   - name: keycloak
     chart: bitnami/keycloak
-    version: ~25.3.2
+    version: ~24.7.5
     installed: {{ not .Values.openproject.standalone }}
     values:
       - values/kc-values.gotmpl
