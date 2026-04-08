@@ -41,7 +41,7 @@ run-rspec-test:
 		echo "Error: SPEC is not provided. Usage: make run-rspec-test SPEC=spec/features/auth/login_spec.rb"; \
 		exit 1; \
 	fi
-	@kubectl exec -n opnc-integration deploy/op-test-container -- bash -c "RAILS_ENV=test bundle exec rspec $(SPEC)"
+	@kubectl exec -n opnc-integration deploy/op-test-container -- bash -c "RAILS_ENV=test bundle exec rspec $(SPEC) && rm -rf tmp/cache/assets"
 
 teardown:
 	@./scripts/teardown
