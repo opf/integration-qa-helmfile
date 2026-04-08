@@ -35,7 +35,7 @@ namespace: opnc-integration
 releases:
   - name: cert-manager
     chart: cert-manager/cert-manager
-    version: ~1.18.2
+    version: ~1.20.0
     values:
       - crds:
           enabled: true
@@ -66,7 +66,7 @@ releases:
   #     - opnc-integration
   - name: nextcloud
     chart: nextcloud/nextcloud
-    version: ~7.0.0
+    version: ~9.0.0
     installed: {{ not .Values.openproject.standalone }}
     values:
       - values/nc-values.gotmpl
@@ -74,7 +74,7 @@ releases:
       - opnc-integration
   - name: keycloak
     chart: bitnami/keycloak
-    version: ~24.7.5
+    version: ~25.3.2
     installed: {{ not .Values.openproject.standalone }}
     values:
       - values/kc-values.gotmpl
