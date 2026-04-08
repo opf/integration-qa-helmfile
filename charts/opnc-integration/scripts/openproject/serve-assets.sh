@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-while [[ ! -f "$APP_PATH/files/build-completed" ]]; do
+while [[ ! -f "$APP_PATH/files/build-completed" ]] && [[ ! -d "$APP_PATH/frontend/node_modules" ]]; do
     echo "[INFO] Waiting build from source to complete..."
     sleep 10
 done

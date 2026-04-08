@@ -33,7 +33,7 @@ else
 
     # Delete helm releases
     echo "[INFO] Deleting helm releases..."
-    helmfile destroy
+    helmfile destroy --skip-charts
 
     ###################################
     # Check pods and pvcs termination #
@@ -44,21 +44,24 @@ else
     echo "[INFO] Waiting for pods to terminate..."
     wait_pods="kubectl wait --for=delete pod --namespace=$namespace --all --timeout=$wait_timeout"
     if ! $wait_pods; then
-        echo "[ERROR] Some pods did not terminate in time. Waiting again..."
-        $wait_pods
+        echo "[ERROR] Some pods did not terminate in time. Deleting..."
+        kubectl delete job --namespace=$namespace --all --timeout=$wait_timeout --force
+        kubectl delete secrets --namespace=$namespace --all --timeout=$wait_timeout --force
+        kubectl delete svc --namespace=$namespace --all --timeout=$wait_timeout --force
+        kubectl delete pod --namespace=$namespace --all --timeout=$wait_timeout --force
     fi
 
     echo "[INFO] Waiting for persistent volumes to be deleted..."
     wait_pvc="kubectl wait --for=delete pvc --namespace=$namespace --all --timeout=$wait_timeout"
     if ! $wait_pvc; then
         echo "[ERROR] Some persistent volume claims did not terminate in time. Deleting..."
-        kubectl delete pvc --namespace=$namespace --all --timeout=$wait_timeout
+        kubectl delete pvc --namespace=$namespace --all --timeout=$wait_timeout --force
     fi
 
     wait_pv="kubectl wait --for=delete pv --namespace=$namespace --all --timeout=$wait_timeout"
     if ! $wait_pv; then
         echo "[ERROR] Some persistent volumes did not terminate in time. Deleting..."
-        kubectl delete pv --namespace=$namespace --all --timeout=$wait_timeout
+        kubectl delete pv --namespace=$namespace --all --timeout=$wait_timeout --force
     fi
 fi
 

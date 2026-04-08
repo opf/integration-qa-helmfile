@@ -4,19 +4,14 @@ set -eo pipefail
 
 APP_PATH=/home/app/openproject
 
-echo "[INFO] Building OpenProject from source..."
-
-set -x
-mkdir -p "$APP_PATH" && cd "$APP_PATH"
-
 if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
+    rm -f "$APP_PATH"/files/build-completed
     # clean up previous build artifacts
     rm -rf \
         "$APP_PATH"/node_modules \
         "$APP_PATH"/frontend/node_modules \
         "$APP_PATH"/config/frontend_assets.manifest.json \
         "$APP_PATH"/public/assets \
-        "$APP_PATH"/files/build-completed \
         "$APP_PATH"/.bundle \
         "$APP_PATH"/.cache \
         "$APP_PATH"/vendor/bundle \
@@ -24,42 +19,81 @@ if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
         "$APP_PATH"/versions
 fi
 
-if [[ -n $(ls -A "$APP_PATH") ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
-    echo "[ERROR] '$APP_PATH' is not empty. Please delete the volume and try again."
-    exit 1
+PKG_TO_INSTALL=""
+BUILD_DEPS="gcc make openssl"
+for pkg in $BUILD_DEPS; do
+    if ! which "$pkg" >/dev/null 2>&1; then
+        PKG_TO_INSTALL="$PKG_TO_INSTALL $pkg"
+    fi
+done
+
+if [[ -n "$PKG_TO_INSTALL" ]]; then
+    echo "[INFO] Installing build dependencies: $PKG_TO_INSTALL"
+    apt update >/dev/null
+    apt install -y --no-install-recommends \
+        ruby-dev \
+        build-essential \
+        libyaml-dev \
+        libssl-dev \
+        pkg-config >/dev/null
 fi
 
-if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
+echo "[INFO] Building OpenProject from source..."
+
+set -x
+
+mkdir -p "$APP_PATH" && cd "$APP_PATH"
+
+if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]] && [[ -z $(find "$APP_PATH" -mindepth 1 -print -quit) ]]; then
     echo "[INFO] Cloning OpenProject from branch: $OP_GIT_SOURCE_BRANCH"
     git clone --branch "$OP_GIT_SOURCE_BRANCH" --depth 1 --single-branch "https://github.com/opf/openproject" "$APP_PATH"
 fi
 
-# trust git repos
-git config --global safe.directory '*'
-# database config
-rm -f ./config/database.yml
-cp ./config/database.production.yml ./config/database.yml
+cp /scripts/database.yaml ./config/database.yml
 
-if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
-    sed -i 's/production:/development:/' ./config/database.yml
-    export BUNDLE_APP_CONFIG=./.bundle
-    export BUNDLE_WITHOUT=""
-    bundle config set --local path './vendor/bundle'
-    bundle config set --local with 'development test'
-    bundle install
-    npm install
-    SECRET_KEY_BASE=1 RAILS_ENV=development DATABASE_URL=nulldb://db \
-        bin/rails openproject:plugins:register_frontend assets:export_locales
+export SECRET_KEY_BASE=1
+rails_with=""
+setup_cmd="db:seed"
+if [[ "$RAILS_ENV" != "production" ]]; then
+    rails_with="development test"
+
+    if [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
+        setup_cmd="$setup_cmd assets:precompile"
+    fi
 else
-    bash ./docker/prod/setup/bundle-install.sh
-    # remove source map and production optimizations from build to speed up build time
-    sed -i 's/ --configuration production --named-chunks --source-map//' ./frontend/package.json
-    DOCKER=0 NG_CLI_ANALYTICS="false" bash ./docker/prod/setup/precompile-assets.sh
+    setup_cmd="$setup_cmd assets:precompile"
 fi
 
-if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]]; then
-    sed -i 's|rm -f ./config/database.yml||' ./docker/prod/setup/postinstall-common.sh
-    rm -rf "$APP_PATH/tmp"
+bundle config set --local path "./vendor/bundle"
+bundle config set --local with "$rails_with"
+
+# wait for database to be ready
+timeout 300s bash -c "until psql $DATABASE_URL -c '\q'; do echo 'Waiting for database...'; sleep 2; done"
+
+function create_database() {
+    local db_name="$1"
+    if ! psql "$DATABASE_URL" -lqt | cut -d \| -f 1 | grep -qw "$db_name"; then
+        echo "[INFO] Creating database '$db_name'..."
+        psql "$DATABASE_URL" -c "CREATE DATABASE $db_name"
+    fi
+}
+# create development and test databases if they don't exist
+if [[ "$RAILS_ENV" != "production" ]]; then
+    # create_database "openproject_dev"
+    create_database "openproject_test"
+    test_db_url="${DATABASE_URL%/*}/openproject_test"
+    # add the db url to database.yml
+    sed -i "/^development:/a\  url: $DATABASE_URL" ./config/database.yml
+    sed -i "/^test:/a\  url: $test_db_url" ./config/database.yml
+else
+    sed -i "/^production:/a\  url: $DATABASE_URL" ./config/database.yml
+fi
+
+bin/setup_dev
+bin/rails $setup_cmd
+
+if [[ "$RAILS_ENV" != "production" ]]; then
+    RAILS_ENV="test" bin/rails db:migrate db:test:prepare
 fi
 
 chown "$APP_USER":"$APP_USER" -R "$APP_PATH"

@@ -10,7 +10,13 @@ spec:
       containers:
         - name: build-source
           image: openproject/openproject:{{ .Values.openproject.dockerTag | default "dev" }}
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
           command: ['/scripts/setup-op-source.sh']
+          {{- if .Values.environment }}
+          envFrom:
+            - secretRef:
+                name: op-environment
+          {{- end }}
           env:
             - name: OP_GIT_SOURCE_BRANCH
               value: '{{ .Values.openproject.gitSourceBranch }}'
@@ -19,26 +25,37 @@ spec:
               value: 'true'
             {{ end }}
           volumeMounts:
+            - name: empty-app-dir
+              mountPath: /app
             - name: build-source-script
               mountPath: /scripts/setup-op-source.sh
               subPath: setup-op-source.sh
+            - name: database-config
+              mountPath: /scripts/database.yaml
+              subPath: database.yaml
             - name: op-source-data
               mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+
       volumes:
+        - name: empty-app-dir
+          emptyDir: {}
         - name: build-source-script
           configMap:
             name: op-setupsource-configmap
             defaultMode: 0755
-        {{ if and .Values.openproject.gitSourceBranch (not .Values.openproject.localSourcePath) }}
-        - name: op-source-data
-          persistentVolumeClaim:
-            claimName: op-source-pvc
-        {{ end }}
+        - name: database-config
+          configMap:
+            name: op-database-configmap
+            defaultMode: 0755
         {{ if .Values.openproject.localSourcePath }}
         - name: op-source-data
           hostPath:
             path: {{ .Values.openproject.localSourcePath }}
             type: Directory
+        {{ else if .Values.openproject.gitSourceBranch }}
+        - name: op-source-data
+          persistentVolumeClaim:
+            claimName: op-source-pvc
         {{ end }}
 
 {{ if and .Values.openproject.gitSourceBranch (not .Values.openproject.localSourcePath) }}

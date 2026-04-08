@@ -4,3 +4,4 @@ openproject:
   localSourcePath: '/localDir/openproject'
   railsEnv: 'development'
   version: 'dev'
+  enableTestSetup: true

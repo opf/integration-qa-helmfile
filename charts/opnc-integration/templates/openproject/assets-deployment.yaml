@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: op-assets-server
-          image: openproject/openproject:{{ .Values.openproject.dockerTag | default "dev" }}
+          image: node:22
           workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
           command: ['/serve-assets.sh']
           env:
@@ -61,4 +61,13 @@ spec:
       targetPort: 4200
       protocol: TCP
       name: http
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: op-serve-assets-configmap
+data:
+  serve-assets.sh: |
+{{ .Files.Get "scripts/openproject/serve-assets.sh" | indent 4 }}
 {{ end }}

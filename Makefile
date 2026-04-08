@@ -1,4 +1,4 @@
-.PHONY: help setup deploy teardown
+.PHONY: help setup deploy deploy-dev deploy-op-standalone run-rspec-test teardown teardown-all
 
 help:
 	@echo "Available commands:"
@@ -33,8 +33,15 @@ deploy:
 deploy-dev:
 	@helmfile sync -e dev
 
-dev-op-standalone:
+deploy-op-standalone:
 	@helmfile sync -e dev-op-standalone
+
+run-rspec-test:
+	@if [ -z "$(SPEC)" ]; then \
+		echo "Error: SPEC is not provided. Usage: make run-rspec-test SPEC=spec/features/auth/login_spec.rb"; \
+		exit 1; \
+	fi
+	@kubectl exec -n opnc-integration deploy/op-test-container -- bash -c "RAILS_ENV=test bundle exec rspec $(SPEC) && rm -rf tmp/cache/assets"
 
 teardown:
 	@./scripts/teardown
