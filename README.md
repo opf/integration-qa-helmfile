@@ -191,7 +191,7 @@ You can serve the OpenProject in standalone mode for the development setup. This
 3. Deploy the dev setup:
 
    ```bash
-   make dev-op-standalone
+   make deploy-op-standalone
    ```
 
 ## Trust Self-Signed Certificates
@@ -223,4 +223,30 @@ If you are using self-signed certificates, you may need to trust them in your br
 
    ```bash
    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain opnc-root-ca.crt
+   ```
+
+## Running RSpec Tests
+
+You can run the RSpec tests when running the setup in development mode.
+
+1. Run the setup in development mode:
+
+   ```bash
+   make deploy-dev
+   # or
+   make deploy-op-standalone
+   ```
+
+   Or, make sure the following configs are set:
+
+   ```yaml
+   # environments/default/config.yaml
+   railsEnv: 'development'
+   enableTestSetup: true
+   ```
+
+2. Run the tests:
+
+   ```bash
+   make run-rspec-test SPEC=spec/features/auth/login_spec.rb
    ```

@@ -1,4 +1,4 @@
-.PHONY: help setup deploy deploy-dev dev-op-standalone run-rspec-test teardown teardown-all
+.PHONY: help setup deploy deploy-dev deploy-op-standalone run-rspec-test teardown teardown-all
 
 help:
 	@echo "Available commands:"
@@ -33,7 +33,7 @@ deploy:
 deploy-dev:
 	@helmfile sync -e dev
 
-dev-op-standalone:
+deploy-op-standalone:
 	@helmfile sync -e dev-op-standalone
 
 run-rspec-test:
