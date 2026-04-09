@@ -3,3 +3,5 @@ charts/openproject/charts/*
 tmpcharts-*/
 helmfile-*/
 tmp/
+environments/override/*
+!environments/override/config.yaml.example

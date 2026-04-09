@@ -3,18 +3,22 @@ environments:
   default:
     values:
       - environments/default/config.yaml
+      - environments/override/config.yaml
   dev:
     values:
       - environments/default/config.yaml
       - environments/dev/config.yaml
+      - environments/override/config.yaml
   ci:
     values:
       - environments/default/config.yaml
       - environments/ci/config.yaml.gotmpl
+      - environments/override/config.yaml
   dev-op-standalone:
     values:
       - environments/default/config.yaml
       - environments/dev-op-standalone/config.yaml
+      - environments/override/config.yaml
 ---
 repositories:
   # Issues:
