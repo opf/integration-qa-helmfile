@@ -8,6 +8,8 @@
 - [Serve OpenProject From Local Branch](#serve-openproject-from-local-branch)
 - [Serve Standalone OpenProject (Local Branch)](#serve-standalone-openproject-local-branch)
 - [Trust Self-Signed Certificates](#trust-self-signed-certificates)
+- [Running RSpec Tests](#running-rspec-tests)
+- [Available Make Commands](#available-make-commands)
 
 ## Dependencies
 
@@ -255,3 +257,11 @@ You can run the RSpec tests when running the setup in development mode.
    ```bash
    make run-rspec-test SPEC=spec/features/auth/login_spec.rb
    ```
+
+## Available Make Commands
+
+Check all available make targets/commands.
+
+```bash
+make help
+```
