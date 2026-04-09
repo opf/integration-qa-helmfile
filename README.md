@@ -73,19 +73,24 @@ make teardown-all
 ## Configuring the Deployment
 
 ⚠️ Do not edit `charts/opnc-integration/values.yaml` directly.
-All configuration must go into [environments/default/config.yaml](https://github.com/saw-jan/opnc-helm-chart/blob/master/environments/default/config.yaml).
-This file overrides the chart defaults and is the source of truth for deployments.
+All configuration changes must go into [environments/override/config.yaml](https://github.com/saw-jan/opnc-helm-chart/blob/master/environments/override/config.yaml), which will override the default values for all environments. Also, the changes in this file will not be seen by git, so it is convenient and safe to use it for changing any configuration.
 
-### Example: Changing app version
+Usage:
 
-To change the version of the `integration_openproject` app in Nextcloud:
+Copy the [config.yaml.example](./environments/override/config.yaml.example) to `environments/override/config.yaml` and add the configs as needed.
 
 ```yaml
-# environments/default/config.yaml
+# Example: environments/override/config.yaml
+integration:
+  setupMethod: 'sso-external'
+
 nextcloud:
   extraApps:
     - name: integration_openproject
       version: '2.8.1'
+
+openproject:
+  version: '17'
 ```
 
 ## PullPreview

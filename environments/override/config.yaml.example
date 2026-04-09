@@ -3,3 +3,5 @@
 #
 # For the available configuration options, see: environments/default/config.yaml
 # NOTE: the config structure must be the same as in the above config file.
+
+# Usage: copy 'config.yaml.example' to 'config.yaml'
