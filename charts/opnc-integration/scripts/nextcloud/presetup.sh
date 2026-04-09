@@ -32,19 +32,20 @@ if ! build_app_from_git && [[ -z "$NC_GIT_SOURCE_BRANCH" ]]; then
 fi
 
 SRC_DIR=/usr/src/nc
+mkdir -p $SRC_DIR
 # skip source build if the directory already exists and is not empty
-if [[ -n $(ls -A "$SRC_DIR") ]]; then
+if [[ -n $(find "$SRC_DIR" -mindepth 1 -print -quit) ]]; then
     echo "[INFO] '$SRC_DIR' exists and is not empty. Skipping source build..."
     exit 0
 fi
 
-# install php
-apt-get update > /dev/null && apt-get install -y php-cli > /dev/null
-# install composer
-curl -sSL https://getcomposer.org/download/2.8.10/composer.phar -o /usr/bin/composer
-chmod +x /usr/bin/composer
-
-mkdir -p $SRC_DIR
+if [[ -n "$NC_GIT_SOURCE_BRANCH" ]] || [[ -n "$BUILD_GIT_APPS" ]]; then
+    # install php
+    apt-get update > /dev/null && apt-get install -y php-cli > /dev/null
+    # install composer
+    curl -sSL https://getcomposer.org/download/2.8.10/composer.phar -o /usr/bin/composer
+    chmod +x /usr/bin/composer
+fi
 
 ####################################################
 # clone nextcloud branch and build it if specified #
@@ -59,15 +60,14 @@ if [[ -n "$NC_GIT_SOURCE_BRANCH" ]]; then
     git submodule update --init
     mkdir -p custom_apps
     mkdir -p data
-    npm ci
-    npm run dev
+    # Add activity app. Required for integration_openproject app
+    git clone --single-branch -b "${NC_GIT_SOURCE_BRANCH}" --depth 1 https://github.com/nextcloud/activity.git $SRC_DIR/apps/activity
     set +x
 fi
 
 ####################################################
 # build apps from git sources if specified         #
 ####################################################
-echo "[INFO] Enabling Nextcloud apps: $BUILD_GIT_APPS"
 for app in $BUILD_GIT_APPS; do
     IFS="@" read -r app_name app_version <<<"$app"
 
@@ -90,7 +90,7 @@ for app in $BUILD_GIT_APPS; do
 
         cd "$APP_DIR"
         composer install --no-dev
-        npm ci && npm run dev
+        npm ci && npm run build
 
         set +x
         cd "$SRC_DIR"

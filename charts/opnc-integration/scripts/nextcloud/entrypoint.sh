@@ -3,8 +3,16 @@ set -eu
 
 ######################################################################################
 # Custom entrypoint script                                                           #
-# Taken from https://github.com/nextcloud/docker/blob/master/31/apache/entrypoint.sh #
+# Taken from https://github.com/nextcloud/docker/blob/master/33/apache/entrypoint.sh #
 ######################################################################################
+
+############## CUSTOM START ##############
+SRC_DIR=/usr/src/nextcloud
+if [ -n "$NC_GIT_SOURCE_BRANCH" ]; then
+    mv /usr/src/nextcloud/config/* /usr/src/nc/config/
+    SRC_DIR=/usr/src/nc
+fi
+############## CUSTOM END ##############
 
 # version_greater A B returns whether A > B
 version_greater() {
@@ -33,7 +41,6 @@ run_occ() {
 # Execute all executable files in a given directory in alphanumeric order
 run_path() {
     local hook_folder_path="/docker-entrypoint-hooks.d/$1"
-    local return_code=0
     local found=0
 
     echo "=> Searching for hook scripts (*.sh) to run, located in the folder \"${hook_folder_path}\""
@@ -47,25 +54,23 @@ run_path() {
         while read -r script_file_path; do
             if ! [ -x "${script_file_path}" ]; then
                 echo "==> The script \"${script_file_path}\" was skipped, because it lacks the executable flag"
-                found=$((found-1))
                 continue
             fi
 
             echo "==> Running the script (cwd: $(pwd)): \"${script_file_path}\""
             found=$((found+1))
-            run_as "${script_file_path}" || return_code="$?"
-
-            if [ "${return_code}" -ne "0" ]; then
+            run_as "${script_file_path}" || {
+                return_code="$?"
                 echo "==> Failed at executing script \"${script_file_path}\". Exit code: ${return_code}"
                 exit 1
-            fi
+            }
 
             echo "==> Finished executing the script: \"${script_file_path}\""
         done
-        if [ "$found" -lt "1" ]; then
-            echo "==> Skipped: the \"$1\" folder does not contain any valid scripts"
-        else
+        if [ "$found" -gt "0" ]; then
             echo "=> Completed executing scripts in the \"$1\" folder"
+        else
+            echo "==> Skipped: the \"$1\" folder does not contain any valid scripts"
         fi
     )
 }
@@ -94,11 +99,58 @@ file_env() {
     unset "$fileVar"
 }
 
-SRC_DIR=/usr/src/nextcloud
-if [ -n "${NC_GIT_SOURCE_BRANCH:-}" ]; then
-    SRC_DIR=/usr/src/nc
-fi
+get_enabled_apps() {
+    run_as 'php /var/www/html/occ app:list' \
+        | sed -n '/^Enabled:$/,/^Disabled:$/p' \
+        | sed '1d;$d' \
+        | sed -n 's/^  - \([^:]*\):.*/\1/p' \
+        | sort
+}
 
+# Write PHP session config for Redis to /usr/local/etc/php/conf.d/redis-session.ini
+configure_redis_session() {
+    local redis_save_path
+    local redis_auth=''
+
+    echo "=> Configuring PHP session handler..."
+
+    if [ -z "${REDIS_HOST:-}" ]; then
+        echo "==> Using default PHP session handler"
+        return 0
+    fi
+
+    file_env REDIS_HOST_PASSWORD
+
+    case "$REDIS_HOST" in
+        /*)
+            redis_save_path="unix://${REDIS_HOST}"
+            ;;
+        *)
+            redis_save_path="tcp://${REDIS_HOST}:${REDIS_HOST_PORT:=6379}"
+            ;;
+    esac
+
+    if [ -n "${REDIS_HOST_PASSWORD+x}" ] && [ -n "${REDIS_HOST_USER+x}" ]; then
+        redis_auth="?auth[]=${REDIS_HOST_USER}&auth[]=${REDIS_HOST_PASSWORD}"
+    elif [ -n "${REDIS_HOST_PASSWORD+x}" ]; then
+        redis_auth="?auth=${REDIS_HOST_PASSWORD}"
+    fi
+
+    echo "==> Using Redis as PHP session handler..."
+    {
+        echo 'session.save_handler = redis'
+        echo "session.save_path = \"${redis_save_path}${redis_auth}\""
+        echo "redis.session.locking_enabled = 1"
+        echo "redis.session.lock_retries = -1"
+        # redis.session.lock_wait_time is specified in microseconds.
+        # Wait 10ms before retrying the lock rather than the default 2ms.
+        echo "redis.session.lock_wait_time = 10000"
+    } > /usr/local/etc/php/conf.d/redis-session.ini
+}
+
+########################################################################
+# Main
+########################################################################
 if expr "$1" : "apache" 1>/dev/null; then
     if [ -n "${APACHE_DISABLE_REWRITE_IP+x}" ]; then
         a2disconf remoteip
@@ -128,40 +180,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
         group="$gid"
     fi
 
-    if [ -n "${REDIS_HOST+x}" ]; then
-
-        echo "Configuring Redis as session handler"
-        {
-            file_env REDIS_HOST_PASSWORD
-            echo 'session.save_handler = redis'
-            # check if redis host is an unix socket path
-            if [ "$(echo "$REDIS_HOST" | cut -c1-1)" = "/" ]; then
-              if [ -n "${REDIS_HOST_PASSWORD+x}" ]; then
-                if [ -n "${REDIS_HOST_USER+x}" ]; then
-                  echo "session.save_path = \"unix://${REDIS_HOST}?auth[]=${REDIS_HOST_USER}&auth[]=${REDIS_HOST_PASSWORD}\""
-                else
-                  echo "session.save_path = \"unix://${REDIS_HOST}?auth=${REDIS_HOST_PASSWORD}\""
-                fi
-              else
-                echo "session.save_path = \"unix://${REDIS_HOST}\""
-              fi
-            # check if redis password has been set
-            elif [ -n "${REDIS_HOST_PASSWORD+x}" ]; then
-                if [ -n "${REDIS_HOST_USER+x}" ]; then
-                    echo "session.save_path = \"tcp://${REDIS_HOST}:${REDIS_HOST_PORT:=6379}?auth[]=${REDIS_HOST_USER}&auth[]=${REDIS_HOST_PASSWORD}\""
-                else
-                    echo "session.save_path = \"tcp://${REDIS_HOST}:${REDIS_HOST_PORT:=6379}?auth=${REDIS_HOST_PASSWORD}\""
-                fi
-            else
-                echo "session.save_path = \"tcp://${REDIS_HOST}:${REDIS_HOST_PORT:=6379}\""
-            fi
-            echo "redis.session.locking_enabled = 1"
-            echo "redis.session.lock_retries = -1"
-            # redis.session.lock_wait_time is specified in microseconds.
-            # Wait 10ms before retrying the lock rather than the default 2ms.
-            echo "redis.session.lock_wait_time = 10000"
-        } > /usr/local/etc/php/conf.d/redis-session.ini
-    fi
+    configure_redis_session
 
     # If another process is syncing the html folder, wait for
     # it to be done, then escape initalization.
@@ -194,9 +213,11 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
                     exit 1
                 fi
 
+                ############## CUSTOM START ##############
                 # [INFO]: Disable upgrade
                 # echo "Upgrading nextcloud from $installed_version ..."
-                # run_as 'php /var/www/html/occ app:list' | sed -n "/Enabled:/,/Disabled:/p" > /tmp/list_before
+                # get_enabled_apps > /tmp/list_before
+                ############## CUSTOM END ##############
             fi
             if [ "$(id -u)" = 0 ]; then
                 rsync_options="-rlDog --chown $user:$group"
@@ -204,17 +225,12 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
                 rsync_options="-rlD"
             fi
 
+            ############## CUSTOM START ##############
             echo "[INFO] Copying server files..."
-
             rsync $rsync_options --delete --exclude-from=/upgrade.exclude "$SRC_DIR/" /var/www/html/
             for dir in config data custom_apps themes; do
                 if [ ! -d "/var/www/html/$dir" ] || directory_empty "/var/www/html/$dir"; then
-                    config_src_dir="$SRC_DIR"
-                    # '/usr/src/nextcloud/config' has the required config files
-                    if [ "$dir" = "config" ]; then
-                        config_src_dir="/usr/src/nextcloud"
-                    fi
-                    rsync $rsync_options --include "/$dir/" --exclude '/*' "$config_src_dir/" /var/www/html/
+                    rsync $rsync_options --include "/$dir/" --exclude '/*' "$SRC_DIR/" /var/www/html/
                 fi
             done
             rsync $rsync_options --include '/version.php' --exclude '/*' "$SRC_DIR/" /var/www/html/
@@ -227,92 +243,97 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
             fi
 
             # Install
-            echo "New nextcloud instance"
+            if [ "$installed_version" = "0.0.0.0" ]; then
+                echo "New nextcloud instance"
 
-            file_env NEXTCLOUD_ADMIN_PASSWORD
-            file_env NEXTCLOUD_ADMIN_USER
+                file_env NEXTCLOUD_ADMIN_PASSWORD
+                file_env NEXTCLOUD_ADMIN_USER
 
-            install=false
-            if [ -n "${NEXTCLOUD_ADMIN_USER+x}" ] && [ -n "${NEXTCLOUD_ADMIN_PASSWORD+x}" ]; then
-                # shellcheck disable=SC2016
-                install_options='-n --admin-user "$NEXTCLOUD_ADMIN_USER" --admin-pass "$NEXTCLOUD_ADMIN_PASSWORD"'
-                if [ -n "${NEXTCLOUD_DATA_DIR+x}" ]; then
+                install=false
+                if [ -n "${NEXTCLOUD_ADMIN_USER+x}" ] && [ -n "${NEXTCLOUD_ADMIN_PASSWORD+x}" ]; then
                     # shellcheck disable=SC2016
-                    install_options=$install_options' --data-dir "$NEXTCLOUD_DATA_DIR"'
-                fi
-
-                file_env MYSQL_DATABASE
-                file_env MYSQL_PASSWORD
-                file_env MYSQL_USER
-                file_env POSTGRES_DB
-                file_env POSTGRES_PASSWORD
-                file_env POSTGRES_USER
-
-                if [ -n "${SQLITE_DATABASE+x}" ]; then
-                    echo "Installing with SQLite database"
-                    # shellcheck disable=SC2016
-                    install_options=$install_options' --database-name "$SQLITE_DATABASE"'
-                    install=true
-                elif [ -n "${MYSQL_DATABASE+x}" ] && [ -n "${MYSQL_USER+x}" ] && [ -n "${MYSQL_PASSWORD+x}" ] && [ -n "${MYSQL_HOST+x}" ]; then
-                    echo "Installing with MySQL database"
-                    # shellcheck disable=SC2016
-                    install_options=$install_options' --database mysql --database-name "$MYSQL_DATABASE" --database-user "$MYSQL_USER" --database-pass "$MYSQL_PASSWORD" --database-host "$MYSQL_HOST"'
-                    install=true
-                elif [ -n "${POSTGRES_DB+x}" ] && [ -n "${POSTGRES_USER+x}" ] && [ -n "${POSTGRES_PASSWORD+x}" ] && [ -n "${POSTGRES_HOST+x}" ]; then
-                    echo "Installing with PostgreSQL database"
-                    # shellcheck disable=SC2016
-                    install_options=$install_options' --database pgsql --database-name "$POSTGRES_DB" --database-user "$POSTGRES_USER" --database-pass "$POSTGRES_PASSWORD" --database-host "$POSTGRES_HOST"'
-                    install=true
-                fi
-
-                if [ "$install" = true ]; then
-                    run_path pre-installation
-
-                    echo "Starting nextcloud installation"
-                    max_retries=10
-                    try=0
-                    until  [ "$try" -gt "$max_retries" ] || run_occ "maintenance:install $install_options"
-                    do
-                        echo "Retrying install..."
-                        try=$((try+1))
-                        sleep 10s
-                    done
-                    if [ "$try" -gt "$max_retries" ]; then
-                        echo "Installing of nextcloud failed!"
-                        exit 1
+                    install_options='-n --admin-user "$NEXTCLOUD_ADMIN_USER" --admin-pass "$NEXTCLOUD_ADMIN_PASSWORD"'
+                    if [ -n "${NEXTCLOUD_DATA_DIR+x}" ]; then
+                        # shellcheck disable=SC2016
+                        install_options=$install_options' --data-dir "$NEXTCLOUD_DATA_DIR"'
                     fi
-                    if [ -n "${NEXTCLOUD_TRUSTED_DOMAINS+x}" ]; then
-                        echo "Setting trusted domains…"
-                        set -f # turn off glob
-                        NC_TRUSTED_DOMAIN_IDX=1
-                        for DOMAIN in ${NEXTCLOUD_TRUSTED_DOMAINS}; do
-                            DOMAIN=$(echo "${DOMAIN}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-                            run_occ "config:system:set trusted_domains $NC_TRUSTED_DOMAIN_IDX --value=\"${DOMAIN}\""
-                            NC_TRUSTED_DOMAIN_IDX=$((NC_TRUSTED_DOMAIN_IDX+1))
+
+                    file_env MYSQL_DATABASE
+                    file_env MYSQL_PASSWORD
+                    file_env MYSQL_USER
+                    file_env POSTGRES_DB
+                    file_env POSTGRES_PASSWORD
+                    file_env POSTGRES_USER
+
+                    if [ -n "${SQLITE_DATABASE+x}" ]; then
+                        echo "Installing with SQLite database"
+                        # shellcheck disable=SC2016
+                        install_options=$install_options' --database-name "$SQLITE_DATABASE"'
+                        install=true
+                    elif [ -n "${MYSQL_DATABASE+x}" ] && [ -n "${MYSQL_USER+x}" ] && [ -n "${MYSQL_PASSWORD+x}" ] && [ -n "${MYSQL_HOST+x}" ]; then
+                        echo "Installing with MySQL database"
+                        # shellcheck disable=SC2016
+                        install_options=$install_options' --database mysql --database-name "$MYSQL_DATABASE" --database-user "$MYSQL_USER" --database-pass "$MYSQL_PASSWORD" --database-host "$MYSQL_HOST"'
+                        install=true
+                    elif [ -n "${POSTGRES_DB+x}" ] && [ -n "${POSTGRES_USER+x}" ] && [ -n "${POSTGRES_PASSWORD+x}" ] && [ -n "${POSTGRES_HOST+x}" ]; then
+                        echo "Installing with PostgreSQL database"
+                        # shellcheck disable=SC2016
+                        install_options=$install_options' --database pgsql --database-name "$POSTGRES_DB" --database-user "$POSTGRES_USER" --database-pass "$POSTGRES_PASSWORD" --database-host "$POSTGRES_HOST"'
+                        install=true
+                    fi
+
+                    if [ "$install" = true ]; then
+                        run_path pre-installation
+
+                        echo "Starting nextcloud installation"
+                        max_retries=10
+                        try=0
+                        until  [ "$try" -gt "$max_retries" ] || run_occ "maintenance:install $install_options"
+                        do
+                            echo "Retrying install..."
+                            try=$((try+1))
+                            sleep 10s
                         done
-                        set +f # turn glob back on
+                        if [ "$try" -gt "$max_retries" ]; then
+                            echo "Installing of nextcloud failed!"
+                            exit 1
+                        fi
+                        if [ -n "${NEXTCLOUD_TRUSTED_DOMAINS+x}" ]; then
+                            echo "Setting trusted domains…"
+                            set -f # turn off glob
+                            NC_TRUSTED_DOMAIN_IDX=1
+                            for DOMAIN in ${NEXTCLOUD_TRUSTED_DOMAINS}; do
+                                DOMAIN=$(echo "${DOMAIN}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+                                run_occ "config:system:set trusted_domains $NC_TRUSTED_DOMAIN_IDX --value=\"${DOMAIN}\""
+                                NC_TRUSTED_DOMAIN_IDX=$((NC_TRUSTED_DOMAIN_IDX+1))
+                            done
+                            set +f # turn glob back on
+                        fi
+
+                        run_path post-installation
                     fi
-
-                    run_path post-installation
                 fi
-            fi
-            # not enough specified to do a fully automated installation 
-            if [ "$install" = false ]; then 
-                echo "Next step: Access your instance to finish the web-based installation!"
-                echo "Hint: You can specify NEXTCLOUD_ADMIN_USER and NEXTCLOUD_ADMIN_PASSWORD and the database variables _prior to first launch_ to fully automate initial installation."
-            fi
-            # [INFO]: Disable upgrade
+                # not enough specified to do a fully automated installation 
+                if [ "$install" = false ]; then 
+                    echo "Next step: Access your instance to finish the web-based installation!"
+                    echo "Hint: You can specify NEXTCLOUD_ADMIN_USER and NEXTCLOUD_ADMIN_PASSWORD and the database variables _prior to first launch_ to fully automate initial installation."
+                fi
             # Upgrade
-            #     run_path pre-upgrade
+            else
+                run_path pre-upgrade
 
-            #     run_as 'php /var/www/html/occ upgrade'
+                run_as 'php /var/www/html/occ upgrade'
 
-            #     run_as 'php /var/www/html/occ app:list' | sed -n "/Enabled:/,/Disabled:/p" > /tmp/list_after
-            #     echo "The following apps have been disabled:"
-            #     diff /tmp/list_before /tmp/list_after | grep '<' | cut -d- -f2 | cut -d: -f1
-            #     rm -f /tmp/list_before /tmp/list_after
+                get_enabled_apps > /tmp/list_after
+                disabled_apps="$(comm -23 /tmp/list_before /tmp/list_after || true)"
+                if [ -n "$disabled_apps" ]; then
+                    echo "The following apps have been disabled:"
+                    printf '%s\n' "$disabled_apps"
+                fi
+                rm -f /tmp/list_before /tmp/list_after
 
-            #     run_path post-upgrade
+                run_path post-upgrade
+            fi
 
             echo "Initializing finished"
         fi
@@ -323,6 +344,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
         fi
     ) 9> /var/www/html/nextcloud-init-sync.lock
 
+    ############## CUSTOM START ##############
     # warn if config files on persistent storage differ from the latest version of this image
     for cfgPath in "$SRC_DIR"/config/*.php; do
         cfgFile=$(basename "$cfgPath")
@@ -333,6 +355,7 @@ if expr "$1" : "apache" 1>/dev/null || [ "$1" = "php-fpm" ] || [ "${NEXTCLOUD_UP
             fi
         fi
     done
+    ############## CUSTOM END ##############
 
     run_path before-starting
 fi

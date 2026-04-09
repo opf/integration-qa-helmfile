@@ -4,7 +4,7 @@ global:
 fullnameOverride: {{ .Values.nextcloud.fullnameOverride }}
 image:
   # Nextcloud version image tag
-  tag: {{ .Values.nextcloud.version | quote }}
+  tag: {{ .Values.nextcloud.version | default "latest" | quote }}
 persistence:
   storageClassName: {{ .Values.persistence.storageClassName | quote }}
 service:
