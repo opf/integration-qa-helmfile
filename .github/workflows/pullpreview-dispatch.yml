@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out="pullpreview/pullpreview-stack-values.dispatch.yaml"
+          out="pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl"
           mkdir -p pullpreview
 
           # integration_openproject: prefer explicit inputs; fall back to integration_app_version for version
@@ -113,6 +113,8 @@ jobs:
 
             printf '%s\n' \
               'openproject:' \
+              '  enterpriseToken: |' \
+              '    {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | nindent 4 }}' \
               '  openproject:' \
               '    host: "{{ pullpreview_public_dns }}"' \
               '    oidc:' \
@@ -204,13 +206,14 @@ jobs:
           max_domain_length: "40"
           deployment_target: helm
           chart: ./charts/pullpreview-stack
-          chart_values: pullpreview/pullpreview-stack-values.dispatch.yaml
+          chart_values: pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
 
       - name: Validate preview URLs
         if: inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
