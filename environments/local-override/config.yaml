@@ -1,0 +1,5 @@
+# Configurations in this file will override the values for all environments.
+# This is useful for local development, where you might want to override some values without causing any source changes.
+#
+# For the available configuration options, see: environments/default/config.yaml
+# NOTE: the config structure must be the same as in the above config file.
