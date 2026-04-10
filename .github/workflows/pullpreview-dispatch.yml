@@ -70,6 +70,20 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Log ref and inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Integration repo ref: ${GITHUB_REF_NAME:-} sha: ${GITHUB_SHA:-}"
+          echo "Action: ${{ inputs.action }}"
+          echo "Preview name: ${{ inputs.preview_name }}"
+          echo "Setup method: ${{ inputs.integrationSetupMethod }}"
+          echo "Requested versions: OP='${{ inputs.openproject_version }}' NC='${{ inputs.nextcloud_version }}' KC='${{ inputs.keycloak_version }}'"
+          echo "Requested integration app: legacy='${{ inputs.integration_app_version }}' io_ver='${{ inputs.integration_openproject_version }}' io_git='${{ inputs.integration_openproject_git_branch }}'"
+          echo "Requested branches: OP='${{ inputs.openproject_branch }}' NC='${{ inputs.nextcloud_branch }}'"
+          test -f ".github/workflows/pullpreview-dispatch.yml"
+          echo "Workflow file present: .github/workflows/pullpreview-dispatch.yml"
+
       - name: Create dispatch override values
         if: inputs.action == 'up'
         shell: bash
@@ -190,6 +204,26 @@ jobs:
               '  image:' \
               "    tag: \"${{ inputs.keycloak_version }}\"" >> "${out}"
           fi
+
+          test -f "${out}" || { echo "::error::missing ${out}"; exit 1; }
+          echo "Dispatch values file present: ${out}"
+
+      - name: Log enterprise token presence
+        if: inputs.action == 'up'
+        shell: bash
+        env:
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENPROJECT_ENTERPRISE_TOKEN:-}" ]; then
+            echo "Enterprise token present: false"
+            exit 0
+          fi
+          token_len="$(printf '%s' "${OPENPROJECT_ENTERPRISE_TOKEN}" | wc -c | tr -d ' ')"
+          token_sha256="$(printf '%s' "${OPENPROJECT_ENTERPRISE_TOKEN}" | shasum -a 256 | awk '{print $1}')"
+          echo "Enterprise token present: true"
+          echo "Enterprise token length: ${token_len}"
+          echo "Enterprise token sha256: ${token_sha256}"
 
       - id: pullpreview_up
         if: inputs.action == 'up'
