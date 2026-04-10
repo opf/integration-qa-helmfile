@@ -18,7 +18,7 @@ on:
         description: "Custom Playwright --grep expression (used when suite=custom)"
         required: false
       setupMethod:
-        description: "Setup method override passed to test run and preview deploy"
+        description: "Setup method"
         required: true
         default: sso-external
         type: choice
@@ -31,39 +31,25 @@ on:
         required: true
         default: false
         type: boolean
-      integration_repo:
-        description: "Repository that owns PullPreview deployment"
-        required: true
-        default: opf/integration-qa-helmfile
-        type: string
-      integration_workflow:
-        description: "Dispatchable workflow filename in integration repo"
-        required: true
-        default: pullpreview-dispatch.yml
-        type: string
       integration_ref:
         description: "Branch/ref in integration repo to execute workflow from"
         required: true
         default: main
         type: string
-      preview_name:
-        description: "Optional custom preview name"
-        required: false
-        type: string
       openproject_version:
-        description: "Optional OpenProject docker tag override"
+        description: "OpenProject image tag"
         required: false
         type: string
       nextcloud_version:
-        description: "Optional Nextcloud image tag override"
+        description: "Nextcloud image tag"
         required: false
         type: string
       keycloak_version:
-        description: "Optional Keycloak image tag override"
+        description: "Keycloak image tag"
         required: false
         type: string
       integration_app_version:
-        description: "Optional integration_openproject app version (alias if integration_openproject_version is empty)"
+        description: "integration_openproject app version (alias if integration_openproject_version is empty)"
         required: false
         type: string
       integration_openproject_version:
@@ -98,6 +84,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Log refs and inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "E2E repo ref: ${GITHUB_REF_NAME:-} sha: ${GITHUB_SHA:-}"
+          echo "Integration repo: ${{ github.event.inputs.integration_repo }}"
+          echo "Integration workflow: ${{ github.event.inputs.integration_workflow }}"
+          echo "Integration ref: ${{ github.event.inputs.integration_ref }}"
+          echo "Setup method: ${{ github.event.inputs.setupMethod }}"
+          echo "Requested versions: OP='${{ github.event.inputs.openproject_version }}' NC='${{ github.event.inputs.nextcloud_version }}' KC='${{ github.event.inputs.keycloak_version }}'"
+          echo "Requested integration app: legacy='${{ github.event.inputs.integration_app_version }}' io_ver='${{ github.event.inputs.integration_openproject_version }}' io_git='${{ github.event.inputs.integration_openproject_git_branch }}'"
+          echo "Requested branches: OP='${{ github.event.inputs.openproject_branch }}' NC='${{ github.event.inputs.nextcloud_branch }}'"
 
       - name: Resolve grep and preview name
         id: resolve
@@ -239,9 +238,14 @@ jobs:
             if [ -n "${run_match}" ]; then
               run_json="$(echo "${run_match}" | base64 --decode)"
               run_id="$(echo "${run_json}" | jq -r '.id')"
+              head_sha="$(echo "${run_json}" | jq -r '.head_sha // empty')"
               status="$(echo "${run_json}" | jq -r '.status')"
               conclusion="$(echo "${run_json}" | jq -r '.conclusion // ""')"
-              echo "Deploy run ${run_id}: status=${status}, conclusion=${conclusion}"
+              if [ -n "${head_sha}" ]; then
+                echo "Deploy run ${run_id}: sha=${head_sha} status=${status}, conclusion=${conclusion}"
+              else
+                echo "Deploy run ${run_id}: status=${status}, conclusion=${conclusion}"
+              fi
 
               if [ "${status}" = "completed" ]; then
                 break
