@@ -97,6 +97,8 @@ jobs:
           echo "Requested versions: OP='${{ github.event.inputs.openproject_version }}' NC='${{ github.event.inputs.nextcloud_version }}' KC='${{ github.event.inputs.keycloak_version }}'"
           echo "Requested integration app: legacy='${{ github.event.inputs.integration_app_version }}' io_ver='${{ github.event.inputs.integration_openproject_version }}' io_git='${{ github.event.inputs.integration_openproject_git_branch }}'"
           echo "Requested branches: OP='${{ github.event.inputs.openproject_branch }}' NC='${{ github.event.inputs.nextcloud_branch }}'"
+          test -f ".github/workflows/e2e-pullpreview.yml"
+          echo "Workflow file present: .github/workflows/e2e-pullpreview.yml"
 
       - name: Resolve grep and preview name
         id: resolve
