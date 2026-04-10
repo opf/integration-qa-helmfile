@@ -36,6 +36,16 @@ on:
         required: true
         default: main
         type: string
+      integration_repo:
+        description: "Repository that owns PullPreview deployment"
+        required: true
+        default: opf/integration-qa-helmfile
+        type: string
+      integration_workflow:
+        description: "Dispatchable workflow filename in integration repo"
+        required: true
+        default: pullpreview-dispatch.yml
+        type: string
       openproject_version:
         description: "OpenProject image tag"
         required: false
@@ -154,6 +164,11 @@ jobs:
           owner_repo="${{ github.event.inputs.integration_repo }}"
           workflow_file="${{ github.event.inputs.integration_workflow }}"
           target_ref="${{ github.event.inputs.integration_ref }}"
+
+          if [ -z "${owner_repo}" ] || [ -z "${workflow_file}" ]; then
+            echo "::error::integration_repo and integration_workflow must be set."
+            exit 1
+          fi
 
           payload="$(jq -n \
             --arg ref "$target_ref" \
@@ -411,6 +426,11 @@ jobs:
           owner_repo="${{ github.event.inputs.integration_repo }}"
           workflow_file="${{ github.event.inputs.integration_workflow }}"
           target_ref="${{ github.event.inputs.integration_ref }}"
+
+          if [ -z "${owner_repo}" ] || [ -z "${workflow_file}" ]; then
+            echo "::warning::integration_repo or integration_workflow empty; skipping teardown dispatch."
+            exit 0
+          fi
 
           payload="$(jq -n \
             --arg ref "$target_ref" \
