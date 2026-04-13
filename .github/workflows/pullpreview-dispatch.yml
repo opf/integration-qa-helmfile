@@ -241,7 +241,7 @@ jobs:
           deployment_target: helm
           chart: ./charts/pullpreview-stack
           chart_values: pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl
-          chart_set: openproject.environment.OPENPROJECT_SEED__ENTERPRISE__TOKEN="${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}"
+          chart_set: openproject.environment.OPENPROJECT_SEED__ENTERPRISE__TOKEN='${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}'
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
