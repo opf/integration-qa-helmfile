@@ -241,13 +241,13 @@ jobs:
           deployment_target: helm
           chart: ./charts/pullpreview-stack
           chart_values: pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl
+          chart_set: openproject.environment.OPENPROJECT_SEED__ENTERPRISE__TOKEN='${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}'
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
-          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
 
       - name: Validate preview URLs
         if: inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
