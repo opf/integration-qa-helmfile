@@ -181,7 +181,7 @@ jobs:
       - id: pullpreview_up
         if: inputs.action == 'up'
         # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
-        uses: pullpreview/action@980ca59ac53d92efca42d1301e624be090cd40c0
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
           label: ${{ inputs.preview_name }}
@@ -289,7 +289,7 @@ jobs:
       - id: pullpreview_down
         if: inputs.action == 'down'
         # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
-        uses: pullpreview/action@980ca59ac53d92efca42d1301e624be090cd40c0
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
           label: ${{ inputs.preview_name }}

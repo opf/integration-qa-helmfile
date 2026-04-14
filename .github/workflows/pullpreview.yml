@@ -55,7 +55,7 @@ jobs:
       - name: Recreate preview before auth-mode change
         if: steps.auth_label_change.outputs.changed == 'true'
         # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
-        uses: pullpreview/action@980ca59ac53d92efca42d1301e624be090cd40c0
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
           label: pullpreview
@@ -67,7 +67,7 @@ jobs:
 
       - id: pullpreview
         # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
-        uses: pullpreview/action@980ca59ac53d92efca42d1301e624be090cd40c0
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
           label: pullpreview
