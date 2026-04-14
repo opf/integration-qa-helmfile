@@ -1,24 +1,68 @@
+{{- $setupMethod := trim (env "INTEGRATION_SETUP_METHOD") | default "sso-external" -}}
+{{- $openprojectVersion := trim (env "OPENPROJECT_VERSION") -}}
+{{- $nextcloudVersion := trim (env "NEXTCLOUD_VERSION") -}}
+{{- $keycloakVersion := trim (env "KEYCLOAK_VERSION") -}}
+{{- $integrationAppVersion := trim (env "INTEGRATION_APP_VERSION") -}}
+{{- $integrationOpenProjectVersion := trim (env "INTEGRATION_OPENPROJECT_VERSION") -}}
+{{- $integrationOpenProjectGitBranch := trim (env "INTEGRATION_OPENPROJECT_GIT_BRANCH") -}}
+{{- $openprojectBranch := trim (env "OPENPROJECT_BRANCH") -}}
+{{- $nextcloudBranch := trim (env "NEXTCLOUD_BRANCH") -}}
+{{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 opnc-integration:
+  integrationSetupMethod: {{ $setupMethod | quote }}
   openprojectHost: "{{ pullpreview_public_dns }}"
   openprojectAssetHost: "openproject-assets.{{ pullpreview_public_dns }}"
   nextcloudHost: "nextcloud.{{ pullpreview_public_dns }}"
   keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
+{{- if or $openprojectVersion $openprojectBranch }}
+  openproject:
+{{- if $openprojectVersion }}
+    dockerTag: {{ $openprojectVersion | quote }}
+{{- end }}
+{{- if $openprojectBranch }}
+    gitSourceBranch: {{ $openprojectBranch | quote }}
+{{- end }}
+{{- end }}
+{{- if or $nextcloudBranch $appVersion $integrationOpenProjectGitBranch }}
+  nextcloud:
+{{- if $nextcloudBranch }}
+    gitSourceBranch: {{ $nextcloudBranch | quote }}
+{{- end }}
+{{- if or $appVersion $integrationOpenProjectGitBranch }}
+    enableApps:
+      - name: "integration_openproject"
+{{- if $appVersion }}
+        version: {{ $appVersion | quote }}
+{{- end }}
+{{- if $integrationOpenProjectGitBranch }}
+        gitBranch: {{ $integrationOpenProjectGitBranch | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
 
 openproject:
-  enterpriseToken: |
-    {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | nindent 4 }}
+{{- if $openprojectVersion }}
+  image:
+    tag: {{ $openprojectVersion | quote }}
+{{- end }}
   openproject:
     host: "{{ pullpreview_public_dns }}"
     oidc:
       host: "keycloak.{{ pullpreview_public_dns }}"
 
   environment:
+    OPENPROJECT_SEED__ENTERPRISE__TOKEN: |
+{{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | indent 6 }}
     OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"
 
 nextcloud:
+{{- if $nextcloudVersion }}
+  image:
+    tag: {{ $nextcloudVersion | quote }}
+{{- end }}
   nextcloud:
     host: "nextcloud.{{ pullpreview_public_dns }}"
     extraEnv:
@@ -43,6 +87,10 @@ nextcloud:
             key: enable-apps
 
 keycloak:
+{{- if $keycloakVersion }}
+  image:
+    tag: {{ $keycloakVersion | quote }}
+{{- end }}
   extraEnvVars:
     - name: KEYCLOAK_HOSTNAME
       value: "keycloak.{{ pullpreview_public_dns }}"

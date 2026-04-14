@@ -70,165 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Log ref and inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Integration repo ref: ${GITHUB_REF_NAME:-} sha: ${GITHUB_SHA:-}"
-          echo "Action: ${{ inputs.action }}"
-          echo "Preview name: ${{ inputs.preview_name }}"
-          echo "Setup method: ${{ inputs.integrationSetupMethod }}"
-          echo "Requested versions: OP='${{ inputs.openproject_version }}' NC='${{ inputs.nextcloud_version }}' KC='${{ inputs.keycloak_version }}'"
-          echo "Requested integration app: legacy='${{ inputs.integration_app_version }}' io_ver='${{ inputs.integration_openproject_version }}' io_git='${{ inputs.integration_openproject_git_branch }}'"
-          echo "Requested branches: OP='${{ inputs.openproject_branch }}' NC='${{ inputs.nextcloud_branch }}'"
-          test -f ".github/workflows/pullpreview-dispatch.yml"
-          echo "Workflow file present: .github/workflows/pullpreview-dispatch.yml"
-
-      - name: Create dispatch override values
-        if: inputs.action == 'up'
-        shell: bash
-        run: |
-          set -euo pipefail
-          out="pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl"
-          mkdir -p pullpreview
-
-          # integration_openproject: prefer explicit inputs; fall back to integration_app_version for version
-          IO_VER="${{ inputs.integration_openproject_version }}"
-          IO_GIT="${{ inputs.integration_openproject_git_branch }}"
-          LEGACY_VER="${{ inputs.integration_app_version }}"
-          if [ -n "${IO_VER}" ]; then
-            APP_VER="${IO_VER}"
-          else
-            APP_VER="${LEGACY_VER}"
-          fi
-
-          {
-            echo "opnc-integration:"
-            echo "  openprojectHost: \"{{ pullpreview_public_dns }}\""
-            echo "  openprojectAssetHost: \"openproject-assets.{{ pullpreview_public_dns }}\""
-            echo "  nextcloudHost: \"nextcloud.{{ pullpreview_public_dns }}\""
-            echo "  keycloakHost: \"keycloak.{{ pullpreview_public_dns }}\""
-            echo "  integrationSetupMethod: \"${{ inputs.integrationSetupMethod }}\""
-
-            if [ -n "${{ inputs.openproject_version }}" ] || [ -n "${{ inputs.openproject_branch }}" ]; then
-              echo "  openproject:"
-              echo "    dockerTag: \"${{ inputs.openproject_version }}\""
-              echo "    gitSourceBranch: \"${{ inputs.openproject_branch }}\""
-            fi
-
-            if [ -n "${{ inputs.nextcloud_branch }}" ] || [ -n "${APP_VER}" ] || [ -n "${IO_GIT}" ]; then
-              echo "  nextcloud:"
-              echo "    gitSourceBranch: \"${{ inputs.nextcloud_branch }}\""
-              echo "    enableApps:"
-              echo "      - name: integration_openproject"
-              echo "        version: \"${APP_VER}\""
-              echo "        gitBranch: \"${IO_GIT}\""
-            fi
-
-            printf '%s\n' \
-              'openproject:' \
-              '  enterpriseToken: |' \
-              '    {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | nindent 4 }}' \
-              '  openproject:' \
-              '    host: "{{ pullpreview_public_dns }}"' \
-              '    oidc:' \
-              '      host: "keycloak.{{ pullpreview_public_dns }}"' \
-              '  environment:' \
-              '    OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"' \
-              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"' \
-              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"' \
-              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"' \
-              '' \
-              'nextcloud:' \
-              '  nextcloud:' \
-              '    host: "nextcloud.{{ pullpreview_public_dns }}"' \
-              '    extraEnv:' \
-              '      - name: NC_GIT_SOURCE_BRANCH' \
-              '        value: ""' \
-              '      - name: OVERWRITEPROTOCOL' \
-              '        value: https' \
-              '      - name: OVERWRITECLIURL' \
-              '        value: "https://nextcloud.{{ pullpreview_public_dns }}"' \
-              '      - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID' \
-              '        value: nextcloud' \
-              '      - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET' \
-              '        value: nextcloud-secret' \
-              '      - name: OIDC_KEYCLOAK_PROVIDER_NAME' \
-              '        value: keycloak' \
-              '      - name: OIDC_KEYCLOAK_DISCOVERY_URL' \
-              '        value: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/.well-known/openid-configuration"' \
-              '      - name: NEXTCLOUD_ENABLE_APPS' \
-              '        valueFrom:' \
-              '          configMapKeyRef:' \
-              '            name: nextcloud-enable-apps' \
-              '            key: enable-apps' \
-              '' \
-              'keycloak:' \
-              '  extraEnvVars:' \
-              '    - name: KEYCLOAK_HOSTNAME' \
-              '      value: "keycloak.{{ pullpreview_public_dns }}"' \
-              '    - name: KC_REALM_NAME' \
-              '      value: "opnc"' \
-              '    - name: KC_NEXTCLOUD_CLIENT_ID' \
-              '      value: "nextcloud"' \
-              '    - name: KC_NEXTCLOUD_CLIENT_SECRET' \
-              '      value: "nextcloud-secret"' \
-              '    - name: KC_NEXTCLOUD_CLIENT_HOST' \
-              '      value: "nextcloud.{{ pullpreview_public_dns }}"' \
-              '    - name: KC_OPENPROJECT_CLIENT_ID' \
-              '      value: "openproject"' \
-              '    - name: KC_OPENPROJECT_CLIENT_SECRET' \
-              '      value: "openproject-secret"' \
-              '    - name: KC_OPENPROJECT_CLIENT_HOST' \
-              '      value: "{{ pullpreview_public_dns }}"'
-          } > "${out}"
-
-          # Image tags only at top level (Helm merges with block above)
-          if [ -n "${{ inputs.openproject_version }}" ]; then
-            printf '%s\n' \
-              'openproject:' \
-              '  image:' \
-              "    tag: \"${{ inputs.openproject_version }}\"" >> "${out}"
-          fi
-
-          if [ -n "${{ inputs.nextcloud_version }}" ]; then
-            printf '%s\n' \
-              'nextcloud:' \
-              '  image:' \
-              "    tag: \"${{ inputs.nextcloud_version }}\"" >> "${out}"
-          fi
-
-          if [ -n "${{ inputs.keycloak_version }}" ]; then
-            printf '%s\n' \
-              'keycloak:' \
-              '  image:' \
-              "    tag: \"${{ inputs.keycloak_version }}\"" >> "${out}"
-          fi
-
-          test -f "${out}" || { echo "::error::missing ${out}"; exit 1; }
-          echo "Dispatch values file present: ${out}"
-
-      - name: Log enterprise token presence
-        if: inputs.action == 'up'
-        shell: bash
-        env:
-          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${OPENPROJECT_ENTERPRISE_TOKEN:-}" ]; then
-            echo "Enterprise token present: false"
-            exit 0
-          fi
-          token_len="$(printf '%s' "${OPENPROJECT_ENTERPRISE_TOKEN}" | wc -c | tr -d ' ')"
-          token_sha256="$(printf '%s' "${OPENPROJECT_ENTERPRISE_TOKEN}" | shasum -a 256 | awk '{print $1}')"
-          echo "Enterprise token present: true"
-          echo "Enterprise token length: ${token_len}"
-          echo "Enterprise token sha256: ${token_sha256}"
-
       - id: pullpreview_up
         if: inputs.action == 'up'
-        # Temporary branch ref until proxy_tls_hosts is merged upstream.
-        uses: pullpreview/action@poc/pullpreview-helm-multihost
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
           label: ${{ inputs.preview_name }}
@@ -240,14 +84,23 @@ jobs:
           max_domain_length: "40"
           deployment_target: helm
           chart: ./charts/pullpreview-stack
-          chart_values: pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl
-          chart_set: openproject.environment.OPENPROJECT_SEED__ENTERPRISE__TOKEN='${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}'
+          chart_values: pullpreview/stack-values.yaml.gotmpl
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+          INTEGRATION_SETUP_METHOD: ${{ inputs.integrationSetupMethod }}
+          OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
+          NEXTCLOUD_VERSION: ${{ inputs.nextcloud_version }}
+          KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
+          INTEGRATION_APP_VERSION: ${{ inputs.integration_app_version }}
+          INTEGRATION_OPENPROJECT_VERSION: ${{ inputs.integration_openproject_version }}
+          INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ inputs.integration_openproject_git_branch }}
+          OPENPROJECT_BRANCH: ${{ inputs.openproject_branch }}
+          NEXTCLOUD_BRANCH: ${{ inputs.nextcloud_branch }}
 
       - name: Validate preview URLs
         if: inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
@@ -335,8 +188,7 @@ jobs:
 
       - id: pullpreview_down
         if: inputs.action == 'down'
-        # Temporary branch ref until proxy_tls_hosts is merged upstream.
-        uses: pullpreview/action@poc/pullpreview-helm-multihost
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
           label: ${{ inputs.preview_name }}
