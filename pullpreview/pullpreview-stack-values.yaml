@@ -5,8 +5,6 @@ opnc-integration:
   keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
 
 openproject:
-  enterpriseToken: |
-    {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | nindent 4 }}
   openproject:
     host: "{{ pullpreview_public_dns }}"
     oidc:

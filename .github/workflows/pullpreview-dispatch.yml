@@ -88,129 +88,73 @@ jobs:
         if: inputs.action == 'up'
         shell: bash
         env:
-          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+          INPUT_INTEGRATION_SETUP_METHOD: ${{ inputs.integrationSetupMethod }}
+          INPUT_OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
+          INPUT_NEXTCLOUD_VERSION: ${{ inputs.nextcloud_version }}
+          INPUT_KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
+          INPUT_INTEGRATION_APP_VERSION: ${{ inputs.integration_app_version }}
+          INPUT_INTEGRATION_OPENPROJECT_VERSION: ${{ inputs.integration_openproject_version }}
+          INPUT_INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ inputs.integration_openproject_git_branch }}
+          INPUT_OPENPROJECT_BRANCH: ${{ inputs.openproject_branch }}
+          INPUT_NEXTCLOUD_BRANCH: ${{ inputs.nextcloud_branch }}
         run: |
           set -euo pipefail
-          out="pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl"
+          out="pullpreview/pullpreview-stack-values.dispatch-overrides.yaml"
           mkdir -p pullpreview
+          OUT="${out}" ruby <<'RUBY'
+          require "yaml"
 
-          # integration_openproject: prefer explicit inputs; fall back to integration_app_version for version
-          IO_VER="${{ inputs.integration_openproject_version }}"
-          IO_GIT="${{ inputs.integration_openproject_git_branch }}"
-          LEGACY_VER="${{ inputs.integration_app_version }}"
-          if [ -n "${IO_VER}" ]; then
-            APP_VER="${IO_VER}"
-          else
-            APP_VER="${LEGACY_VER}"
-          fi
+          def env(name)
+            ENV.fetch(name, "").strip
+          end
 
-          {
-            echo "opnc-integration:"
-            echo "  openprojectHost: \"{{ pullpreview_public_dns }}\""
-            echo "  openprojectAssetHost: \"openproject-assets.{{ pullpreview_public_dns }}\""
-            echo "  nextcloudHost: \"nextcloud.{{ pullpreview_public_dns }}\""
-            echo "  keycloakHost: \"keycloak.{{ pullpreview_public_dns }}\""
-            echo "  integrationSetupMethod: \"${{ inputs.integrationSetupMethod }}\""
+          data = {
+            "opnc-integration" => {
+              "integrationSetupMethod" => env("INPUT_INTEGRATION_SETUP_METHOD")
+            }
+          }
 
-            if [ -n "${{ inputs.openproject_version }}" ] || [ -n "${{ inputs.openproject_branch }}" ]; then
-              echo "  openproject:"
-              echo "    dockerTag: \"${{ inputs.openproject_version }}\""
-              echo "    gitSourceBranch: \"${{ inputs.openproject_branch }}\""
-            fi
+          opnc = data["opnc-integration"]
 
-            if [ -n "${{ inputs.nextcloud_branch }}" ] || [ -n "${APP_VER}" ] || [ -n "${IO_GIT}" ]; then
-              echo "  nextcloud:"
-              echo "    gitSourceBranch: \"${{ inputs.nextcloud_branch }}\""
-              echo "    enableApps:"
-              echo "      - name: integration_openproject"
-              echo "        version: \"${APP_VER}\""
-              echo "        gitBranch: \"${IO_GIT}\""
-            fi
+          openproject = {}
+          openproject["dockerTag"] = env("INPUT_OPENPROJECT_VERSION") unless env("INPUT_OPENPROJECT_VERSION").empty?
+          openproject["gitSourceBranch"] = env("INPUT_OPENPROJECT_BRANCH") unless env("INPUT_OPENPROJECT_BRANCH").empty?
+          opnc["openproject"] = openproject unless openproject.empty?
 
-            printf '%s\n' \
-              'openproject:' \
-              '  openproject:' \
-              '    host: "{{ pullpreview_public_dns }}"' \
-              '    oidc:' \
-              '      host: "keycloak.{{ pullpreview_public_dns }}"' \
-              '  environment:' \
-              '    OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"' \
-              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"' \
-              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"' \
-              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"'
+          nextcloud = {}
+          nextcloud["gitSourceBranch"] = env("INPUT_NEXTCLOUD_BRANCH") unless env("INPUT_NEXTCLOUD_BRANCH").empty?
 
-            if [ -n "${OPENPROJECT_ENTERPRISE_TOKEN:-}" ]; then
-              echo '    OPENPROJECT_SEED__ENTERPRISE__TOKEN: |'
-              printf '%s\n' "${OPENPROJECT_ENTERPRISE_TOKEN}" | sed 's/^/      /'
-            fi
+          integration_openproject_version = env("INPUT_INTEGRATION_OPENPROJECT_VERSION")
+          integration_app_version = env("INPUT_INTEGRATION_APP_VERSION")
+          integration_openproject_git_branch = env("INPUT_INTEGRATION_OPENPROJECT_GIT_BRANCH")
+          app_version = integration_openproject_version.empty? ? integration_app_version : integration_openproject_version
 
-            printf '%s\n' \
-              '' \
-              'nextcloud:' \
-              '  nextcloud:' \
-              '    host: "nextcloud.{{ pullpreview_public_dns }}"' \
-              '    extraEnv:' \
-              '      - name: NC_GIT_SOURCE_BRANCH' \
-              '        value: ""' \
-              '      - name: OVERWRITEPROTOCOL' \
-              '        value: https' \
-              '      - name: OVERWRITECLIURL' \
-              '        value: "https://nextcloud.{{ pullpreview_public_dns }}"' \
-              '      - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID' \
-              '        value: nextcloud' \
-              '      - name: OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET' \
-              '        value: nextcloud-secret' \
-              '      - name: OIDC_KEYCLOAK_PROVIDER_NAME' \
-              '        value: keycloak' \
-              '      - name: OIDC_KEYCLOAK_DISCOVERY_URL' \
-              '        value: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/.well-known/openid-configuration"' \
-              '      - name: NEXTCLOUD_ENABLE_APPS' \
-              '        valueFrom:' \
-              '          configMapKeyRef:' \
-              '            name: nextcloud-enable-apps' \
-              '            key: enable-apps' \
-              '' \
-              'keycloak:' \
-              '  extraEnvVars:' \
-              '    - name: KEYCLOAK_HOSTNAME' \
-              '      value: "keycloak.{{ pullpreview_public_dns }}"' \
-              '    - name: KC_REALM_NAME' \
-              '      value: "opnc"' \
-              '    - name: KC_NEXTCLOUD_CLIENT_ID' \
-              '      value: "nextcloud"' \
-              '    - name: KC_NEXTCLOUD_CLIENT_SECRET' \
-              '      value: "nextcloud-secret"' \
-              '    - name: KC_NEXTCLOUD_CLIENT_HOST' \
-              '      value: "nextcloud.{{ pullpreview_public_dns }}"' \
-              '    - name: KC_OPENPROJECT_CLIENT_ID' \
-              '      value: "openproject"' \
-              '    - name: KC_OPENPROJECT_CLIENT_SECRET' \
-              '      value: "openproject-secret"' \
-              '    - name: KC_OPENPROJECT_CLIENT_HOST' \
-              '      value: "{{ pullpreview_public_dns }}"'
-          } > "${out}"
+          if !app_version.empty? || !integration_openproject_git_branch.empty?
+            app = { "name" => "integration_openproject" }
+            app["version"] = app_version unless app_version.empty?
+            app["gitBranch"] = integration_openproject_git_branch unless integration_openproject_git_branch.empty?
+            nextcloud["enableApps"] = [app]
+          end
 
-          # Image tags only at top level (Helm merges with block above)
-          if [ -n "${{ inputs.openproject_version }}" ]; then
-            printf '%s\n' \
-              'openproject:' \
-              '  image:' \
-              "    tag: \"${{ inputs.openproject_version }}\"" >> "${out}"
-          fi
+          opnc["nextcloud"] = nextcloud unless nextcloud.empty?
 
-          if [ -n "${{ inputs.nextcloud_version }}" ]; then
-            printf '%s\n' \
-              'nextcloud:' \
-              '  image:' \
-              "    tag: \"${{ inputs.nextcloud_version }}\"" >> "${out}"
-          fi
+          openproject_image_tag = env("INPUT_OPENPROJECT_VERSION")
+          unless openproject_image_tag.empty?
+            data["openproject"] = { "image" => { "tag" => openproject_image_tag } }
+          end
 
-          if [ -n "${{ inputs.keycloak_version }}" ]; then
-            printf '%s\n' \
-              'keycloak:' \
-              '  image:' \
-              "    tag: \"${{ inputs.keycloak_version }}\"" >> "${out}"
-          fi
+          nextcloud_image_tag = env("INPUT_NEXTCLOUD_VERSION")
+          unless nextcloud_image_tag.empty?
+            data["nextcloud"] = { "image" => { "tag" => nextcloud_image_tag } }
+          end
+
+          keycloak_image_tag = env("INPUT_KEYCLOAK_VERSION")
+          unless keycloak_image_tag.empty?
+            data["keycloak"] = { "image" => { "tag" => keycloak_image_tag } }
+          end
+
+          File.write(ENV.fetch("OUT"), YAML.dump(data))
+          RUBY
 
           test -f "${out}" || { echo "::error::missing ${out}"; exit 1; }
           echo "Dispatch values file present: ${out}"
@@ -247,13 +191,14 @@ jobs:
           max_domain_length: "40"
           deployment_target: helm
           chart: ./charts/pullpreview-stack
-          chart_values: pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl
+          chart_values: pullpreview/pullpreview-stack-values.yaml,pullpreview/pullpreview-stack-values.enterprise-token.yaml.gotmpl,pullpreview/pullpreview-stack-values.dispatch-overrides.yaml
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
 
       - name: Validate preview URLs
         if: inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'

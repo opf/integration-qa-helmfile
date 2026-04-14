@@ -1,0 +1,4 @@
+openproject:
+  environment:
+    OPENPROJECT_SEED__ENTERPRISE__TOKEN: |
+      {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | nindent 6 }}
