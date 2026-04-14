@@ -87,6 +87,8 @@ jobs:
       - name: Create dispatch override values
         if: inputs.action == 'up'
         shell: bash
+        env:
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
         run: |
           set -euo pipefail
           out="pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl"
@@ -127,8 +129,6 @@ jobs:
 
             printf '%s\n' \
               'openproject:' \
-              '  enterpriseToken: |' \
-              '    {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | nindent 4 }}' \
               '  openproject:' \
               '    host: "{{ pullpreview_public_dns }}"' \
               '    oidc:' \
@@ -137,7 +137,14 @@ jobs:
               '    OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"' \
               '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"' \
               '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"' \
-              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"' \
+              '    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"'
+
+            if [ -n "${OPENPROJECT_ENTERPRISE_TOKEN:-}" ]; then
+              echo '    OPENPROJECT_SEED__ENTERPRISE__TOKEN: |'
+              printf '%s\n' "${OPENPROJECT_ENTERPRISE_TOKEN}" | sed 's/^/      /'
+            fi
+
+            printf '%s\n' \
               '' \
               'nextcloud:' \
               '  nextcloud:' \
@@ -241,7 +248,6 @@ jobs:
           deployment_target: helm
           chart: ./charts/pullpreview-stack
           chart_values: pullpreview/pullpreview-stack-values.dispatch.yaml.gotmpl
-          chart_set: openproject.environment.OPENPROJECT_SEED__ENTERPRISE__TOKEN='${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}'
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
