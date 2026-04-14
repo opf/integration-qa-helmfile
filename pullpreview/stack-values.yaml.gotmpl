@@ -1,12 +1,12 @@
-{{- $setupMethod := trim (env "INPUT_INTEGRATION_SETUP_METHOD") | default "sso-external" -}}
-{{- $openprojectVersion := trim (env "INPUT_OPENPROJECT_VERSION") -}}
-{{- $nextcloudVersion := trim (env "INPUT_NEXTCLOUD_VERSION") -}}
-{{- $keycloakVersion := trim (env "INPUT_KEYCLOAK_VERSION") -}}
-{{- $integrationAppVersion := trim (env "INPUT_INTEGRATION_APP_VERSION") -}}
-{{- $integrationOpenProjectVersion := trim (env "INPUT_INTEGRATION_OPENPROJECT_VERSION") -}}
-{{- $integrationOpenProjectGitBranch := trim (env "INPUT_INTEGRATION_OPENPROJECT_GIT_BRANCH") -}}
-{{- $openprojectBranch := trim (env "INPUT_OPENPROJECT_BRANCH") -}}
-{{- $nextcloudBranch := trim (env "INPUT_NEXTCLOUD_BRANCH") -}}
+{{- $setupMethod := trim (env "INTEGRATION_SETUP_METHOD") | default "sso-external" -}}
+{{- $openprojectVersion := trim (env "OPENPROJECT_VERSION") -}}
+{{- $nextcloudVersion := trim (env "NEXTCLOUD_VERSION") -}}
+{{- $keycloakVersion := trim (env "KEYCLOAK_VERSION") -}}
+{{- $integrationAppVersion := trim (env "INTEGRATION_APP_VERSION") -}}
+{{- $integrationOpenProjectVersion := trim (env "INTEGRATION_OPENPROJECT_VERSION") -}}
+{{- $integrationOpenProjectGitBranch := trim (env "INTEGRATION_OPENPROJECT_GIT_BRANCH") -}}
+{{- $openprojectBranch := trim (env "OPENPROJECT_BRANCH") -}}
+{{- $nextcloudBranch := trim (env "NEXTCLOUD_BRANCH") -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 opnc-integration:
   integrationSetupMethod: {{ $setupMethod | quote }}

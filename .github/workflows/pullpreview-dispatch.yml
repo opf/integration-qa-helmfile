@@ -92,15 +92,15 @@ jobs:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
-          INPUT_INTEGRATION_SETUP_METHOD: ${{ inputs.integrationSetupMethod }}
-          INPUT_OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
-          INPUT_NEXTCLOUD_VERSION: ${{ inputs.nextcloud_version }}
-          INPUT_KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
-          INPUT_INTEGRATION_APP_VERSION: ${{ inputs.integration_app_version }}
-          INPUT_INTEGRATION_OPENPROJECT_VERSION: ${{ inputs.integration_openproject_version }}
-          INPUT_INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ inputs.integration_openproject_git_branch }}
-          INPUT_OPENPROJECT_BRANCH: ${{ inputs.openproject_branch }}
-          INPUT_NEXTCLOUD_BRANCH: ${{ inputs.nextcloud_branch }}
+          INTEGRATION_SETUP_METHOD: ${{ inputs.integrationSetupMethod }}
+          OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
+          NEXTCLOUD_VERSION: ${{ inputs.nextcloud_version }}
+          KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
+          INTEGRATION_APP_VERSION: ${{ inputs.integration_app_version }}
+          INTEGRATION_OPENPROJECT_VERSION: ${{ inputs.integration_openproject_version }}
+          INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ inputs.integration_openproject_git_branch }}
+          OPENPROJECT_BRANCH: ${{ inputs.openproject_branch }}
+          NEXTCLOUD_BRANCH: ${{ inputs.nextcloud_branch }}
 
       - name: Validate preview URLs
         if: inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
