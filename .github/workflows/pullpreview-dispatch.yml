@@ -82,102 +82,6 @@ jobs:
           echo "Requested integration app: legacy='${{ inputs.integration_app_version }}' io_ver='${{ inputs.integration_openproject_version }}' io_git='${{ inputs.integration_openproject_git_branch }}'"
           echo "Requested branches: OP='${{ inputs.openproject_branch }}' NC='${{ inputs.nextcloud_branch }}'"
 
-      - name: Create dispatch override values
-        if: inputs.action == 'up'
-        shell: bash
-        env:
-          INPUT_INTEGRATION_SETUP_METHOD: ${{ inputs.integrationSetupMethod }}
-          INPUT_OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
-          INPUT_NEXTCLOUD_VERSION: ${{ inputs.nextcloud_version }}
-          INPUT_KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
-          INPUT_INTEGRATION_APP_VERSION: ${{ inputs.integration_app_version }}
-          INPUT_INTEGRATION_OPENPROJECT_VERSION: ${{ inputs.integration_openproject_version }}
-          INPUT_INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ inputs.integration_openproject_git_branch }}
-          INPUT_OPENPROJECT_BRANCH: ${{ inputs.openproject_branch }}
-          INPUT_NEXTCLOUD_BRANCH: ${{ inputs.nextcloud_branch }}
-        run: |
-          set -euo pipefail
-          out="pullpreview/pullpreview-stack-values.dispatch-overrides.yaml"
-          mkdir -p pullpreview
-          OUT="${out}" ruby <<'RUBY'
-          require "yaml"
-
-          def env(name)
-            ENV.fetch(name, "").strip
-          end
-
-          integration_setup_method = env("INPUT_INTEGRATION_SETUP_METHOD")
-          openproject_version = env("INPUT_OPENPROJECT_VERSION")
-          nextcloud_version = env("INPUT_NEXTCLOUD_VERSION")
-          keycloak_version = env("INPUT_KEYCLOAK_VERSION")
-          integration_app_version = env("INPUT_INTEGRATION_APP_VERSION")
-          integration_openproject_version = env("INPUT_INTEGRATION_OPENPROJECT_VERSION")
-          integration_openproject_git_branch = env("INPUT_INTEGRATION_OPENPROJECT_GIT_BRANCH")
-          openproject_branch = env("INPUT_OPENPROJECT_BRANCH")
-          nextcloud_branch = env("INPUT_NEXTCLOUD_BRANCH")
-
-          data = {
-            "opnc-integration" => {
-              "integrationSetupMethod" => integration_setup_method
-            }
-          }
-
-          opnc = data["opnc-integration"]
-
-          openproject = {}
-          openproject["dockerTag"] = openproject_version unless openproject_version.empty?
-          openproject["gitSourceBranch"] = openproject_branch unless openproject_branch.empty?
-          opnc["openproject"] = openproject unless openproject.empty?
-
-          nextcloud = {}
-          nextcloud["gitSourceBranch"] = nextcloud_branch unless nextcloud_branch.empty?
-
-          app_version = integration_openproject_version.empty? ? integration_app_version : integration_openproject_version
-
-          if !app_version.empty? || !integration_openproject_git_branch.empty?
-            app = { "name" => "integration_openproject" }
-            app["version"] = app_version unless app_version.empty?
-            app["gitBranch"] = integration_openproject_git_branch unless integration_openproject_git_branch.empty?
-            nextcloud["enableApps"] = [app]
-          end
-
-          opnc["nextcloud"] = nextcloud unless nextcloud.empty?
-
-          unless openproject_version.empty?
-            data["openproject"] = { "image" => { "tag" => openproject_version } }
-          end
-
-          unless nextcloud_version.empty?
-            data["nextcloud"] = { "image" => { "tag" => nextcloud_version } }
-          end
-
-          unless keycloak_version.empty?
-            data["keycloak"] = { "image" => { "tag" => keycloak_version } }
-          end
-
-          File.write(ENV.fetch("OUT"), YAML.dump(data))
-          RUBY
-
-          test -f "${out}" || { echo "::error::missing ${out}"; exit 1; }
-          echo "Dispatch values file present: ${out}"
-
-      - name: Log enterprise token presence
-        if: inputs.action == 'up'
-        shell: bash
-        env:
-          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${OPENPROJECT_ENTERPRISE_TOKEN:-}" ]; then
-            echo "Enterprise token present: false"
-            exit 0
-          fi
-          token_len="$(printf '%s' "${OPENPROJECT_ENTERPRISE_TOKEN}" | wc -c | tr -d ' ')"
-          token_sha256="$(printf '%s' "${OPENPROJECT_ENTERPRISE_TOKEN}" | shasum -a 256 | awk '{print $1}')"
-          echo "Enterprise token present: true"
-          echo "Enterprise token length: ${token_len}"
-          echo "Enterprise token sha256: ${token_sha256}"
-
       - id: pullpreview_up
         if: inputs.action == 'up'
         # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
@@ -193,7 +97,7 @@ jobs:
           max_domain_length: "40"
           deployment_target: helm
           chart: ./charts/pullpreview-stack
-          chart_values: pullpreview/pullpreview-stack-values.yaml,pullpreview/pullpreview-stack-values.enterprise-token.yaml.gotmpl,pullpreview/pullpreview-stack-values.dispatch-overrides.yaml
+          chart_values: pullpreview/pullpreview-stack-values.yaml.gotmpl
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
@@ -201,6 +105,15 @@ jobs:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+          INPUT_INTEGRATION_SETUP_METHOD: ${{ inputs.integrationSetupMethod }}
+          INPUT_OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
+          INPUT_NEXTCLOUD_VERSION: ${{ inputs.nextcloud_version }}
+          INPUT_KEYCLOAK_VERSION: ${{ inputs.keycloak_version }}
+          INPUT_INTEGRATION_APP_VERSION: ${{ inputs.integration_app_version }}
+          INPUT_INTEGRATION_OPENPROJECT_VERSION: ${{ inputs.integration_openproject_version }}
+          INPUT_INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ inputs.integration_openproject_git_branch }}
+          INPUT_OPENPROJECT_BRANCH: ${{ inputs.openproject_branch }}
+          INPUT_NEXTCLOUD_BRANCH: ${{ inputs.nextcloud_branch }}
 
       - name: Validate preview URLs
         if: inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
