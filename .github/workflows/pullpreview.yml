@@ -54,7 +54,6 @@ jobs:
 
       - name: Recreate preview before auth-mode change
         if: steps.auth_label_change.outputs.changed == 'true'
-        # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
@@ -66,7 +65,6 @@ jobs:
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
 
       - id: pullpreview
-        # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
@@ -87,26 +85,6 @@ jobs:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
-
-      - name: Add secondary URLs to job summary
-        if: steps.pullpreview.outputs.live == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          preview_url="${{ steps.pullpreview.outputs.url }}"
-          preview_host="${preview_url#https://}"
-          preview_host="${preview_host#http://}"
-          preview_host="${preview_host%%/*}"
-          preview_host="${preview_host%%:*}"
-
-          {
-            echo ""
-            echo "### Preview endpoints"
-            echo ""
-            echo "- Main FQDN: https://${preview_host}"
-            echo "- Nextcloud: https://nextcloud.${preview_host}"
-            echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
-          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Validate preview URLs
         if: steps.pullpreview.outputs.live == 'true'
