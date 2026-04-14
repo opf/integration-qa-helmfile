@@ -86,6 +86,26 @@ jobs:
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
 
+      - name: Add secondary URLs to job summary
+        if: steps.pullpreview.outputs.live == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.pullpreview.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          {
+            echo ""
+            echo "### Preview endpoints"
+            echo ""
+            echo "- Main FQDN: https://${preview_host}"
+            echo "- Nextcloud: https://nextcloud.${preview_host}"
+            echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Validate preview URLs
         if: steps.pullpreview.outputs.live == 'true'
         shell: bash
