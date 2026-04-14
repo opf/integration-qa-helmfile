@@ -79,7 +79,7 @@ jobs:
           max_domain_length: "40"
           deployment_target: helm
           chart: ./charts/pullpreview-stack
-          chart_values: pullpreview/pullpreview-stack-values.yaml.gotmpl
+          chart_values: pullpreview/stack-values.yaml.gotmpl
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
