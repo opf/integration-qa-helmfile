@@ -54,8 +54,8 @@ jobs:
 
       - name: Recreate preview before auth-mode change
         if: steps.auth_label_change.outputs.changed == 'true'
-        # Temporary branch ref until proxy_tls_hosts is merged upstream.
-        uses: pullpreview/action@poc/pullpreview-helm-multihost
+        # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
+        uses: pullpreview/action@980ca59ac53d92efca42d1301e624be090cd40c0
         with:
           provider: hetzner
           label: pullpreview
@@ -66,8 +66,8 @@ jobs:
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
 
       - id: pullpreview
-        # Temporary branch ref until proxy_tls_hosts is merged upstream.
-        uses: pullpreview/action@poc/pullpreview-helm-multihost
+        # Temporary action ref until proxy_tls_hosts and gotmpl rendering are merged upstream.
+        uses: pullpreview/action@980ca59ac53d92efca42d1301e624be090cd40c0
         with:
           provider: hetzner
           label: pullpreview
