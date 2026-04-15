@@ -1,24 +1,28 @@
 ---
 environments:
   default:
+    missingFileHandler: Warn
     values:
       - environments/default/config.yaml
-      - environments/override/config.yaml
+      - environments/override.yaml
   dev:
+    missingFileHandler: Warn
     values:
       - environments/default/config.yaml
       - environments/dev/config.yaml
-      - environments/override/config.yaml
+      - environments/override.yaml
   ci:
+    missingFileHandler: Warn
     values:
       - environments/default/config.yaml
       - environments/ci/config.yaml.gotmpl
-      - environments/override/config.yaml
+      - environments/override.yaml
   dev-op-standalone:
+    missingFileHandler: Warn
     values:
       - environments/default/config.yaml
       - environments/dev-op-standalone/config.yaml
-      - environments/override/config.yaml
+      - environments/override.yaml
 ---
 repositories:
   # Issues:

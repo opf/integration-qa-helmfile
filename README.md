@@ -75,14 +75,14 @@ make teardown-all
 ## Configuring the Deployment
 
 ⚠️ Do not edit `charts/opnc-integration/values.yaml` directly.
-All configuration changes must go into [environments/override/config.yaml](https://github.com/saw-jan/opnc-helm-chart/blob/master/environments/override/config.yaml), which will override the default values for all environments. Also, the changes in this file will not be seen by git, so it is convenient and safe to use it for changing any configuration.
+All configuration changes must go into `environments/override.yaml`, which will override the default values for all environments. Also, the changes in this file will not be seen by git, so it is convenient and safe to use it for changing any configuration.
 
 Usage:
 
-Copy the [config.yaml.example](./environments/override/config.yaml.example) to `environments/override/config.yaml` and add the configs as needed.
+Copy the [override.yaml.example](./environments/override.yaml.example) to `environments/override.yaml` and add the configs as needed.
 
 ```yaml
-# Example: environments/override/config.yaml
+# Example: environments/override.yaml
 integration:
   setupMethod: 'sso-external'
 
