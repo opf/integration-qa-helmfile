@@ -1,5 +1,8 @@
 import { Page } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
+import { resolveHostname } from '../../utils/url-helpers';
+import { testConfig } from '../../utils/config';
+import { logDebug, logWarn } from '../../utils/logger';
 
 export class NextcloudOpenIDConnectPage extends NextcloudBasePage {
   constructor(page: Page) {
@@ -13,7 +16,39 @@ export class NextcloudOpenIDConnectPage extends NextcloudBasePage {
 
   async waitForReady(): Promise<void> {
     await this.page.waitForURL(/.*\/settings\/admin\/user_oidc.*/, { timeout: 10000 });
+    await this.dismissWelcomeModalIfPresent();
     await this.getLocator('registeredProvidersText').waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  async dismissWelcomeModalIfPresent(): Promise<void> {
+    const welcomeDialog = this.getLocator('welcomeDialog').first();
+    const isDialogVisible = await welcomeDialog.isVisible({ timeout: 1500 }).catch(() => false);
+    if (!isDialogVisible) return;
+
+    logDebug('[Nextcloud] Welcome modal detected, dismissing it');
+
+    try {
+      const closeButton = this.getLocator('welcomeMessageClose').first();
+      const isCloseVisible = await closeButton.isVisible({ timeout: 2000 }).catch(() => false);
+      if (isCloseVisible) {
+        await closeButton.click();
+      } else {
+        await this.page.keyboard.press('Escape').catch(() => undefined);
+      }
+
+      await welcomeDialog.waitFor({ state: 'hidden', timeout: 10000 });
+    } catch (error: unknown) {
+      logWarn('[Nextcloud] Failed to dismiss welcome modal', error);
+    }
+  }
+
+  private resolveExpectedHostname(envUrl: string | undefined, envHost: string | undefined, fallbackHost: string): string {
+    return (
+      resolveHostname(envUrl) ||
+      resolveHostname(envHost) ||
+      resolveHostname(fallbackHost) ||
+      fallbackHost
+    );
   }
 
   async verifyKeycloakProviderDetails(): Promise<boolean> {
@@ -41,7 +76,12 @@ export class NextcloudOpenIDConnectPage extends NextcloudBasePage {
         const nextSpan = el.nextElementSibling;
         return nextSpan?.tagName === 'SPAN' ? nextSpan.textContent : null;
       });
-      if (!discoveryEndpoint?.includes('keycloak.test/realms/opnc/.well-known/openid-configuration')) {
+      const keycloakHost = this.resolveExpectedHostname(
+        process.env.KEYCLOAK_URL,
+        process.env.KEYCLOAK_HOST,
+        testConfig.keycloak.host,
+      );
+      if (!discoveryEndpoint?.includes(`${keycloakHost}/realms/opnc/.well-known/openid-configuration`)) {
         return false;
       }
 
@@ -50,7 +90,12 @@ export class NextcloudOpenIDConnectPage extends NextcloudBasePage {
         const nextSpan = el.nextElementSibling;
         return nextSpan?.tagName === 'SPAN' ? nextSpan.textContent : null;
       });
-      if (!backchannelLogoutUrl?.includes('nextcloud.test/apps/user_oidc/backchannel-logout/keycloak')) {
+      const nextcloudHost = this.resolveExpectedHostname(
+        process.env.NEXTCLOUD_URL,
+        process.env.NEXTCLOUD_HOST,
+        testConfig.nextcloud.host,
+      );
+      if (!backchannelLogoutUrl?.includes(`${nextcloudHost}/apps/user_oidc/backchannel-logout/keycloak`)) {
         return false;
       }
 
@@ -59,7 +104,7 @@ export class NextcloudOpenIDConnectPage extends NextcloudBasePage {
         const nextSpan = el.nextElementSibling;
         return nextSpan?.tagName === 'SPAN' ? nextSpan.textContent : null;
       });
-      if (!redirectUri?.includes('nextcloud.test/apps/user_oidc/code')) {
+      if (!redirectUri?.includes(`${nextcloudHost}/apps/user_oidc/code`)) {
         return false;
       }
 

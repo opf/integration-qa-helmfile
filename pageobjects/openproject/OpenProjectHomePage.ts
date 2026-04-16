@@ -1,5 +1,6 @@
 import { Page } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
+import { logDebug, logWarn } from '../../utils/logger';
 
 export class OpenProjectHomePage extends OpenProjectBasePage {
   constructor(page: Page) {
@@ -7,9 +8,28 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
   }
 
   async waitForReady(): Promise<void> {
-    await this.page.waitForURL(/.*openproject\.test.*/, { timeout: 15000 });
+    await this.waitForOpenProjectUrl(15000);
+    await this.dismissLanguageSelectionModalIfPresent();
     const userProfileButton = this.getLocator('userProfileButton').first();
     await userProfileButton.waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  async dismissLanguageSelectionModalIfPresent(): Promise<void> {
+    const modal = this.getLocator('languageSelectionModal').first();
+
+    const isVisible = await modal.isVisible({ timeout: 2000 }).catch(() => false);
+    if (!isVisible) return;
+
+    logDebug('[OpenProject] Language selection modal detected, saving default language');
+
+    try {
+      const saveButton = this.getLocator('languageSelectionSaveButton').first();
+      await saveButton.waitFor({ state: 'visible', timeout: 5000 });
+      await saveButton.click();
+      await modal.waitFor({ state: 'hidden', timeout: 10000 });
+    } catch (error: unknown) {
+      logWarn('[OpenProject] Failed to dismiss language selection modal', error);
+    }
   }
 
   async isLoggedIn(): Promise<boolean> {

@@ -227,6 +227,14 @@
     "fileExistsReplaceButton": {
       "by": "locator",
       "value": ".spot-modal .spot-action-bar--right .button.-primary:has-text('Replace')"
+    },
+    "languageSelectionModal": {
+      "by": "locator",
+      "value": "[role='dialog']:has-text('Please select your language')"
+    },
+    "languageSelectionSaveButton": {
+      "by": "locator",
+      "value": "[role='dialog']:has-text('Please select your language') button:has-text('Save')"
     }
   }
 }
