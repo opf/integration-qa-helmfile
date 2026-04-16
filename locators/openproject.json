@@ -227,6 +227,22 @@
     "fileExistsReplaceButton": {
       "by": "locator",
       "value": ".spot-modal .spot-action-bar--right .button.-primary:has-text('Replace')"
+    },
+    "languageSelectionModal": {
+      "by": "locator",
+      "value": "[role='dialog']:has-text('Please select your language')"
+    },
+    "languageSelectionSaveButton": {
+      "by": "locator",
+      "value": "[role='dialog']:has-text('Please select your language') button:has-text('Save')"
+    },
+    "tutorialOverlay": {
+      "by": "locator",
+      "value": "body:has-text('Take a three-minute introduction tour')"
+    },
+    "tutorialSkipButton": {
+      "by": "locator",
+      "value": "body:has-text('Take a three-minute introduction tour') >> text=Skip"
     }
   }
 }

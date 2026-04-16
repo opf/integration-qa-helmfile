@@ -17,6 +17,16 @@
       "by": "locator",
       "value": ".welcome .close, .modal__close, [aria-label*='close'], [aria-label*='Close']"
     },
+    "welcomeDialog": {
+      "by": "getByRole",
+      "value": {
+        "role": "dialog",
+        "name": "Welcome to Nextcloud!",
+        "options": {
+          "exact": false
+        }
+      }
+    },
     "profileIcon": {
       "by": "locator",
       "value": "button[aria-label='Settings menu']"

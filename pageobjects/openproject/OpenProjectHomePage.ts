@@ -1,15 +1,75 @@
 import { Page } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
+import { logDebug, logWarn } from '../../utils/logger';
 
 export class OpenProjectHomePage extends OpenProjectBasePage {
+  private static readonly FIRST_LOGIN_PROMPT_PASSES = 3;
+
   constructor(page: Page) {
     super(page);
   }
 
   async waitForReady(): Promise<void> {
-    await this.page.waitForURL(/.*openproject\.test.*/, { timeout: 15000 });
+    await this.waitForOpenProjectUrl(15000);
+    await this.dismissFirstLoginPromptsIfPresent();
     const userProfileButton = this.getLocator('userProfileButton').first();
     await userProfileButton.waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  private async dismissFirstLoginPromptsIfPresent(): Promise<void> {
+    for (let attempt = 0; attempt < OpenProjectHomePage.FIRST_LOGIN_PROMPT_PASSES; attempt += 1) {
+      const dismissedLanguageModal = await this.dismissLanguageSelectionModalIfPresent();
+      if (dismissedLanguageModal) continue;
+
+      const dismissedTutorialOverlay = await this.dismissTutorialOverlayIfPresent();
+      if (dismissedTutorialOverlay) continue;
+
+      break;
+    }
+  }
+
+  async dismissLanguageSelectionModalIfPresent(): Promise<boolean> {
+    const modal = this.getLocator('languageSelectionModal').first();
+
+    const isVisible = await modal.isVisible({ timeout: 2000 }).catch(() => false);
+    if (!isVisible) return false;
+
+    logDebug('[OpenProject] Language selection modal detected, saving default language');
+
+    try {
+      const saveButton = this.getLocator('languageSelectionSaveButton').first();
+      await saveButton.waitFor({ state: 'visible', timeout: 5000 });
+      await saveButton.click();
+      await modal.waitFor({ state: 'hidden', timeout: 10000 });
+      return true;
+    } catch (error: unknown) {
+      logWarn('[OpenProject] Failed to dismiss language selection modal', error);
+      return false;
+    }
+  }
+
+  async dismissTutorialOverlayIfPresent(): Promise<boolean> {
+    const hasTutorialText = await this.page
+      .getByText('Take a three-minute introduction tour', { exact: false })
+      .isVisible({ timeout: 2000 })
+      .catch(() => false);
+
+    if (!hasTutorialText) return false;
+
+    logDebug('[OpenProject] Tutorial overlay detected, skipping it');
+
+    try {
+      const skipButton = this.getLocator('tutorialSkipButton').first();
+      await skipButton.waitFor({ state: 'visible', timeout: 5000 });
+      await skipButton.click();
+      await this.page
+        .getByText('Take a three-minute introduction tour', { exact: false })
+        .waitFor({ state: 'hidden', timeout: 10000 });
+      return true;
+    } catch (error: unknown) {
+      logWarn('[OpenProject] Failed to dismiss tutorial overlay', error);
+      return false;
+    }
   }
 
   async isLoggedIn(): Promise<boolean> {
