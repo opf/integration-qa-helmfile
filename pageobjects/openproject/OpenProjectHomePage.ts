@@ -10,6 +10,7 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
   async waitForReady(): Promise<void> {
     await this.waitForOpenProjectUrl(15000);
     await this.dismissLanguageSelectionModalIfPresent();
+    await this.dismissTutorialOverlayIfPresent();
     const userProfileButton = this.getLocator('userProfileButton').first();
     await userProfileButton.waitFor({ state: 'visible', timeout: 10000 });
   }
@@ -29,6 +30,31 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
       await modal.waitFor({ state: 'hidden', timeout: 10000 });
     } catch (error: unknown) {
       logWarn('[OpenProject] Failed to dismiss language selection modal', error);
+    }
+  }
+
+  async dismissTutorialOverlayIfPresent(): Promise<void> {
+    const overlay = this.getLocator('tutorialOverlay').first();
+
+    const hasTutorialText = await this.page
+      .getByText('Take a three-minute introduction tour', { exact: false })
+      .isVisible({ timeout: 2000 })
+      .catch(() => false);
+
+    if (!hasTutorialText) return;
+
+    logDebug('[OpenProject] Tutorial overlay detected, skipping it');
+
+    try {
+      const skipButton = this.getLocator('tutorialSkipButton').first();
+      await skipButton.waitFor({ state: 'visible', timeout: 5000 });
+      await skipButton.click();
+      await this.page
+        .getByText('Take a three-minute introduction tour', { exact: false })
+        .waitFor({ state: 'hidden', timeout: 10000 });
+    } catch (error: unknown) {
+      await overlay.screenshot({ path: 'test-results/op-tutorial-overlay-failure.png' }).catch(() => undefined);
+      logWarn('[OpenProject] Failed to dismiss tutorial overlay', error);
     }
   }
 
