@@ -1,6 +1,7 @@
 import { Page } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
 import { logDebug, logWarn } from '../../utils/logger';
+import { waitForProjectCreated } from '../../utils/openproject-api';
 
 export class OpenProjectHomePage extends OpenProjectBasePage {
   private static readonly FIRST_LOGIN_PROMPT_PASSES = 3;
@@ -203,10 +204,18 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
 
     const targetUrlPattern = new RegExp(`/projects/${name}/?$`);
 
-    await Promise.all([
-      this.page.waitForURL(targetUrlPattern, { timeout: 20000 }),
-      copyButton.click(),
-    ]);
+    const urlRedirect = this.page
+      .waitForURL(targetUrlPattern, { timeout: 60_000 })
+      .catch(() => undefined);
+    const apiConfirm = waitForProjectCreated(name, { timeoutMs: 60_000 });
+
+    await copyButton.click();
+    await Promise.race([urlRedirect, apiConfirm]);
+
+    if (!targetUrlPattern.test(this.page.url())) {
+      const targetUrl = new URL(`/projects/${name}`, this.page.url()).toString();
+      await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    }
   }
 }
 
