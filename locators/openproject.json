@@ -238,11 +238,15 @@
     },
     "tutorialOverlay": {
       "by": "locator",
-      "value": "body:has-text('Take a three-minute introduction tour')"
+      "value": "body:has-text('introduction tour')"
     },
     "tutorialSkipButton": {
       "by": "locator",
-      "value": "body:has-text('Take a three-minute introduction tour') >> text=Skip"
+      "value": "text=Skip"
+    },
+    "tutorialNextButton": {
+      "by": "locator",
+      "value": "text=Next"
     }
   }
 }

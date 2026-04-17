@@ -49,22 +49,20 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
   }
 
   async dismissTutorialOverlayIfPresent(): Promise<boolean> {
-    const hasTutorialText = await this.page
-      .getByText('Take a three-minute introduction tour', { exact: false })
-      .isVisible({ timeout: 2000 })
-      .catch(() => false);
+    const skipButton = this.getLocator('tutorialSkipButton').first();
+    const nextButton = this.getLocator('tutorialNextButton').first();
 
-    if (!hasTutorialText) return false;
+    const isSkipVisible = await skipButton.isVisible({ timeout: 1000 }).catch(() => false);
+    if (!isSkipVisible) return false;
+
+    const isNextVisible = await nextButton.isVisible({ timeout: 1000 }).catch(() => false);
+    if (!isNextVisible) return false;
 
     logDebug('[OpenProject] Tutorial overlay detected, skipping it');
 
     try {
-      const skipButton = this.getLocator('tutorialSkipButton').first();
-      await skipButton.waitFor({ state: 'visible', timeout: 5000 });
       await skipButton.click();
-      await this.page
-        .getByText('Take a three-minute introduction tour', { exact: false })
-        .waitFor({ state: 'hidden', timeout: 10000 });
+      await skipButton.waitFor({ state: 'hidden', timeout: 10000 });
       return true;
     } catch (error: unknown) {
       logWarn('[OpenProject] Failed to dismiss tutorial overlay', error);
@@ -84,6 +82,9 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
 
   async verifyUserProfileButton(expectedName: string): Promise<boolean> {
     try {
+      // Tutorial / language prompts may appear late; dismiss right before interacting.
+      await this.dismissFirstLoginPromptsIfPresent();
+
       const buttonSelectors = [
         'userProfileButton',
         'userProfileButtonAlt',
@@ -131,6 +132,9 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
   }
 
   async getUserNameFromProfile(): Promise<string> {
+    // Tutorial / language prompts may appear late; dismiss right before interacting.
+    await this.dismissFirstLoginPromptsIfPresent();
+
     const profileButton = this.getLocator('userProfileButton').first();
 
     await profileButton.waitFor({ state: 'visible', timeout: 10000 });
