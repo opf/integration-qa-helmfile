@@ -1,10 +1,12 @@
-import { Page } from '@playwright/test';
+import type { Page, Response } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
 import { logDebug, logWarn } from '../../utils/logger';
 import { waitForProjectCreated } from '../../utils/openproject-api';
 
 export class OpenProjectHomePage extends OpenProjectBasePage {
   private static readonly FIRST_LOGIN_PROMPT_PASSES = 3;
+  private firstTimeTourExpected = false;
+  private responseListener?: (response: Response) => void;
 
   constructor(page: Page) {
     super(page);
@@ -12,9 +14,52 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
 
   async waitForReady(): Promise<void> {
     await this.waitForOpenProjectUrl(15000);
+    this.installFirstLoginSignalListeners();
     await this.dismissFirstLoginPromptsIfPresent();
+    this.uninstallFirstLoginSignalListeners();
     const userProfileButton = this.getLocator('userProfileButton').first();
     await userProfileButton.waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  private isFirstTimeUserUrl(): boolean {
+    try {
+      const url = new URL(this.page.url());
+      return url.searchParams.get('first_time_user') === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  private installFirstLoginSignalListeners(): void {
+    if (this.responseListener) return;
+
+    // If we're currently at /?first_time_user=true, remember it even if the SPA removes the query later.
+    if (this.isFirstTimeUserUrl()) this.firstTimeTourExpected = true;
+
+    const listener = (response: Response) => {
+      const url = response.url();
+      if (url.includes('first_time_user=true') || /onboarding_tour-[\w-]+\.js(\?|$)/.test(url)) {
+        this.firstTimeTourExpected = true;
+      }
+    };
+
+    this.page.on('response', listener);
+    this.responseListener = listener;
+  }
+
+  private uninstallFirstLoginSignalListeners(): void {
+    if (!this.responseListener) return;
+    this.page.off('response', this.responseListener);
+    this.responseListener = undefined;
+  }
+
+  private async closeUserMenuDialogIfOpen(): Promise<void> {
+    const dialog = this.getLocator('userMenuDialog').first();
+    const isVisible = await dialog.isVisible({ timeout: 200 }).catch(() => false);
+    if (!isVisible) return;
+
+    await this.page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden', timeout: 2000 }).catch(() => undefined);
   }
 
   private async dismissFirstLoginPromptsIfPresent(): Promise<void> {
@@ -51,19 +96,22 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
 
   async dismissTutorialOverlayIfPresent(): Promise<boolean> {
     const skipButton = this.getLocator('tutorialSkipButton').first();
-    const nextButton = this.getLocator('tutorialNextButton').first();
+    const signalExpectsTour = this.isFirstTimeUserUrl() || this.firstTimeTourExpected;
+    const skipWaitTimeout = signalExpectsTour ? 15_000 : 1_000;
 
-    const isSkipVisible = await skipButton.isVisible({ timeout: 1000 }).catch(() => false);
-    if (!isSkipVisible) return false;
-
-    const isNextVisible = await nextButton.isVisible({ timeout: 1000 }).catch(() => false);
-    if (!isNextVisible) return false;
+    try {
+      await skipButton.waitFor({ state: 'visible', timeout: skipWaitTimeout });
+    } catch {
+      return false;
+    }
 
     logDebug('[OpenProject] Tutorial overlay detected, skipping it');
+    await this.closeUserMenuDialogIfOpen();
 
     try {
       await skipButton.click();
       await skipButton.waitFor({ state: 'hidden', timeout: 10000 });
+      this.firstTimeTourExpected = false;
       return true;
     } catch (error: unknown) {
       logWarn('[OpenProject] Failed to dismiss tutorial overlay', error);
@@ -114,6 +162,7 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
       await userNameDiv.waitFor({ state: 'visible', timeout: 5000 });
       
       const userNameText = await userNameDiv.textContent();
+      await this.closeUserMenuDialogIfOpen();
       
       if (userNameText && userNameText.trim() === expectedName) {
         return true;
@@ -128,6 +177,7 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
       
       return dialogText?.includes(expectedName) ?? false;
     } catch {
+      await this.closeUserMenuDialogIfOpen().catch(() => undefined);
       return false;
     }
   }
@@ -135,6 +185,7 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
   async getUserNameFromProfile(): Promise<string> {
     // Tutorial / language prompts may appear late; dismiss right before interacting.
     await this.dismissFirstLoginPromptsIfPresent();
+    await this.closeUserMenuDialogIfOpen();
 
     const profileButton = this.getLocator('userProfileButton').first();
 
@@ -160,7 +211,9 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     ]);
 
     const userName = await this.getLocator('userNameInMenu').first().textContent();
-    return userName?.trim() || '';
+    const value = userName?.trim() || '';
+    await this.closeUserMenuDialogIfOpen();
+    return value;
   }
 
   async navigateToAllProjects(): Promise<void> {
