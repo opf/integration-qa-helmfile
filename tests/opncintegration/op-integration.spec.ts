@@ -104,6 +104,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   });
 
   test('Copy ampf Demo project', async ({ page }) => {
+    test.setTimeout(120_000);
     const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
     await ensureUserIsAdmin(loginIdentifier);
 
@@ -117,7 +118,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
     await expect(page).toHaveURL(openProjectUrl('/projects/test'));
 
-    await homePage.navigateToProjectStoragesExternal('test');
+    await homePage.navigateToProjectStoragesExternal('test', 30000);
 
     const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
     await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });

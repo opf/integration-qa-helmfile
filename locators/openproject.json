@@ -83,6 +83,13 @@
       "by": "locator",
       "value": "span.op-app-menu--user-name"
     },
+    "userMenuDialog": {
+      "by": "getByRole",
+      "value": {
+        "role": "dialog",
+        "name": "User menu"
+      }
+    },
     "dialog": {
       "by": "locator",
       "value": "[role='dialog'], [data-view-component='true']"
@@ -238,11 +245,15 @@
     },
     "tutorialOverlay": {
       "by": "locator",
-      "value": "body:has-text('Take a three-minute introduction tour')"
+      "value": "body:has-text('introduction tour')"
     },
     "tutorialSkipButton": {
       "by": "locator",
-      "value": "body:has-text('Take a three-minute introduction tour') >> text=Skip"
+      "value": "text=Skip"
+    },
+    "tutorialNextButton": {
+      "by": "locator",
+      "value": "text=Next"
     }
   }
 }

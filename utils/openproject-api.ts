@@ -227,6 +227,24 @@ export async function findProjectByIdentifierOrName(
   });
 }
 
+export async function waitForProjectCreated(
+  identifierOrName: string,
+  options: { timeoutMs?: number; pollIntervalMs?: number } = {},
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 1_000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const project = await findProjectByIdentifierOrName(identifierOrName, credentials);
+    if (project) return;
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(`Timed out waiting for project "${identifierOrName}" to be created`);
+}
+
 export async function listStorages(
   credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
 ): Promise<OpenProjectApiStorage[]> {

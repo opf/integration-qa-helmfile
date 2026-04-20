@@ -53,7 +53,12 @@ export function urlForHost(path: string, host: string): RegExp {
 }
 
 export const openProjectUrl = (path: string) =>
-  urlForHost(path, testConfig.openproject.host);
+  urlForHost(
+    path,
+    process.env.OPENPROJECT_URL ||
+      process.env.OPENPROJECT_HOST ||
+      testConfig.openproject.host,
+  );
 
 export const integrationTags = { tag: ['@regression', '@integration'] };
 
