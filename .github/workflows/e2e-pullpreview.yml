@@ -1,10 +1,10 @@
-name: E2E PullPreview Orchestration
+name: E2E Manual Run
 
 on:
   workflow_dispatch:
     inputs:
       suite:
-        description: "Test suite selector (all runs full suite)"
+        description: "Test Suite"
         required: true
         default: all
         type: choice
@@ -15,7 +15,7 @@ on:
           - integration
           - custom
       custom_grep:
-        description: "Custom Playwright --grep expression (used when suite=custom)"
+        description: "Custom --grep expression"
         required: false
       setupMethod:
         description: "Setup method"
@@ -32,19 +32,9 @@ on:
         default: false
         type: boolean
       integration_ref:
-        description: "Branch/ref in integration repo to execute workflow from"
+        description: "Branch in helm-qa repo"
         required: true
         default: main
-        type: string
-      integration_repo:
-        description: "Repository that owns PullPreview deployment"
-        required: true
-        default: opf/integration-qa-helmfile
-        type: string
-      integration_workflow:
-        description: "Dispatchable workflow filename in integration repo"
-        required: true
-        default: pullpreview-dispatch.yml
         type: string
       openproject_version:
         description: "OpenProject image tag"
@@ -54,28 +44,24 @@ on:
         description: "Nextcloud image tag"
         required: false
         type: string
-      keycloak_version:
-        description: "Keycloak image tag"
-        required: false
-        type: string
-      integration_app_version:
-        description: "integration_openproject app version (alias if integration_openproject_version is empty)"
-        required: false
-        type: string
       integration_openproject_version:
-        description: "integration_openproject app version (overrides integration_app_version when set)"
+        description: "integration_openproject app version"
         required: false
         type: string
-      integration_openproject_git_branch:
-        description: "integration_openproject git branch (version ignored when set)"
+      integration_openproject_branch:
+        description: "integration_openproject git branch (overrides version)"
         required: false
         type: string
       openproject_branch:
-        description: "Optional OpenProject git branch override"
+        description: "Optional OpenProject git branch"
         required: false
         type: string
       nextcloud_branch:
-        description: "Optional Nextcloud git branch override"
+        description: "Optional Nextcloud git branch"
+        required: false
+        type: string
+      keycloak_version:
+        description: "Keycloak image tag"
         required: false
         type: string
 
@@ -90,7 +76,8 @@ jobs:
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
+      INTEGRATION_REPO: opf/integration-qa-helmfile
+      INTEGRATION_WORKFLOW: pullpreview-dispatch.yml
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,12 +87,12 @@ jobs:
         run: |
           set -euo pipefail
           echo "E2E repo ref: ${GITHUB_REF_NAME:-} sha: ${GITHUB_SHA:-}"
-          echo "Integration repo: ${{ github.event.inputs.integration_repo }}"
-          echo "Integration workflow: ${{ github.event.inputs.integration_workflow }}"
+          echo "Integration repo: ${INTEGRATION_REPO}"
+          echo "Integration workflow: ${INTEGRATION_WORKFLOW}"
           echo "Integration ref: ${{ github.event.inputs.integration_ref }}"
           echo "Setup method: ${{ github.event.inputs.setupMethod }}"
           echo "Requested versions: OP='${{ github.event.inputs.openproject_version }}' NC='${{ github.event.inputs.nextcloud_version }}' KC='${{ github.event.inputs.keycloak_version }}'"
-          echo "Requested integration app: legacy='${{ github.event.inputs.integration_app_version }}' io_ver='${{ github.event.inputs.integration_openproject_version }}' io_git='${{ github.event.inputs.integration_openproject_git_branch }}'"
+          echo "Requested integration app: version='${{ github.event.inputs.integration_openproject_version }}' branch='${{ github.event.inputs.integration_openproject_branch }}'"
           echo "Requested branches: OP='${{ github.event.inputs.openproject_branch }}' NC='${{ github.event.inputs.nextcloud_branch }}'"
           test -f ".github/workflows/e2e-pullpreview.yml"
           echo "Workflow file present: .github/workflows/e2e-pullpreview.yml"
@@ -161,14 +148,9 @@ jobs:
             exit 1
           fi
 
-          owner_repo="${{ github.event.inputs.integration_repo }}"
-          workflow_file="${{ github.event.inputs.integration_workflow }}"
+          owner_repo="${INTEGRATION_REPO}"
+          workflow_file="${INTEGRATION_WORKFLOW}"
           target_ref="${{ github.event.inputs.integration_ref }}"
-
-          if [ -z "${owner_repo}" ] || [ -z "${workflow_file}" ]; then
-            echo "::error::integration_repo and integration_workflow must be set."
-            exit 1
-          fi
 
           payload="$(jq -n \
             --arg ref "$target_ref" \
@@ -178,9 +160,8 @@ jobs:
             --arg openproject_version "${{ github.event.inputs.openproject_version }}" \
             --arg nextcloud_version "${{ github.event.inputs.nextcloud_version }}" \
             --arg keycloak_version "${{ github.event.inputs.keycloak_version }}" \
-            --arg integration_app_version "${{ github.event.inputs.integration_app_version }}" \
             --arg integration_openproject_version "${{ github.event.inputs.integration_openproject_version }}" \
-            --arg integration_openproject_git_branch "${{ github.event.inputs.integration_openproject_git_branch }}" \
+            --arg integration_openproject_branch "${{ github.event.inputs.integration_openproject_branch }}" \
             --arg openproject_branch "${{ github.event.inputs.openproject_branch }}" \
             --arg nextcloud_branch "${{ github.event.inputs.nextcloud_branch }}" \
             '{
@@ -192,9 +173,8 @@ jobs:
                 openproject_version: $openproject_version,
                 nextcloud_version: $nextcloud_version,
                 keycloak_version: $keycloak_version,
-                integration_app_version: $integration_app_version,
                 integration_openproject_version: $integration_openproject_version,
-                integration_openproject_git_branch: $integration_openproject_git_branch,
+                integration_openproject_git_branch: $integration_openproject_branch,
                 openproject_branch: $openproject_branch,
                 nextcloud_branch: $nextcloud_branch
               }
@@ -214,8 +194,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.INTEGRATION_REPO_PAT }}
-          OWNER_REPO: ${{ github.event.inputs.integration_repo }}
-          WORKFLOW_FILE: ${{ github.event.inputs.integration_workflow }}
+          OWNER_REPO: ${{ env.INTEGRATION_REPO }}
+          WORKFLOW_FILE: ${{ env.INTEGRATION_WORKFLOW }}
           TARGET_REF: ${{ github.event.inputs.integration_ref }}
           PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
           STARTED_AT: ${{ steps.resolve.outputs.deploy_started_at }}
@@ -423,14 +403,9 @@ jobs:
             exit 0
           fi
 
-          owner_repo="${{ github.event.inputs.integration_repo }}"
-          workflow_file="${{ github.event.inputs.integration_workflow }}"
+          owner_repo="${INTEGRATION_REPO}"
+          workflow_file="${INTEGRATION_WORKFLOW}"
           target_ref="${{ github.event.inputs.integration_ref }}"
-
-          if [ -z "${owner_repo}" ] || [ -z "${workflow_file}" ]; then
-            echo "::warning::integration_repo or integration_workflow empty; skipping teardown dispatch."
-            exit 0
-          fi
 
           payload="$(jq -n \
             --arg ref "$target_ref" \
