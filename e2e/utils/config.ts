@@ -6,7 +6,7 @@ import { logDebug } from './logger';
 
 export interface TestConfig {
   envName: string;
-  setupMethod: 'sso-external';
+  setupMethod: 'sso-external' | 'sso-nextcloud' | 'oauth2';
   openproject: {
     version: string;
     host: string;

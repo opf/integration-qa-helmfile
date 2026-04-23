@@ -2,9 +2,9 @@
 
 Generate Playwright test code automatically as you interact with the browser.
 
-## OpenProject E2E repository
+## Playwright E2E project in this repository
 
-In the **openproject-e2e** workspace, committed tests must follow `.cursor/skills/tests/SKILL.md`: selectors live in `locators/*.json`, interactions in page objects via `getLocator(key)`, and specs call page methods. The CLI output is a **hint** for which `by`/`value` to store under a stable key, not a spec to paste verbatim. Skip to [In this repository](#in-this-repository-building-tests) below.
+In this repository, the committed Playwright project lives under `e2e/`, and tests must follow `.cursor/skills/tests/SKILL.md`: selectors live in `locators/*.json`, interactions in page objects via `getLocator(key)`, and specs call page methods. The CLI output is a **hint** for which `by`/`value` to store under a stable key, not a spec to paste verbatim. Skip to [In this repository](#in-this-repository-building-tests) below.
 
 ## How It Works
 

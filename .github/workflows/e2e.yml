@@ -1,0 +1,463 @@
+name: E2E Manual Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Test suite"
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - all
+          - smoke
+          - regression
+          - integration
+          - custom
+      custom_grep:
+        description: "Custom --grep expression (suite=custom)"
+        required: false
+        type: string
+      setupMethod:
+        description: "Integration setup mode"
+        required: true
+        default: sso-external
+        type: choice
+        options:
+          - sso-external
+          - sso-nextcloud
+          - oauth2
+      keep_environment_on_failure:
+        description: "Keep PullPreview environment when tests fail"
+        required: true
+        default: false
+        type: boolean
+      openproject_version:
+        description: "OpenProject image tag (empty = 17)"
+        required: false
+        type: string
+      openproject_branch:
+        description: "Optional OpenProject git source branch override"
+        required: false
+        type: string
+      nextcloud_version:
+        description: "Nextcloud image tag (empty = 32)"
+        required: false
+        type: string
+      nextcloud_branch:
+        description: "Optional Nextcloud git source branch override"
+        required: false
+        type: string
+      keycloak_version:
+        description: "Keycloak image tag (empty = 26.2.5)"
+        required: false
+        type: string
+      integration_openproject_version:
+        description: "integration_openproject app version"
+        required: false
+        type: string
+      integration_openproject_branch:
+        description: "integration_openproject git branch (overrides version)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 140
+    env:
+      CI: true
+      HEADLESS: true
+      SKIP_SETUP_JOB_CHECK: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve grep and preview name
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          suite="${{ github.event.inputs.suite }}"
+          grep=""
+          case "$suite" in
+            all) grep='' ;;
+            smoke) grep='@smoke' ;;
+            regression) grep='@regression' ;;
+            integration) grep='@integration' ;;
+            custom) grep='${{ github.event.inputs.custom_grep }}' ;;
+            *)
+              echo "::error::Unknown suite: $suite"
+              exit 1
+              ;;
+          esac
+
+          if [ "$suite" = "custom" ] && [ -z "${grep}" ]; then
+            echo "::error::Resolved grep is empty. For suite=custom, set custom_grep."
+            exit 1
+          fi
+
+          preview_name='${{ github.event.inputs.preview_name }}'
+          if [ -z "${preview_name}" ]; then
+            preview_name="e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+          fi
+
+          {
+            echo "grep=${grep}"
+            echo "preview_name=${preview_name}"
+          } >> "$GITHUB_OUTPUT"
+
+      - id: pullpreview_up
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
+        with:
+          provider: hetzner
+          label: ${{ steps.resolve.outputs.preview_name }}
+          force_action: up
+          region: fsn1
+          image: ubuntu-24.04
+          instance_type: cpx42
+          dns: my.preview.run
+          max_domain_length: "40"
+          deployment_target: helm
+          chart: ./charts/pullpreview-stack
+          chart_values: pullpreview/stack-values.yaml.gotmpl
+          proxy_tls: traefik:80
+          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
+          ttl: 72h
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+          INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
+          OPENPROJECT_VERSION: ${{ github.event.inputs.openproject_version }}
+          OPENPROJECT_BRANCH: ${{ github.event.inputs.openproject_branch }}
+          NEXTCLOUD_VERSION: ${{ github.event.inputs.nextcloud_version }}
+          NEXTCLOUD_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
+          KEYCLOAK_VERSION: ${{ github.event.inputs.keycloak_version }}
+          INTEGRATION_OPENPROJECT_VERSION: ${{ github.event.inputs.integration_openproject_version }}
+          INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
+
+      - name: Validate preview URLs
+        if: steps.pullpreview_up.outputs.live == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.pullpreview_up.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          check_url() {
+            local name="$1"
+            local url="$2"
+            local expected_status="$3"
+            local attempts="${4:-12}"
+            local sleep_seconds="${5:-10}"
+            local attempt
+            local status=""
+            local curl_exit=0
+
+            for attempt in $(seq 1 "${attempts}"); do
+              set +e
+              status="$(
+                /usr/bin/curl -skS -o /dev/null \
+                  --connect-timeout 10 \
+                  --write-out '%{http_code}' \
+                  "$url" 2>/dev/null
+              )"
+              curl_exit=$?
+              set -e
+
+              if [[ "${curl_exit}" -eq 0 ]]; then
+                echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
+                if [[ "${status}" == "${expected_status}" ]]; then
+                  return 0
+                fi
+              else
+                echo "${name}: ${url} -> curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
+              fi
+
+              sleep "${sleep_seconds}"
+            done
+
+            echo "::group::Debug: response headers for ${name}"
+            /usr/bin/curl -skS -D- -o /dev/null "$url" 2>&1 | head -n 50 || true
+            echo "::endgroup::"
+            echo "::error::${name} endpoint was not ready: ${url} expected HTTP ${expected_status}, last result ${status}"
+            return 1
+          }
+
+          check_url "Main root" "https://${preview_host}/" "302"
+          check_url "Main login" "https://${preview_host}/login" "200"
+          # Nextcloud first boot runs schema migrations and the integration_openproject
+          # app install from before-starting/beforestart.sh; probes are disabled in
+          # nc-values.gotmpl, so we poll status.php longer here (~10 min).
+          check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200" 60 10
+          check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
+
+      - name: Collect Nextcloud pod diagnostics on failure
+        if: failure() && steps.pullpreview_up.outputs.live == 'true'
+        shell: bash
+        env:
+          PULLPREVIEW_SSH_KEYS_CACHE_DIR: /home/runner/work/_temp/pullpreview-ssh-keys
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+        run: |
+          set +e
+          set +x
+
+          preview_url="${{ steps.pullpreview_up.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+          if [[ -z "${preview_host}" ]]; then
+            echo "::warning::preview_host is empty; skipping diagnostics."
+            exit 0
+          fi
+
+          work_dir="$(mktemp -d)"
+          cleanup() { [[ -n "${work_dir}" && -d "${work_dir}" ]] && rm -rf "${work_dir}" || true; }
+          trap cleanup EXIT
+
+          # 1) Try to reuse a private key the pullpreview CLI may have written.
+          key_file=""
+          if [[ -d "${PULLPREVIEW_SSH_KEYS_CACHE_DIR}" ]]; then
+            while IFS= read -r -d '' f; do
+              if head -n1 "$f" 2>/dev/null | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
+                key_file="$f"
+                break
+              fi
+            done < <(find "${PULLPREVIEW_SSH_KEYS_CACHE_DIR}" -type f ! -name '*.pub' -print0 2>/dev/null)
+          fi
+
+          # 2) Otherwise, sign a short-lived diagnostic cert with the same Hetzner SSH CA
+          #    that the pullpreview_up step already uses. Principal is 'root', validity +10m,
+          #    key material lives only in a tmpfs-backed workdir that is wiped on EXIT.
+          ssh_identity=()
+          if [[ -n "${key_file}" ]]; then
+            echo "Using existing pullpreview private key: ${key_file##*/}"
+            chmod 600 "${key_file}" >/dev/null 2>&1 || true
+            ssh_identity=(-i "${key_file}")
+          elif [[ -n "${HETZNER_CA_KEY}" ]]; then
+            echo "No reusable pullpreview key; minting a +10m root cert via HETZNER_CA_KEY."
+            user_key="${work_dir}/diagkey"
+            ca_key="${work_dir}/ca"
+            umask 077
+            printf '%s\n' "${HETZNER_CA_KEY}" > "${ca_key}"
+            chmod 600 "${ca_key}"
+            if ! timeout 15 ssh-keygen -q -t ed25519 -N '' -C 'e2e-diagnostic' -f "${user_key}" >/dev/null 2>&1; then
+              echo "::warning::Could not generate diagnostic keypair; skipping."
+              exit 0
+            fi
+            if ! timeout 15 ssh-keygen -q -s "${ca_key}" \
+                 -I "e2e-diag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+                 -n root -V +10m "${user_key}.pub" >/dev/null 2>&1; then
+              echo "::warning::Failed to sign a diagnostic cert with HETZNER_CA_KEY; skipping."
+              exit 0
+            fi
+            rm -f "${ca_key}"
+            ssh_identity=(-i "${user_key}" -o "CertificateFile=${user_key}-cert.pub")
+          else
+            echo "::warning::No pullpreview key and no HETZNER_CA_KEY; skipping diagnostics."
+            exit 0
+          fi
+
+          # Throwaway known_hosts: we never persist host keys beyond this step.
+          SSH_OPTS=(
+            "${ssh_identity[@]}"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=no
+            -o UserKnownHostsFile=/dev/null
+            -o ConnectTimeout=15
+            -o LogLevel=ERROR
+          )
+          KC='sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl'
+
+          remote() {
+            ssh "${SSH_OPTS[@]}" "root@${preview_host}" "$@" 2>&1
+          }
+
+          # Defence-in-depth redaction of any secret-shaped lines that might slip into logs.
+          redact() {
+            sed -E \
+              -e 's/((pass(word)?|secret|token|api[_-]?key|bearer)[^=:[:space:]]*[=:][[:space:]]*)[^[:space:]"'\''`]+/\1***REDACTED***/Ig' \
+              -e 's/(Authorization:[[:space:]]*Bearer[[:space:]]+)[A-Za-z0-9._~+\/=-]+/\1***REDACTED***/Ig'
+          }
+
+          echo "::group::SSH reachability check"
+          remote "echo ok && uname -a" | redact
+          echo "::endgroup::"
+
+          ns_list="$(remote "${KC} get pods -A -l app.kubernetes.io/name=nextcloud -o jsonpath='{range .items[*]}{.metadata.namespace}{\"\n\"}{end}'" | sort -u)"
+
+          if [[ -z "${ns_list// /}" || "${ns_list}" == *"error:"* ]]; then
+            echo "::warning::No Nextcloud pods found via label selector; dumping preview namespaces."
+            echo "::group::Preview namespaces (pp-*)"
+            remote "${KC} get ns -o name | grep '^namespace/pp-' || true" | redact
+            echo "::endgroup::"
+            echo "::group::All pods in pp-* namespaces"
+            remote "for ns in \$(${KC} get ns -o name | sed -n 's#^namespace/\\(pp-.*\\)#\\1#p'); do echo \"--- \$ns ---\"; ${KC} -n \"\$ns\" get pods -o wide; done" | redact
+            echo "::endgroup::"
+            exit 0
+          fi
+
+          # Narrow columns avoid leaking env vars that `describe pod` would otherwise expose.
+          NC_COLUMNS='NAME:.metadata.name,PHASE:.status.phase,READY:.status.containerStatuses[*].ready,RESTARTS:.status.containerStatuses[*].restartCount,INIT-WAIT:.status.initContainerStatuses[*].state.waiting.reason,INIT-LAST:.status.initContainerStatuses[*].lastState.terminated.reason,WAIT:.status.containerStatuses[*].state.waiting.reason,LAST-REASON:.status.containerStatuses[*].lastState.terminated.reason,LAST-EXIT:.status.containerStatuses[*].lastState.terminated.exitCode'
+
+          while IFS= read -r ns; do
+            [[ -z "${ns}" ]] && continue
+
+            echo "::group::[${ns}] pods"
+            remote "${KC} -n ${ns} get pods -o wide" | redact
+            echo "::endgroup::"
+
+            echo "::group::[${ns}] Nextcloud pod status"
+            remote "${KC} -n ${ns} get pods -l app.kubernetes.io/name=nextcloud -o custom-columns='${NC_COLUMNS}'" | redact
+            echo "::endgroup::"
+
+            echo "::group::[${ns}] recent events (last 50)"
+            remote "${KC} -n ${ns} get events --sort-by=.lastTimestamp | tail -n 50" | redact
+            echo "::endgroup::"
+
+            echo "::group::[${ns}] Nextcloud logs (current, tail 500, all containers)"
+            remote "${KC} -n ${ns} logs -l app.kubernetes.io/name=nextcloud --all-containers=true --prefix=true --tail=500" | redact
+            echo "::endgroup::"
+
+            echo "::group::[${ns}] Nextcloud logs (previous, tail 500, all containers)"
+            remote "${KC} -n ${ns} logs -l app.kubernetes.io/name=nextcloud --all-containers=true --prefix=true --tail=500 --previous" | redact
+            echo "::endgroup::"
+          done <<< "${ns_list}"
+
+      - name: Export hosts for Playwright
+        if: steps.pullpreview_up.outputs.live == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.pullpreview_up.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          # Normalize https default port to avoid https://host:443 form.
+          if [[ "${preview_url}" == *:443 ]]; then
+            preview_url="${preview_url%:443}"
+          fi
+
+          {
+            echo "OPENPROJECT_HOST=${preview_host}"
+            echo "NEXTCLOUD_HOST=nextcloud.${preview_host}"
+            echo "KEYCLOAK_HOST=keycloak.${preview_host}"
+            echo "OPENPROJECT_URL=${preview_url}"
+            echo "E2E_ENV=pullpreview"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "### PullPreview endpoints"
+            echo ""
+            echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
+            echo "- OpenProject: ${preview_url}"
+            echo "- Nextcloud: https://nextcloud.${preview_host}"
+            echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Use Node.js
+        if: steps.pullpreview_up.outputs.live == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: e2e/.node-version
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install dependencies
+        if: steps.pullpreview_up.outputs.live == 'true'
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: steps.pullpreview_up.outputs.live == 'true'
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        id: tests
+        if: steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        working-directory: e2e
+        env:
+          SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
+          TAG_GREP: ${{ steps.resolve.outputs.grep }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CMD="npx playwright test"
+          if [ -n "${TAG_GREP:-}" ]; then
+            CMD="${CMD} --grep \"${TAG_GREP}\""
+          fi
+          echo "Running: ${CMD}"
+          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST}"
+          eval "${CMD}"
+
+      - name: Trigger PullPreview teardown
+        if: always() && (steps.tests.outcome == 'success' || github.event.inputs.keep_environment_on_failure != 'true' || steps.pullpreview_up.outputs.live != 'true')
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
+        with:
+          provider: hetzner
+          label: ${{ steps.resolve.outputs.preview_name }}
+          force_action: down
+          deployment_target: helm
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+
+      - name: Keep environment notice
+        if: always() && steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure == 'true' && steps.pullpreview_up.outputs.live == 'true'
+        shell: bash
+        run: |
+          {
+            echo "### PullPreview environment kept for debugging"
+            echo ""
+            echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
+            echo "- OpenProject: ${OPENPROJECT_URL:-}"
+            echo "- Nextcloud: https://${NEXTCLOUD_HOST:-}"
+            echo "- Keycloak: https://${KEYCLOAK_HOST:-}/realms/opnc"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Playwright report
+        if: always() && steps.pullpreview_up.outputs.live == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+
+      - name: Final status
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.pullpreview_up.outputs.live }}" != "true" ]; then
+            echo "::error::PullPreview did not become live; tests were not run."
+            exit 1
+          fi
+          case "${{ steps.tests.outcome }}" in
+            success) exit 0 ;;
+            failure)
+              echo "::error::Playwright tests failed."
+              exit 1
+              ;;
+            skipped)
+              echo "::error::Playwright tests did not run (earlier step failed or was skipped)."
+              exit 1
+              ;;
+            *)
+              echo "::error::Unexpected Playwright step outcome: ${{ steps.tests.outcome }}"
+              exit 1
+              ;;
+          esac
+

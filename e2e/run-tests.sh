@@ -35,8 +35,15 @@ done
 mkdir -p test-results playwright-report
 
 EXTRA_MOUNTS=()
+ca_cert_path=""
 if [ -f opnc-root-ca.crt ]; then
-  EXTRA_MOUNTS+=(--volume "$(pwd)/opnc-root-ca.crt:/app/opnc-root-ca.crt:ro")
+  ca_cert_path="$(pwd)/opnc-root-ca.crt"
+elif [ -f ../opnc-root-ca.crt ]; then
+  ca_cert_path="$(cd .. && pwd)/opnc-root-ca.crt"
+fi
+
+if [ -n "${ca_cert_path}" ]; then
+  EXTRA_MOUNTS+=(--volume "${ca_cert_path}:/app/opnc-root-ca.crt:ro")
   export NODE_EXTRA_CA_CERTS=/app/opnc-root-ca.crt
 fi
 

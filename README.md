@@ -265,3 +265,11 @@ Check all available make targets/commands.
 ```bash
 make help
 ```
+
+## End-to-end tests (Playwright)
+
+E2E tests live under [`e2e/`](e2e/) (subtree-merged from `opf/openproject-e2e`).
+
+- Quick start: see [`TEST_AUTOMATION.md`](TEST_AUTOMATION.md)
+- More details: see [`e2e/README.md`](e2e/README.md)
+- CI: run the manual GitHub Actions workflow `.github/workflows/e2e.yml`

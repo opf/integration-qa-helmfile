@@ -1,14 +1,14 @@
 ---
 name: playwright-cli
-description: Interactive browser automation via playwright-cli (snapshots, tracing, exploration). For the OpenProject E2E repo, committed Playwright tests follow .cursor/skills/tests/SKILL.md; use this skill for CLI sessions and mapping selectors into locators, not for pasting raw page.* calls into specs.
+description: Interactive browser automation via playwright-cli (snapshots, tracing, exploration). For this repository, committed Playwright tests follow .cursor/skills/tests/SKILL.md; use this skill for CLI sessions and mapping selectors into locators, not for pasting raw page.* calls into specs.
 allowed-tools: Bash(playwright-cli:*)
 ---
 
 # Browser Automation with playwright-cli
 
-## This repository (openproject-e2e)
+## This repository (integration-qa-helmfile / e2e)
 
-When this workspace is the OpenProject E2E integration test repo, `playwright-cli` is for **interactive exploration**: navigating apps, snapshots, optional tracing/video, and discovering resilient selector strategies. **Committed code** (specs, page objects, locators) must follow [`.cursor/skills/tests/SKILL.md`](../../../.cursor/skills/tests/SKILL.md): JSON locators in `locators/`, page objects with `getLocator`, no inline selectors in `tests/`, and the logging/error conventions documented there. Generated TypeScript lines from the CLI are inputs for locator keys and page methods, not copy-paste test bodies.
+When working in this repository, `playwright-cli` is for **interactive exploration**: navigating apps, snapshots, optional tracing/video, and discovering resilient selector strategies. The committed Playwright project lives under `e2e/`. **Committed code** (specs, page objects, locators) must follow [`.cursor/skills/tests/SKILL.md`](../../../.cursor/skills/tests/SKILL.md): JSON locators in `locators/`, page objects with `getLocator`, no inline selectors in `tests/`, and the logging/error conventions documented there. Generated TypeScript lines from the CLI are inputs for locator keys and page methods, not copy-paste test bodies.
 
 ## Quick start
 

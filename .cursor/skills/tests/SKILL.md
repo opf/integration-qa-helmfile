@@ -7,6 +7,8 @@ description: E2E test conventions for OpenProject integration tests. Use when wr
 
 ## Architecture Overview
 
+The Playwright project lives under `e2e/` in this repository. Paths below are **relative to `e2e/`**.
+
 - `tests/`: Playwright spec files (integration flows across OpenProject, Nextcloud, Keycloak).
 - `pageobjects/`: Page Object Model classes wrapping UI interactions.
 - `locators/`: JSON locator definitions for each product (`openproject.json`, `nextcloud.json`, `keycloak.json`).

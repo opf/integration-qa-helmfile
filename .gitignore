@@ -4,3 +4,17 @@ tmpcharts-*/
 helmfile-*/
 tmp/
 environments/override.yaml
+
+# E2E (Playwright)
+logs
+*.log
+npm-debug.log*
+node_modules/
+*.tsbuildinfo
+.env
+.env.*
+playwright-report/
+test-results/
+.playwright-browsers/
+docker-compose.override.yml
+.DS_Store

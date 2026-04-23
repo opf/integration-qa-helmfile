@@ -5,7 +5,7 @@ Playwright E2E tests for OpenProject, Nextcloud, and Keycloak integration.
 ## Requirements
 
 - Docker (for Docker-based runs), or Node.js (see `.node-version`) and npm for native runs
-- Integration cluster via [opf/integration-qa-helmfile](https://github.com/opf/integration-qa-helmfile)
+- Integration stack from this repository (see root `README.md`)
 
 ## Quick Start
 

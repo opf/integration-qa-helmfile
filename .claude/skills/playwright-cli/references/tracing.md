@@ -6,7 +6,7 @@ Capture detailed execution traces for debugging and analysis. Traces include DOM
 
 This page describes **`playwright-cli tracing-start` / `tracing-stop`**, which writes trace artifacts under the CLI’s working directory (e.g. `.playwright-cli/` and paths like `traces/` as documented below).
 
-When you run **`npx playwright test`** in the **openproject-e2e** repo, traces and reports are controlled by `playwright.config.ts`: HTML/JSON/JUnit under `playwright-report/run-*`, and Playwright output under `test-results/` (see `.cursor/skills/tests/SKILL.md`, Running Tests). Those are separate from CLI trace folders. Use the same **Trace Viewer** (`npx playwright show-trace`) for `.trace` files from either source when applicable.
+When you run **`npx playwright test`** in this repo’s **`e2e/`** project, traces and reports are controlled by `playwright.config.ts`: HTML/JSON/JUnit under `playwright-report/run-*`, and Playwright output under `test-results/` (see `.cursor/skills/tests/SKILL.md`, Running Tests). Those are separate from CLI trace folders. Use the same **Trace Viewer** (`npx playwright show-trace`) for `.trace` files from either source when applicable.
 
 ## Basic Usage
 
