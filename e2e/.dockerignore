@@ -1,0 +1,28 @@
+# Dependencies and build artifacts (installed in container)
+node_modules/
+.playwright-browsers/
+
+# Git
+.git/
+.gitignore
+
+# Reports and results (bind-mounted at runtime)
+playwright-report/
+test-results/
+
+# Local env (passed via env_file or env at runtime)
+.env
+.env.*
+!.env.example
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Cursor
+.cursor/
+
+# Plan files (not needed in image)
+*.plan.md

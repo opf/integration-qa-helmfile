@@ -1,0 +1,61 @@
+services:
+  e2e:
+    build:
+      context: .
+      args:
+        PLAYWRIGHT_VERSION: ${PLAYWRIGHT_VERSION:-v1.58.2}
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      - E2E_ENV=${E2E_ENV:-local}
+      - CI=${CI:-}
+      - PLAYWRIGHT_HTML_OPEN=never
+      - E2E_WORKERS=${E2E_WORKERS:-}
+      - E2E_LOG_LEVEL=${E2E_LOG_LEVEL:-}
+      - SETUP_METHOD=${SETUP_METHOD:-}
+      - SETUP_JOB_CHECK=${SETUP_JOB_CHECK:-}
+      - SKIP_SETUP_JOB_CHECK=${SKIP_SETUP_JOB_CHECK:-}
+      - KUBERNETES_NAMESPACE=${KUBERNETES_NAMESPACE:-}
+      - OPENPROJECT_HOST=${OPENPROJECT_HOST:-}
+      - OPENPROJECT_URL=${OPENPROJECT_URL:-}
+      - NEXTCLOUD_HOST=${NEXTCLOUD_HOST:-}
+      - NEXTCLOUD_URL=${NEXTCLOUD_URL:-}
+      - KEYCLOAK_HOST=${KEYCLOAK_HOST:-}
+      - KEYCLOAK_URL=${KEYCLOAK_URL:-}
+      - OPENPROJECT_VERSION=${OPENPROJECT_VERSION:-}
+      - NEXTCLOUD_VERSION=${NEXTCLOUD_VERSION:-}
+      - NEXTCLOUD_API_VERSION=${NEXTCLOUD_API_VERSION:-}
+      - INTEGRATION_APP_VERSION=${INTEGRATION_APP_VERSION:-}
+      - NEXTCLOUD_TEAM_FOLDERS_VERSION=${NEXTCLOUD_TEAM_FOLDERS_VERSION:-}
+      - KEYCLOAK_VERSION=${KEYCLOAK_VERSION:-}
+      - E2E_OP_ADMIN_USER=${E2E_OP_ADMIN_USER:-}
+      - E2E_OP_ADMIN_PASS=${E2E_OP_ADMIN_PASS:-}
+      - E2E_NC_ADMIN_USER=${E2E_NC_ADMIN_USER:-}
+      - E2E_NC_ADMIN_PASS=${E2E_NC_ADMIN_PASS:-}
+      - E2E_KC_ADMIN_USER=${E2E_KC_ADMIN_USER:-}
+      - E2E_KC_ADMIN_PASS=${E2E_KC_ADMIN_PASS:-}
+      - E2E_ALICE_USER=${E2E_ALICE_USER:-}
+      - E2E_ALICE_PASS=${E2E_ALICE_PASS:-}
+      - E2E_BRIAN_USER=${E2E_BRIAN_USER:-}
+      - E2E_BRIAN_PASS=${E2E_BRIAN_PASS:-}
+      - E2E_KC_REALM=${E2E_KC_REALM:-}
+      - E2E_KC_NC_CLIENT_ID=${E2E_KC_NC_CLIENT_ID:-}
+      - E2E_KC_NC_CLIENT_SECRET=${E2E_KC_NC_CLIENT_SECRET:-}
+      - ALLOW_INSECURE_TLS=${ALLOW_INSECURE_TLS:-}
+      - NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-}
+      - OPENPROJECT_CA_CERT_PATH=${OPENPROJECT_CA_CERT_PATH:-}
+    extra_hosts:
+      # Resolve *.test to Docker host for local Helm
+      - "openproject.test:host-gateway"
+      - "nextcloud.test:host-gateway"
+      - "keycloak.test:host-gateway"
+    volumes:
+      - ./tests:/app/tests
+      - ./test-results:/app/test-results
+      - ./playwright-report:/app/playwright-report
+      - ./pageobjects:/app/pageobjects
+      - ./locators:/app/locators
+      - ./utils:/app/utils
+      - ./playwright.config.ts:/app/playwright.config.ts
+      - ./global-setup.ts:/app/global-setup.ts
