@@ -46,8 +46,7 @@ EXT_COMMON_CURL_OPTIONS=(
 )
 
 function check_ext_install_progress() {
-    local raw_extension_id="$1"
-    local extension_id="${raw_extension_id//:/%3A}"
+    local extension_id="$1"
     local extension_version="$2"
     local action="$3"
 
