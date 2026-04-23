@@ -1,0 +1,304 @@
+import { testConfig } from './config';
+import { ADMIN_USER } from './test-users';
+import { getDispatcher } from './tls-dispatcher';
+
+interface OpenProjectApiUser {
+  id: number;
+  login: string;
+  email?: string;
+  admin: boolean;
+}
+
+interface UsersCollection {
+  _type: string;
+  total: number;
+  count: number;
+  pageSize: number;
+  offset: number;
+  _embedded?: {
+    elements?: OpenProjectApiUser[];
+  };
+}
+
+export interface OpenProjectApiProject {
+  id: number;
+  identifier: string;
+  name: string;
+}
+
+interface ProjectsCollection {
+  _type: string;
+  total: number;
+  count: number;
+  pageSize: number;
+  offset: number;
+  _embedded?: {
+    elements?: OpenProjectApiProject[];
+  };
+}
+
+export interface OpenProjectApiStorage {
+  id: number;
+  name: string;
+  _links: {
+    self: { href: string };
+  };
+}
+
+interface StoragesCollection {
+  _type: string;
+  total: number;
+  count: number;
+  pageSize: number;
+  offset: number;
+  _embedded?: {
+    elements?: OpenProjectApiStorage[];
+  };
+}
+
+export interface OpenProjectApiProjectStorage {
+  id: number;
+  _links: {
+    project: { href: string };
+    storage: { href: string };
+  };
+}
+
+interface ProjectStoragesCollection {
+  _type: string;
+  total: number;
+  count: number;
+  pageSize: number;
+  offset: number;
+  _embedded?: {
+    elements?: OpenProjectApiProjectStorage[];
+  };
+}
+
+export interface AdminCredentials {
+  username: string;
+  password: string;
+}
+
+const API_BASE_URL = `https://${testConfig.openproject.host}/api/v3`;
+
+const DEFAULT_ADMIN_CREDENTIALS: AdminCredentials = {
+  username: ADMIN_USER.username,
+  password: ADMIN_USER.password,
+};
+
+function buildBasicAuthHeader({ username, password }: AdminCredentials): string {
+  const encoded = Buffer.from(`${username}:${password}`).toString('base64');
+  return `Basic ${encoded}`;
+}
+
+async function apiRequest<T>(
+  endpoint: string,
+  method: 'GET' | 'PATCH' | 'POST' | 'DELETE',
+  credentials: AdminCredentials,
+  body?: Record<string, unknown>
+): Promise<T> {
+  const headers: Record<string, string> = {
+    accept: 'application/hal+json',
+    authorization: buildBasicAuthHeader(credentials),
+  };
+
+  const dispatcher = getDispatcher();
+
+  let payload: string | undefined;
+  if (body) {
+    headers['content-type'] = 'application/json';
+    payload = JSON.stringify(body);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method,
+    headers,
+    body: payload,
+    dispatcher,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `OpenProject API request failed: ${method} ${endpoint} - ${response.status} ${response.statusText} - ${message}`
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+async function listUsers(credentials: AdminCredentials): Promise<OpenProjectApiUser[]> {
+  const data = await apiRequest<UsersCollection>(
+    '/users?offset=1&pageSize=200',
+    'GET',
+    credentials
+  );
+  return data._embedded?.elements ?? [];
+}
+
+function matchUser(user: OpenProjectApiUser, identifier: string): boolean {
+  const normalized = identifier.toLowerCase();
+  return (
+    user.login.toLowerCase() === normalized ||
+    (user.email?.toLowerCase() === normalized)
+  );
+}
+
+async function findUserByIdentifier(
+  identifier: string,
+  credentials: AdminCredentials
+): Promise<OpenProjectApiUser | undefined> {
+  const users = await listUsers(credentials);
+  return users.find((user) => matchUser(user, identifier));
+}
+
+async function updateUserAdminStatus(
+  userId: number,
+  isAdmin: boolean,
+  credentials: AdminCredentials
+): Promise<void> {
+  await apiRequest(
+    `/users/${userId}`,
+    'PATCH',
+    credentials,
+    { admin: isAdmin }
+  );
+}
+
+export interface EnsureAdminResult {
+  userId: number;
+  updated: boolean;
+}
+
+export async function ensureUserIsAdmin(
+  identifier: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<EnsureAdminResult> {
+  const user = await findUserByIdentifier(identifier, credentials);
+
+  if (!user) {
+    throw new Error(`OpenProject user '${identifier}' not found via API`);
+  }
+
+  if (!user.admin) {
+    await updateUserAdminStatus(user.id, true, credentials);
+    return { userId: user.id, updated: true };
+  }
+
+  return { userId: user.id, updated: false };
+}
+
+export async function setUserAdmin(
+  userId: number,
+  isAdmin: boolean,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<void> {
+  await updateUserAdminStatus(userId, isAdmin, credentials);
+}
+
+export async function listProjects(
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiProject[]> {
+  const data = await apiRequest<ProjectsCollection>(
+    '/projects?offset=1&pageSize=200',
+    'GET',
+    credentials
+  );
+  return data._embedded?.elements ?? [];
+}
+
+export async function findProjectByIdentifierOrName(
+  identifierOrName: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiProject | undefined> {
+  const projects = await listProjects(credentials);
+  const normalized = identifierOrName.toLowerCase();
+
+  return projects.find((project) => {
+    return (
+      project.identifier.toLowerCase() === normalized ||
+      project.name.toLowerCase() === normalized
+    );
+  });
+}
+
+export async function waitForProjectCreated(
+  identifierOrName: string,
+  options: { timeoutMs?: number; pollIntervalMs?: number } = {},
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 1_000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const project = await findProjectByIdentifierOrName(identifierOrName, credentials);
+    if (project) return;
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(`Timed out waiting for project "${identifierOrName}" to be created`);
+}
+
+export async function listStorages(
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiStorage[]> {
+  const data = await apiRequest<StoragesCollection>(
+    '/storages?offset=1&pageSize=200',
+    'GET',
+    credentials
+  );
+  return data._embedded?.elements ?? [];
+}
+
+export async function listProjectStorages(
+  projectId: number,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiProjectStorage[]> {
+  const filters = encodeURIComponent(
+    JSON.stringify([
+      {
+        project_id: {
+          operator: '=',
+          values: [String(projectId)],
+        },
+      },
+    ])
+  );
+
+  const data = await apiRequest<ProjectStoragesCollection>(
+    `/project_storages?filters=${filters}`,
+    'GET',
+    credentials
+  );
+
+  return data._embedded?.elements ?? [];
+}
+
+/**
+ * Delete an OpenProject project by identifier or name.
+ * Returns true if the project was deleted, false if it didn't exist.
+ */
+export async function deleteProject(
+  identifierOrName: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<boolean> {
+  const project = await findProjectByIdentifierOrName(identifierOrName, credentials);
+  
+  if (!project) {
+    return false;
+  }
+
+  await apiRequest(
+    `/projects/${project.id}`,
+    'DELETE',
+    credentials
+  );
+
+  return true;
+}

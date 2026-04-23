@@ -1,0 +1,458 @@
+name: E2E Manual Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Test Suite"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - smoke
+          - regression
+          - integration
+          - custom
+      custom_grep:
+        description: "Custom --grep expression"
+        required: false
+      setupMethod:
+        description: "Setup method"
+        required: true
+        default: sso-external
+        type: choice
+        options:
+          - sso-external
+          - sso-nextcloud
+          - oauth2
+      keep_environment_on_failure:
+        description: "Keep PullPreview environment when tests fail"
+        required: true
+        default: false
+        type: boolean
+      integration_ref:
+        description: "Branch in helm-qa repo"
+        required: true
+        default: main
+        type: string
+      openproject_version:
+        description: "OpenProject image tag"
+        required: false
+        type: string
+      nextcloud_version:
+        description: "Nextcloud image tag"
+        required: false
+        type: string
+      integration_openproject_version:
+        description: "integration_openproject app version"
+        required: false
+        type: string
+      integration_openproject_branch:
+        description: "integration_openproject git branch (overrides version)"
+        required: false
+        type: string
+      openproject_branch:
+        description: "Optional OpenProject git branch"
+        required: false
+        type: string
+      nextcloud_branch:
+        description: "Optional Nextcloud git branch"
+        required: false
+        type: string
+      keycloak_version:
+        description: "Keycloak image tag"
+        required: false
+        type: string
+
+jobs:
+  pullpreview-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      CI: true
+      HEADLESS: true
+      SKIP_SETUP_JOB_CHECK: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      INTEGRATION_REPO: opf/integration-qa-helmfile
+      INTEGRATION_WORKFLOW: pullpreview-dispatch.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log refs and inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "E2E repo ref: ${GITHUB_REF_NAME:-} sha: ${GITHUB_SHA:-}"
+          echo "Integration repo: ${INTEGRATION_REPO}"
+          echo "Integration workflow: ${INTEGRATION_WORKFLOW}"
+          echo "Integration ref: ${{ github.event.inputs.integration_ref }}"
+          echo "Setup method: ${{ github.event.inputs.setupMethod }}"
+          echo "Requested versions: OP='${{ github.event.inputs.openproject_version }}' NC='${{ github.event.inputs.nextcloud_version }}' KC='${{ github.event.inputs.keycloak_version }}'"
+          echo "Requested integration app: version='${{ github.event.inputs.integration_openproject_version }}' branch='${{ github.event.inputs.integration_openproject_branch }}'"
+          echo "Requested branches: OP='${{ github.event.inputs.openproject_branch }}' NC='${{ github.event.inputs.nextcloud_branch }}'"
+          test -f ".github/workflows/e2e-pullpreview.yml"
+          echo "Workflow file present: .github/workflows/e2e-pullpreview.yml"
+
+      - name: Resolve grep and preview name
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          suite="${{ github.event.inputs.suite }}"
+          grep=""
+          case "$suite" in
+            all) grep='' ;;
+            smoke) grep='@smoke' ;;
+            regression) grep='@regression' ;;
+            integration) grep='@integration' ;;
+            custom) grep='${{ github.event.inputs.custom_grep }}' ;;
+            *)
+              echo "::error::Unknown suite: $suite"
+              exit 1
+              ;;
+          esac
+
+          if [ "$suite" = "custom" ] && [ -z "${grep}" ]; then
+            echo "::error::Resolved grep is empty. For suite=custom, set custom_grep."
+            exit 1
+          fi
+
+          preview_name='${{ github.event.inputs.preview_name }}'
+          if [ -z "${preview_name}" ]; then
+            preview_name="e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+          fi
+
+          {
+            echo "grep=${grep}"
+            echo "preview_name=${preview_name}"
+            echo "deploy_started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Suite: ${suite}"
+          echo "Grep: ${grep}"
+          echo "Preview name: ${preview_name}"
+
+      - name: Dispatch PullPreview deploy workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.INTEGRATION_REPO_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing secret INTEGRATION_REPO_PAT"
+            exit 1
+          fi
+
+          owner_repo="${INTEGRATION_REPO}"
+          workflow_file="${INTEGRATION_WORKFLOW}"
+          target_ref="${{ github.event.inputs.integration_ref }}"
+
+          payload="$(jq -n \
+            --arg ref "$target_ref" \
+            --arg action "up" \
+            --arg preview_name "${{ steps.resolve.outputs.preview_name }}" \
+            --arg setup_method "${{ github.event.inputs.setupMethod }}" \
+            --arg openproject_version "${{ github.event.inputs.openproject_version }}" \
+            --arg nextcloud_version "${{ github.event.inputs.nextcloud_version }}" \
+            --arg keycloak_version "${{ github.event.inputs.keycloak_version }}" \
+            --arg integration_openproject_version "${{ github.event.inputs.integration_openproject_version }}" \
+            --arg integration_openproject_branch "${{ github.event.inputs.integration_openproject_branch }}" \
+            --arg openproject_branch "${{ github.event.inputs.openproject_branch }}" \
+            --arg nextcloud_branch "${{ github.event.inputs.nextcloud_branch }}" \
+            '{
+              ref: $ref,
+              inputs: {
+                action: $action,
+                preview_name: $preview_name,
+                integrationSetupMethod: $setup_method,
+                openproject_version: $openproject_version,
+                nextcloud_version: $nextcloud_version,
+                keycloak_version: $keycloak_version,
+                integration_openproject_version: $integration_openproject_version,
+                integration_openproject_git_branch: $integration_openproject_branch,
+                openproject_branch: $openproject_branch,
+                nextcloud_branch: $nextcloud_branch
+              }
+            }'
+          )"
+
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${owner_repo}/actions/workflows/${workflow_file}/dispatches" \
+            -d "${payload}"
+
+          echo "Dispatched ${workflow_file} in ${owner_repo} on ref ${target_ref}"
+
+      - name: Wait for deploy run and fetch preview info
+        id: preview
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.INTEGRATION_REPO_PAT }}
+          OWNER_REPO: ${{ env.INTEGRATION_REPO }}
+          WORKFLOW_FILE: ${{ env.INTEGRATION_WORKFLOW }}
+          TARGET_REF: ${{ github.event.inputs.integration_ref }}
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          STARTED_AT: ${{ steps.resolve.outputs.deploy_started_at }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing secret INTEGRATION_REPO_PAT"
+            exit 1
+          fi
+
+          max_wait_seconds=3600
+          interval_seconds=15
+          elapsed=0
+          run_id=""
+          status=""
+          conclusion=""
+          workflow_name_prefix="PullPreview Dispatch"
+
+          while [ "$elapsed" -lt "$max_wait_seconds" ]; do
+            runs_json="$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${OWNER_REPO}/actions/workflows/${WORKFLOW_FILE}/runs?event=workflow_dispatch&branch=${TARGET_REF}&per_page=50")"
+
+            run_match="$(echo "${runs_json}" | jq -r \
+              --arg preview "${PREVIEW_NAME}" \
+              --arg started "${STARTED_AT}" \
+              --arg wfPrefix "${workflow_name_prefix}" \
+              '.workflow_runs
+                | map(select((.name // "") | startswith($wfPrefix)))
+                | map(select((.display_title // "") | contains($preview)))
+                | map(select(.created_at >= $started))
+                | sort_by(.created_at)
+                | last // empty
+                | @base64')"
+
+            if [ -n "${run_match}" ]; then
+              run_json="$(echo "${run_match}" | base64 --decode)"
+              run_id="$(echo "${run_json}" | jq -r '.id')"
+              head_sha="$(echo "${run_json}" | jq -r '.head_sha // empty')"
+              status="$(echo "${run_json}" | jq -r '.status')"
+              conclusion="$(echo "${run_json}" | jq -r '.conclusion // ""')"
+              if [ -n "${head_sha}" ]; then
+                echo "Deploy run ${run_id}: sha=${head_sha} status=${status}, conclusion=${conclusion}"
+              else
+                echo "Deploy run ${run_id}: status=${status}, conclusion=${conclusion}"
+              fi
+
+              if [ "${status}" = "completed" ]; then
+                break
+              fi
+            else
+              echo "No matching deploy run found yet for preview ${PREVIEW_NAME}"
+            fi
+
+            sleep "${interval_seconds}"
+            elapsed=$((elapsed + interval_seconds))
+          done
+
+          if [ -z "${run_id}" ]; then
+            echo "::error::Timed out waiting for integration workflow run to appear"
+            exit 1
+          fi
+
+          if [ "${status}" != "completed" ]; then
+            echo "::error::Timed out waiting for deploy run completion"
+            exit 1
+          fi
+
+          if [ "${conclusion}" != "success" ]; then
+            echo "::error::Deploy run failed with conclusion=${conclusion}"
+            echo "deploy_run_id=${run_id}" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          artifact_url=""
+          artifact_attempts=20
+          artifact_sleep_seconds=5
+          for attempt in $(seq 1 "${artifact_attempts}"); do
+            artifacts_json="$(curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${OWNER_REPO}/actions/runs/${run_id}/artifacts")"
+
+            artifact_url="$(echo "${artifacts_json}" | jq -r \
+              '.artifacts
+                | map(select(.name == "pullpreview-info"))
+                | first
+                | .archive_download_url // empty')"
+
+            if [ -n "${artifact_url}" ]; then
+              echo "Found pullpreview-info artifact (attempt ${attempt}/${artifact_attempts})"
+              break
+            fi
+
+            echo "Waiting for pullpreview-info artifact (attempt ${attempt}/${artifact_attempts})"
+            sleep "${artifact_sleep_seconds}"
+          done
+
+          if [ -z "${artifact_url}" ]; then
+            echo "::error::Artifact pullpreview-info not found for run ${run_id} after ${artifact_attempts} attempts"
+            exit 1
+          fi
+
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${artifact_url}" \
+            -o pullpreview-info.zip
+
+          rm -rf pullpreview-info
+          mkdir -p pullpreview-info
+          unzip -o pullpreview-info.zip -d pullpreview-info >/dev/null
+
+          info_file="pullpreview-info/preview-info.json"
+          if [ ! -f "${info_file}" ]; then
+            echo "::error::preview-info.json missing in artifact"
+            exit 1
+          fi
+
+          preview_host="$(jq -r '.preview_host // empty' "${info_file}")"
+          preview_url="$(jq -r '.preview_url // empty' "${info_file}")"
+          nextcloud_url="$(jq -r '.nextcloud_url // empty' "${info_file}")"
+          keycloak_url="$(jq -r '.keycloak_url // empty' "${info_file}")"
+          live="$(jq -r '.live // false' "${info_file}")"
+
+          if [ -z "${preview_host}" ] || [ "${live}" != "true" ]; then
+            echo "::error::Preview not live or host missing (live=${live}, host=${preview_host})"
+            exit 1
+          fi
+
+          # Normalize https default port to avoid https://host:443 form.
+          if [[ "${preview_url}" == *:443 ]]; then
+            preview_url="${preview_url%:443}"
+          fi
+
+          {
+            echo "OPENPROJECT_HOST=${preview_host}"
+            echo "NEXTCLOUD_HOST=nextcloud.${preview_host}"
+            echo "KEYCLOAK_HOST=keycloak.${preview_host}"
+            echo "OPENPROJECT_URL=${preview_url}"
+            echo "NEXTCLOUD_URL=${nextcloud_url}"
+            echo "E2E_ENV=pullpreview"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "preview_host=${preview_host}"
+            echo "preview_url=${preview_url}"
+            echo "nextcloud_url=${nextcloud_url}"
+            echo "keycloak_url=${keycloak_url}"
+            echo "deploy_run_id=${run_id}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Preview endpoints
+        if: always() && steps.preview.outcome == 'success'
+        shell: bash
+        run: |
+          {
+            echo "### PullPreview endpoints"
+            echo ""
+            echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
+            echo "- OpenProject: ${{ steps.preview.outputs.preview_url }}"
+            echo "- Nextcloud: ${{ steps.preview.outputs.nextcloud_url }}"
+            echo "- Keycloak: ${{ steps.preview.outputs.keycloak_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        id: tests
+        continue-on-error: true
+        env:
+          SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
+          TAG_GREP: ${{ steps.resolve.outputs.grep }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CMD="npx playwright test"
+          if [ -n "${TAG_GREP:-}" ]; then
+            CMD="${CMD} --grep \"${TAG_GREP}\""
+          fi
+          echo "Running: ${CMD}"
+          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST}"
+          eval "${CMD}"
+
+      - name: Trigger PullPreview teardown
+        if: always() && (steps.tests.outcome == 'success' || github.event.inputs.keep_environment_on_failure != 'true' || steps.preview.outcome != 'success')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.INTEGRATION_REPO_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::Missing INTEGRATION_REPO_PAT, skipping teardown dispatch."
+            exit 0
+          fi
+
+          owner_repo="${INTEGRATION_REPO}"
+          workflow_file="${INTEGRATION_WORKFLOW}"
+          target_ref="${{ github.event.inputs.integration_ref }}"
+
+          payload="$(jq -n \
+            --arg ref "$target_ref" \
+            --arg action "down" \
+            --arg preview_name "${{ steps.resolve.outputs.preview_name }}" \
+            '{
+              ref: $ref,
+              inputs: {
+                action: $action,
+                preview_name: $preview_name
+              }
+            }'
+          )"
+
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${owner_repo}/actions/workflows/${workflow_file}/dispatches" \
+            -d "${payload}"
+
+          echo "Teardown dispatched for preview ${{ steps.resolve.outputs.preview_name }}"
+
+      - name: Keep environment notice
+        if: always() && steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure == 'true'
+        shell: bash
+        run: |
+          {
+            echo "### PullPreview environment kept for debugging"
+            echo ""
+            echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
+            echo "- OpenProject: ${{ steps.preview.outputs.preview_url }}"
+            echo "- Nextcloud: ${{ steps.preview.outputs.nextcloud_url }}"
+            echo "- Keycloak: ${{ steps.preview.outputs.keycloak_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+
+      - name: Final status
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.tests.outcome }}" != "success" ]; then
+            echo "::error::Playwright tests failed."
+            exit 1
+          fi

@@ -1,0 +1,7 @@
+## CODEOWNERS
+# This file tells GitHub who owns which parts of the codebase.
+# Changes to files in this repository will automatically request a review
+# from the listed code owners.
+
+# Default owner for everything in the repo
+* @Ihor-Khomenko
