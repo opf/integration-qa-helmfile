@@ -61,6 +61,11 @@ Access the services via the following URLs:
 - Keycloak: [https://keycloak.test](https://keycloak.test)
 - XWiki: [https://xwiki.test](https://xwiki.test)
 
+> [!NOTE]
+> XWiki will take good amount of time to install the standard flavor.
+>
+> You can check the installation logs: `kubectl logs -n opnc-integration -f xwiki-0`
+
 To uninstall the deployment, run:
 
 ```bash

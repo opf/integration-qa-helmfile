@@ -46,7 +46,8 @@ EXT_COMMON_CURL_OPTIONS=(
 )
 
 function check_ext_install_progress() {
-    local extension_id="$1"
+    local raw_extension_id="$1"
+    local extension_id="${raw_extension_id//:/%3A}"
     local extension_version="$2"
     local action="$3"
 
@@ -68,7 +69,7 @@ function check_ext_install_progress() {
             local installed
             installed=$(echo "$check_response" | grep -oP 'extension-status[^>]*>Installed<' || echo "")
             if [ -n "$installed" ]; then
-                echo "[INFO] Extension successfully installed: $extension_id ($extension_version)"
+                echo "[INFO] Extension successfully installed: $raw_extension_id ($extension_version)"
                 break
             fi
         fi
@@ -88,10 +89,11 @@ function check_ext_install_progress() {
 function install_extension() {
     local install_status continue_status form_token
     local install_progress=0
-    local extension_id="$1"
+    local raw_extension_id="$1"
+    local extension_id="${raw_extension_id//:/%3A}"
     local extension_version="$2"
 
-    echo "[INFO] Installing extension: $extension_id ($extension_version)"
+    echo "[INFO] Installing extension: $raw_extension_id ($extension_version)"
 
     install_status=$(curl -sL -XPOST "$EXT_URL" \
         "${EXT_COMMON_CURL_OPTIONS[@]}" \
@@ -101,7 +103,7 @@ function install_extension() {
         -u "$SUPER_ADMIN_AUTH" -w "%{http_code}" -o /dev/null)
 
     if [ "$install_status" -ne 200 ]; then 
-        echo "[ERROR] Failed to install extension $extension_id:$extension_version. Code: $install_status"
+        echo "[ERROR] Failed to install extension. Code: $install_status"
         exit 1
     fi
 
@@ -214,7 +216,7 @@ install_flavor
 echo "############################################"
 echo "# Install OpenProject Extension            #"
 echo "############################################"
-install_extension "com.xwiki.projectmanagement%3Aproject-management-openproject-ui" "1.1.0"
+install_extension "com.xwiki.projectmanagement:project-management-openproject-ui" "1.1.0"
 
 # let xwiki run in foreground
 wait
