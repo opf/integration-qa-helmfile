@@ -101,6 +101,16 @@ openproject:
   version: '17'
 ```
 
+Once the `override.yaml` file is updated, redeploy the charts using the desired command:
+
+```bash
+make deploy
+# or
+make deploy-dev
+# or
+make deploy-op-standalone
+```
+
 ## PullPreview
 
 ### Phase 1 smoke deployment
