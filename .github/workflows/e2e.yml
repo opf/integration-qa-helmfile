@@ -1,4 +1,5 @@
 name: E2E Manual Run
+run-name: "E2E · ${{ github.event.inputs.suite }} · ${{ github.event.inputs.setupMethod }} · triggered by ${{ github.actor }}"
 
 on:
   workflow_dispatch:
@@ -6,7 +7,7 @@ on:
       suite:
         description: "Test suite"
         required: true
-        default: smoke
+        default: all
         type: choice
         options:
           - all
@@ -33,7 +34,7 @@ on:
         default: false
         type: boolean
       openproject_version:
-        description: "OpenProject image tag (empty = 17)"
+        description: "OpenProject image tag (empty = 17.0)"
         required: false
         type: string
       openproject_branch:
@@ -57,12 +58,13 @@ on:
         required: false
         type: string
       integration_openproject_branch:
-        description: "integration_openproject git branch (overrides version)"
+        description: "integration_openproject git branch override"
         required: false
         type: string
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   e2e:
@@ -76,6 +78,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Set run name with CET timestamp
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ts="$(TZ=Europe/Berlin date '+%d %b %Y %H:%M:%S')"
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --method PATCH \
+            -f "display_title=E2E · ${{ github.event.inputs.suite }} · ${{ github.event.inputs.setupMethod }} · ${ts} CET"
 
       - name: Resolve grep and preview name
         id: resolve
@@ -102,10 +115,7 @@ jobs:
             exit 1
           fi
 
-          preview_name='${{ github.event.inputs.preview_name }}'
-          if [ -z "${preview_name}" ]; then
-            preview_name="e2e-${{ github.run_id }}-${{ github.run_attempt }}"
-          fi
+          preview_name="e2e-${{ github.run_id }}-${{ github.run_attempt }}"
 
           {
             echo "grep=${grep}"
@@ -142,6 +152,33 @@ jobs:
           INTEGRATION_OPENPROJECT_VERSION: ${{ github.event.inputs.integration_openproject_version }}
           INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
 
+      - name: Mask preview server IP in logs
+        if: steps.pullpreview_up.outputs.live == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url="${{ steps.pullpreview_up.outputs.url }}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          mask_ipv4() {
+            local ip="$1"
+            [[ -n "${ip}" ]] || return 0
+            [[ "${ip}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 0
+            echo "::add-mask::${ip}"
+            echo "::add-mask::ssh root@${ip}"
+          }
+
+          pp_host_out="${{ steps.pullpreview_up.outputs.host }}"
+          if [[ -n "${pp_host_out}" ]]; then
+            mask_ipv4 "${pp_host_out}"
+          fi
+          if [[ "${preview_host}" =~ ip-([0-9]+)-([0-9]+)-([0-9]+)-([0-9]+) ]]; then
+            mask_ipv4 "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}.${BASH_REMATCH[4]}"
+          fi
+
       - name: Validate preview URLs
         if: steps.pullpreview_up.outputs.live == 'true'
         shell: bash
@@ -175,12 +212,20 @@ jobs:
               set -e
 
               if [[ "${curl_exit}" -eq 0 ]]; then
-                echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
+                if [[ "${attempt}" -eq 1 ]]; then
+                  echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
+                else
+                  echo "${name}: ${status} (attempt ${attempt}/${attempts})"
+                fi
                 if [[ "${status}" == "${expected_status}" ]]; then
                   return 0
                 fi
               else
-                echo "${name}: ${url} -> curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
+                if [[ "${attempt}" -eq 1 ]]; then
+                  echo "${name}: ${url} -> curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
+                else
+                  echo "${name}: curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
+                fi
               fi
 
               sleep "${sleep_seconds}"
@@ -291,7 +336,7 @@ jobs:
               -e 's/(Authorization:[[:space:]]*Bearer[[:space:]]+)[A-Za-z0-9._~+\/=-]+/\1***REDACTED***/Ig'
           }
 
-          echo "::group::SSH reachability check"
+          echo "::group::Remote reachability check"
           remote "echo ok && uname -a" | redact
           echo "::endgroup::"
 
@@ -362,6 +407,8 @@ jobs:
           {
             echo "### PullPreview endpoints"
             echo ""
+            echo "SSH connection details are not listed here by design; use your organization's access procedures if shell access is required."
+            echo ""
             echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
             echo "- OpenProject: ${preview_url}"
             echo "- Nextcloud: https://nextcloud.${preview_host}"
@@ -423,6 +470,8 @@ jobs:
         run: |
           {
             echo "### PullPreview environment kept for debugging"
+            echo ""
+            echo "SSH connection details are not listed here by design; use your organization's access procedures if shell access is required."
             echo ""
             echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
             echo "- OpenProject: ${OPENPROJECT_URL:-}"
