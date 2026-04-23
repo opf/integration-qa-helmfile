@@ -43,7 +43,7 @@
 
 4. Add these hosts to your `/etc/hosts` file:
    ```bash
-    sudo echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test" | sudo tee -a /etc/hosts
+   echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test xwiki.test" | sudo tee -a /etc/hosts
    ```
 
 NOTE: make sure at least one `setup-job-*` pod is completed successfully before proceeding.
@@ -59,6 +59,7 @@ Access the services via the following URLs:
 - OpenProject: [https://openproject.test](https://openproject.test)
 - Nextcloud: [https://nextcloud.test](https://nextcloud.test)
 - Keycloak: [https://keycloak.test](https://keycloak.test)
+- XWiki: [https://xwiki.test](https://xwiki.test)
 
 To uninstall the deployment, run:
 
