@@ -1,5 +1,5 @@
 name: E2E Manual Run
-run-name: "E2E · ${{ github.event.inputs.suite }} · ${{ github.event.inputs.setupMethod }} · triggered by ${{ github.actor }}"
+run-name: "e2e - ${{ github.event.inputs.suite }} - ${{ github.event.inputs.setupMethod }} - op ${{ github.event.inputs.openproject_version || '17.0' }} - nc ${{ github.event.inputs.nextcloud_version || '32' }} - integration app ${{ github.event.inputs.integration_openproject_version || (github.event.inputs.integration_openproject_branch && format('git:{0}', github.event.inputs.integration_openproject_branch)) || 'default' }}"
 
 on:
   workflow_dispatch:
@@ -64,7 +64,6 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   e2e:
@@ -79,16 +78,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set run name with CET timestamp
+      - name: Record run start time (Europe/Berlin)
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           ts="$(TZ=Europe/Berlin date '+%d %b %Y %H:%M:%S')"
-          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --method PATCH \
-            -f "display_title=E2E · ${{ github.event.inputs.suite }} · ${{ github.event.inputs.setupMethod }} · ${ts} CET"
+          {
+            echo "### E2E manual run"
+            echo ""
+            echo "**Started (Europe/Berlin):** ${ts}"
+            echo ""
+            echo "_Uses Europe/Berlin timezone (CET or CEST depending on date)._"
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice::E2E started (Europe/Berlin): ${ts}"
 
       - name: Resolve grep and preview name
         id: resolve
