@@ -4,6 +4,7 @@ openprojectHost: {{ .Values.openproject.host }}
 openprojectAssetHost: {{ .Values.openproject.assetHost }}
 nextcloudHost: {{ .Values.nextcloud.host }}
 keycloakHost: {{ .Values.keycloak.host }}
+xwikiHost: {{ .Values.xwiki.host }}
 
 nextcloud:
   enableApps:
@@ -48,3 +49,6 @@ persistence:
   storageClassName: {{ .Values.persistence.storageClassName | quote }}
   accessModes:
     - {{ .Values.persistence.accessMode | quote }}
+
+xwiki:
+  enabled: {{ .Values.xwiki.enabled }}

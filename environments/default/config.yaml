@@ -129,3 +129,8 @@ ingress:
 persistence:
   storageClassName: 'local-path'
   accessMode: 'ReadWriteOnce'
+
+xwiki:
+  enabled: true
+  host: xwiki.test
+  version: '17.10.6'

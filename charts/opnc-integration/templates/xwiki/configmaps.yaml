@@ -1,0 +1,10 @@
+{{ if .Values.xwiki.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: xwiki-entrypoint-configmap
+data:
+  entrypoint.sh: |
+{{ .Files.Get "scripts/xwiki/entrypoint.sh" | indent 4 }}
+{{ end }}
