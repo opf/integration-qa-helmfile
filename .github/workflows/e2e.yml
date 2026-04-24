@@ -4,6 +4,18 @@ run-name: "e2e - ${{ github.event.inputs.suite }} - ${{ github.event.inputs.setu
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: "PullPreview action"
+        required: true
+        default: up
+        type: choice
+        options:
+          - up
+          - down
+      preview_name:
+        description: "Required when action=down (label to destroy, e.g. e2e-<run_id>-<attempt>)"
+        required: false
+        type: string
       suite:
         description: "Test suite"
         required: true
@@ -98,6 +110,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          action="${{ github.event.inputs.action }}"
           suite="${{ github.event.inputs.suite }}"
           grep=""
           case "$suite" in
@@ -117,14 +130,45 @@ jobs:
             exit 1
           fi
 
-          preview_name="e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+          preview_name=""
+          if [[ "${action}" == "down" ]]; then
+            preview_name="${{ github.event.inputs.preview_name }}"
+            if [[ -z "${preview_name}" ]]; then
+              echo "::error::For action=down, you must provide preview_name."
+              exit 1
+            fi
+          else
+            preview_name="e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+          fi
 
           {
             echo "grep=${grep}"
             echo "preview_name=${preview_name}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Teardown PullPreview (action=down)
+        if: github.event.inputs.action == 'down'
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
+        with:
+          provider: hetzner
+          label: ${{ steps.resolve.outputs.preview_name }}
+          force_action: down
+          deployment_target: helm
+          region: fsn1
+          image: ubuntu-24.04
+          instance_type: cpx42
+          dns: my.preview.run
+          max_domain_length: "40"
+          chart: ./charts/pullpreview-stack
+          chart_values: pullpreview/stack-values.yaml.gotmpl
+          proxy_tls: traefik:80
+          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+
       - id: pullpreview_up
+        if: github.event.inputs.action == 'up'
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
@@ -455,7 +499,9 @@ jobs:
           eval "${CMD}"
 
       - name: Trigger PullPreview teardown
-        if: always() && (steps.tests.outcome == 'success' || github.event.inputs.keep_environment_on_failure != 'true' || steps.pullpreview_up.outputs.live != 'true')
+        # Keep environment only when tests did not succeed AND the checkbox is enabled.
+        # We still tear down when the preview never became live, to avoid leaking resources.
+        if: always() && (steps.pullpreview_up.outputs.live != 'true' || steps.tests.outcome == 'success' || (steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure != 'true'))
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
@@ -476,6 +522,11 @@ jobs:
             echo "SSH connection details are not listed here by design; use your organization's access procedures if shell access is required."
             echo ""
             echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
+            echo ""
+            echo "To tear down later (no SSH required):"
+            echo "- Run workflow: **PullPreview Teardown**"
+            echo "- Input: \`preview_name=${{ steps.resolve.outputs.preview_name }}\`"
+            echo ""
             echo "- OpenProject: ${OPENPROJECT_URL:-}"
             echo "- Nextcloud: https://${NEXTCLOUD_HOST:-}"
             echo "- Keycloak: https://${KEYCLOAK_HOST:-}/realms/opnc"
