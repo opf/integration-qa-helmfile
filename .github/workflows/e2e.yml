@@ -512,7 +512,28 @@ jobs:
             exit 0
           fi
 
-          node -e 'const fs=require("fs"); const p="test-results/e2e-env.json"; const d=JSON.parse(fs.readFileSync(p,"utf8")); const get=(k)=>d[k]??"not-detected"; const lines=[ "### Detected versions", "", `- OpenProject: \\\`${get("OPENPROJECT_VERSION")}\\\``, `- Nextcloud: \\\`${get("NEXTCLOUD_VERSION")}\\\``, `- Nextcloud API: \\\`${get("NEXTCLOUD_API_VERSION")}\\\``, `- Integration app (integration_openproject): \\\`${get("INTEGRATION_APP_VERSION")}\\\``, `- Team Folders: \\\`${get("NEXTCLOUD_TEAM_FOLDERS_VERSION")}\\\``, `- Keycloak: \\\`${get("KEYCLOAK_VERSION")}\\\``, "" ]; process.stdout.write(lines.join("\\n"));' >> "${GITHUB_STEP_SUMMARY}"
+          get() {
+            node -p "(() => { const d=require('./test-results/e2e-env.json'); return (d['$1'] ?? 'not-detected'); })()"
+          }
+
+          op="$(get OPENPROJECT_VERSION)"
+          nc="$(get NEXTCLOUD_VERSION)"
+          nc_api="$(get NEXTCLOUD_API_VERSION)"
+          integration_app="$(get INTEGRATION_APP_VERSION)"
+          team_folders="$(get NEXTCLOUD_TEAM_FOLDERS_VERSION)"
+          keycloak="$(get KEYCLOAK_VERSION)"
+
+          {
+            echo "### Detected versions"
+            echo ""
+            printf '%s\n' "- OpenProject: \`${op}\`"
+            printf '%s\n' "- Nextcloud: \`${nc}\`"
+            printf '%s\n' "- Nextcloud API: \`${nc_api}\`"
+            printf '%s\n' "- Integration app (integration_openproject): \`${integration_app}\`"
+            printf '%s\n' "- Team Folders: \`${team_folders}\`"
+            printf '%s\n' "- Keycloak: \`${keycloak}\`"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Trigger PullPreview teardown
         # Keep environment only when tests did not succeed AND the checkbox is enabled.
