@@ -186,6 +186,7 @@ jobs:
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 72h
         env:
+          GITHUB_STEP_SUMMARY: /dev/null
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
@@ -497,6 +498,21 @@ jobs:
           echo "Running: ${CMD}"
           echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST}"
           eval "${CMD}"
+
+      - name: Add detected versions to summary
+        if: always() && steps.pullpreview_up.outputs.live == 'true'
+        working-directory: e2e
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          json="test-results/e2e-env.json"
+          if [[ ! -f "${json}" ]]; then
+            echo "::warning::Version file not found at ${json}; skipping versions summary."
+            exit 0
+          fi
+
+          node -e 'const fs=require("fs"); const p="test-results/e2e-env.json"; const d=JSON.parse(fs.readFileSync(p,"utf8")); const get=(k)=>d[k]??"not-detected"; const lines=[ "### Detected versions", "", `- OpenProject: \\\`${get("OPENPROJECT_VERSION")}\\\``, `- Nextcloud: \\\`${get("NEXTCLOUD_VERSION")}\\\``, `- Nextcloud API: \\\`${get("NEXTCLOUD_API_VERSION")}\\\``, `- Integration app (integration_openproject): \\\`${get("INTEGRATION_APP_VERSION")}\\\``, `- Team Folders: \\\`${get("NEXTCLOUD_TEAM_FOLDERS_VERSION")}\\\``, `- Keycloak: \\\`${get("KEYCLOAK_VERSION")}\\\``, "" ]; process.stdout.write(lines.join("\\n"));' >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Trigger PullPreview teardown
         # Keep environment only when tests did not succeed AND the checkbox is enabled.
