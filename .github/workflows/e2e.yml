@@ -453,12 +453,10 @@ jobs:
           {
             echo "### PullPreview endpoints"
             echo ""
-            echo "SSH connection details are not listed here by design; use your organization's access procedures if shell access is required."
-            echo ""
             echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
             echo "- OpenProject: ${preview_url}"
             echo "- Nextcloud: https://nextcloud.${preview_host}"
-            echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
+            echo "- Keycloak: https://keycloak.${preview_host}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Use Node.js
@@ -555,17 +553,11 @@ jobs:
           {
             echo "### PullPreview environment kept for debugging"
             echo ""
-            echo "SSH connection details are not listed here by design; use your organization's access procedures if shell access is required."
-            echo ""
             echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
             echo ""
-            echo "To tear down later (no SSH required):"
+            echo "To tear down later:"
             echo "- Run workflow: **PullPreview Teardown**"
             echo "- Input: \`preview_name=${{ steps.resolve.outputs.preview_name }}\`"
-            echo ""
-            echo "- OpenProject: ${OPENPROJECT_URL:-}"
-            echo "- Nextcloud: https://${NEXTCLOUD_HOST:-}"
-            echo "- Keycloak: https://${KEYCLOAK_HOST:-}/realms/opnc"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright report
