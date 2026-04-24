@@ -19,6 +19,7 @@
 - [helm-diff](https://github.com/databus23/helm-diff?tab=readme-ov-file#using-helm-plugin-manager--23x) plugin
 - [helmfile](https://helmfile.readthedocs.io/en/latest/#installation)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
+- [kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/binaries)
 - [make](https://sp21.datastructur.es/materials/guides/make-install.html)
 
 ## Deploy Setup Locally (k3d)
