@@ -1,5 +1,5 @@
 name: E2E Manual Run
-run-name: "e2e - ${{ github.event.inputs.suite }} - ${{ github.event.inputs.setupMethod }} - op ${{ github.event.inputs.openproject_version || '17.0' }} - nc ${{ github.event.inputs.nextcloud_version || '32' }} - integration app ${{ github.event.inputs.integration_openproject_version || (github.event.inputs.integration_openproject_branch && format('git:{0}', github.event.inputs.integration_openproject_branch)) || 'default' }}"
+run-name: "e2e - ${{ github.event.inputs.suite }} - ${{ github.event.inputs.setupMethod }} - op ${{ github.event.inputs.openproject_version || '17.0' }} - nc ${{ github.event.inputs.nextcloud_version || '32' }}"
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ on:
           - up
           - down
       preview_name:
-        description: "Required when action=down (label to destroy, e.g. e2e-<run_id>-<attempt>)"
+        description: "When action=down (pull preview label)"
         required: false
         type: string
       suite:
@@ -28,7 +28,7 @@ on:
           - integration
           - custom
       custom_grep:
-        description: "Custom --grep expression (suite=custom)"
+        description: "Custom --grep expression"
         required: false
         type: string
       setupMethod:
@@ -100,7 +100,6 @@ jobs:
             echo ""
             echo "**Started (Europe/Berlin):** ${ts}"
             echo ""
-            echo "_Uses Europe/Berlin timezone (CET or CEST depending on date)._"
           } >> "${GITHUB_STEP_SUMMARY}"
           echo "::notice::E2E started (Europe/Berlin): ${ts}"
 
@@ -538,7 +537,7 @@ jobs:
       - name: Trigger PullPreview teardown
         # Keep environment only when tests did not succeed AND the checkbox is enabled.
         # We still tear down when the preview never became live, to avoid leaking resources.
-        if: always() && (steps.pullpreview_up.outputs.live != 'true' || steps.tests.outcome == 'success' || (steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure != 'true'))
+        if: always() && github.event.inputs.action == 'up' && (steps.pullpreview_up.outputs.live != 'true' || steps.tests.outcome == 'success' || (steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure != 'true'))
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
@@ -550,7 +549,7 @@ jobs:
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
 
       - name: Keep environment notice
-        if: always() && steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure == 'true' && steps.pullpreview_up.outputs.live == 'true'
+        if: always() && github.event.inputs.action == 'up' && steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure == 'true' && steps.pullpreview_up.outputs.live == 'true'
         shell: bash
         run: |
           {
@@ -570,14 +569,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright report
-        if: always() && steps.pullpreview_up.outputs.live == 'true'
+        if: always() && github.event.inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: e2e/playwright-report
 
       - name: Final status
-        if: always()
+        if: always() && github.event.inputs.action == 'up'
         shell: bash
         run: |
           if [ "${{ steps.pullpreview_up.outputs.live }}" != "true" ]; then
@@ -599,4 +598,11 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Final status (teardown)
+        if: always() && github.event.inputs.action == 'down'
+        shell: bash
+        run: |
+          echo "PullPreview teardown completed for label: ${{ steps.resolve.outputs.preview_name }}"
+          exit 0
 
