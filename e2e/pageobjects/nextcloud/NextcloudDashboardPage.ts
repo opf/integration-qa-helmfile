@@ -32,13 +32,22 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
 
   async closeWelcomeMessage(): Promise<void> {
     try {
-      const closeButton = this.getLocator('closeButton').first();
-      await closeButton.waitFor({ state: 'visible', timeout: 10000 });
-      await closeButton.click();
-      await closeButton.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {
-        logWarn('Close button did not hide after click, modal may have closed differently');
+      // Nextcloud first-run wizard modal (NC32/NC33) shows an animation and only then
+      // renders the Close button. We make this resilient to timing and to the modal
+      // being absent entirely.
+      const modal = this.page.locator('#modal-description-nc-vue-2, .modal-container').first();
+      const closeButton = modal.locator("button[aria-label='Close']").first();
+
+      const hasModal = await modal.isVisible({ timeout: 2000 }).catch(() => false);
+      if (!hasModal) return;
+
+      await closeButton.waitFor({ state: 'visible', timeout: 15000 });
+      await closeButton.click({ timeout: 5000 });
+
+      // Wait for the modal to disappear (preferred) and fall back to button state.
+      await modal.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {
+        logWarn('Welcome modal did not hide after click; continuing anyway');
       });
-      await this.page.waitForTimeout(300);
     } catch {
     }
   }

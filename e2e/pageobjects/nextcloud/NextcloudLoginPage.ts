@@ -31,7 +31,10 @@ export class NextcloudLoginPage extends NextcloudBasePage {
     await this.fillPassword(password);
     await this.clickLogin();
     await this.page.waitForURL(/.*\/apps\/dashboard.*/, { timeout: 10000 });
-    return new NextcloudDashboardPage(this.page);
+    const dashboard = new NextcloudDashboardPage(this.page);
+    await dashboard.waitForReady();
+    await dashboard.closeWelcomeMessage();
+    return dashboard;
   }
 }
 

@@ -1,12 +1,25 @@
 name: E2E Manual Run
+run-name: "e2e - ${{ github.event.inputs.suite }} - ${{ github.event.inputs.setupMethod }} - op ${{ github.event.inputs.openproject_version || '17.0' }} - nc ${{ github.event.inputs.nextcloud_version || '32' }}"
 
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: "PullPreview action"
+        required: true
+        default: up
+        type: choice
+        options:
+          - up
+          - down
+      preview_name:
+        description: "When action=down (pull preview label)"
+        required: false
+        type: string
       suite:
         description: "Test suite"
         required: true
-        default: smoke
+        default: all
         type: choice
         options:
           - all
@@ -15,7 +28,7 @@ on:
           - integration
           - custom
       custom_grep:
-        description: "Custom --grep expression (suite=custom)"
+        description: "Custom --grep expression"
         required: false
         type: string
       setupMethod:
@@ -33,7 +46,7 @@ on:
         default: false
         type: boolean
       openproject_version:
-        description: "OpenProject image tag (empty = 17)"
+        description: "OpenProject image tag (empty = 17.0)"
         required: false
         type: string
       openproject_branch:
@@ -57,7 +70,7 @@ on:
         required: false
         type: string
       integration_openproject_branch:
-        description: "integration_openproject git branch (overrides version)"
+        description: "integration_openproject git branch override"
         required: false
         type: string
 
@@ -77,42 +90,84 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Resolve grep and preview name
-        id: resolve
+      - name: Record run start time (Europe/Berlin)
         shell: bash
         run: |
           set -euo pipefail
+          ts="$(TZ=Europe/Berlin date '+%d %b %Y %H:%M:%S')"
+          {
+            echo "### E2E manual run"
+            echo ""
+            echo "**Started (Europe/Berlin):** ${ts}"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice::E2E started (Europe/Berlin): ${ts}"
 
-          suite="${{ github.event.inputs.suite }}"
+      - name: Resolve grep and preview name
+        id: resolve
+        shell: bash
+        env:
+          IN_ACTION: ${{ github.event.inputs.action }}
+          IN_SUITE: ${{ github.event.inputs.suite }}
+          IN_CUSTOM_GREP: ${{ github.event.inputs.custom_grep }}
+          IN_PREVIEW_NAME: ${{ github.event.inputs.preview_name }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
           grep=""
-          case "$suite" in
+          case "${IN_SUITE}" in
             all) grep='' ;;
             smoke) grep='@smoke' ;;
             regression) grep='@regression' ;;
             integration) grep='@integration' ;;
-            custom) grep='${{ github.event.inputs.custom_grep }}' ;;
+            custom) grep="${IN_CUSTOM_GREP}" ;;
             *)
-              echo "::error::Unknown suite: $suite"
+              echo "::error::Unknown suite: ${IN_SUITE}"
               exit 1
               ;;
           esac
 
-          if [ "$suite" = "custom" ] && [ -z "${grep}" ]; then
+          if [ "${IN_SUITE}" = "custom" ] && [ -z "${grep}" ]; then
             echo "::error::Resolved grep is empty. For suite=custom, set custom_grep."
             exit 1
           fi
 
-          preview_name='${{ github.event.inputs.preview_name }}'
-          if [ -z "${preview_name}" ]; then
-            preview_name="e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+          preview_name=""
+          if [[ "${IN_ACTION}" == "down" ]]; then
+            preview_name="${IN_PREVIEW_NAME}"
+            if [[ -z "${preview_name}" ]]; then
+              echo "::error::For action=down, you must provide preview_name."
+              exit 1
+            fi
+          else
+            preview_name="e2e-${RUN_ID}-${RUN_ATTEMPT}"
           fi
 
+          # Heredoc-delimited outputs guard against newlines/special chars in
+          # user-provided inputs (e.g. custom_grep or preview_name).
+          delim="EOF_$(openssl rand -hex 8)"
           {
-            echo "grep=${grep}"
-            echo "preview_name=${preview_name}"
+            printf 'grep<<%s\n%s\n%s\n' "${delim}" "${grep}" "${delim}"
+            printf 'preview_name<<%s\n%s\n%s\n' "${delim}" "${preview_name}" "${delim}"
           } >> "$GITHUB_OUTPUT"
 
-      - id: pullpreview_up
+      - name: Teardown PullPreview (action=down)
+        if: github.event.inputs.action == 'down'
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
+        with:
+          provider: hetzner
+          label: ${{ steps.resolve.outputs.preview_name }}
+          force_action: down
+          deployment_target: helm
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+
+      - name: PullPreview up
+        id: pullpreview_up
+        if: github.event.inputs.action == 'up'
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
@@ -145,9 +200,11 @@ jobs:
       - name: Validate preview URLs
         if: steps.pullpreview_up.outputs.live == 'true'
         shell: bash
+        env:
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
         run: |
           set -euo pipefail
-          preview_url="${{ steps.pullpreview_up.outputs.url }}"
+          preview_url="${PREVIEW_URL}"
           preview_host="${preview_url#https://}"
           preview_host="${preview_host#http://}"
           preview_host="${preview_host%%/*}"
@@ -175,12 +232,20 @@ jobs:
               set -e
 
               if [[ "${curl_exit}" -eq 0 ]]; then
-                echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
+                if [[ "${attempt}" -eq 1 ]]; then
+                  echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
+                else
+                  echo "${name}: ${status} (attempt ${attempt}/${attempts})"
+                fi
                 if [[ "${status}" == "${expected_status}" ]]; then
                   return 0
                 fi
               else
-                echo "${name}: ${url} -> curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
+                if [[ "${attempt}" -eq 1 ]]; then
+                  echo "${name}: ${url} -> curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
+                else
+                  echo "${name}: curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
+                fi
               fi
 
               sleep "${sleep_seconds}"
@@ -201,146 +266,15 @@ jobs:
           check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200" 60 10
           check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
 
-      - name: Collect Nextcloud pod diagnostics on failure
-        if: failure() && steps.pullpreview_up.outputs.live == 'true'
-        shell: bash
-        env:
-          PULLPREVIEW_SSH_KEYS_CACHE_DIR: /home/runner/work/_temp/pullpreview-ssh-keys
-          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
-        run: |
-          set +e
-          set +x
-
-          preview_url="${{ steps.pullpreview_up.outputs.url }}"
-          preview_host="${preview_url#https://}"
-          preview_host="${preview_host#http://}"
-          preview_host="${preview_host%%/*}"
-          preview_host="${preview_host%%:*}"
-          if [[ -z "${preview_host}" ]]; then
-            echo "::warning::preview_host is empty; skipping diagnostics."
-            exit 0
-          fi
-
-          work_dir="$(mktemp -d)"
-          cleanup() { [[ -n "${work_dir}" && -d "${work_dir}" ]] && rm -rf "${work_dir}" || true; }
-          trap cleanup EXIT
-
-          # 1) Try to reuse a private key the pullpreview CLI may have written.
-          key_file=""
-          if [[ -d "${PULLPREVIEW_SSH_KEYS_CACHE_DIR}" ]]; then
-            while IFS= read -r -d '' f; do
-              if head -n1 "$f" 2>/dev/null | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then
-                key_file="$f"
-                break
-              fi
-            done < <(find "${PULLPREVIEW_SSH_KEYS_CACHE_DIR}" -type f ! -name '*.pub' -print0 2>/dev/null)
-          fi
-
-          # 2) Otherwise, sign a short-lived diagnostic cert with the same Hetzner SSH CA
-          #    that the pullpreview_up step already uses. Principal is 'root', validity +10m,
-          #    key material lives only in a tmpfs-backed workdir that is wiped on EXIT.
-          ssh_identity=()
-          if [[ -n "${key_file}" ]]; then
-            echo "Using existing pullpreview private key: ${key_file##*/}"
-            chmod 600 "${key_file}" >/dev/null 2>&1 || true
-            ssh_identity=(-i "${key_file}")
-          elif [[ -n "${HETZNER_CA_KEY}" ]]; then
-            echo "No reusable pullpreview key; minting a +10m root cert via HETZNER_CA_KEY."
-            user_key="${work_dir}/diagkey"
-            ca_key="${work_dir}/ca"
-            umask 077
-            printf '%s\n' "${HETZNER_CA_KEY}" > "${ca_key}"
-            chmod 600 "${ca_key}"
-            if ! timeout 15 ssh-keygen -q -t ed25519 -N '' -C 'e2e-diagnostic' -f "${user_key}" >/dev/null 2>&1; then
-              echo "::warning::Could not generate diagnostic keypair; skipping."
-              exit 0
-            fi
-            if ! timeout 15 ssh-keygen -q -s "${ca_key}" \
-                 -I "e2e-diag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-                 -n root -V +10m "${user_key}.pub" >/dev/null 2>&1; then
-              echo "::warning::Failed to sign a diagnostic cert with HETZNER_CA_KEY; skipping."
-              exit 0
-            fi
-            rm -f "${ca_key}"
-            ssh_identity=(-i "${user_key}" -o "CertificateFile=${user_key}-cert.pub")
-          else
-            echo "::warning::No pullpreview key and no HETZNER_CA_KEY; skipping diagnostics."
-            exit 0
-          fi
-
-          # Throwaway known_hosts: we never persist host keys beyond this step.
-          SSH_OPTS=(
-            "${ssh_identity[@]}"
-            -o IdentitiesOnly=yes
-            -o BatchMode=yes
-            -o StrictHostKeyChecking=no
-            -o UserKnownHostsFile=/dev/null
-            -o ConnectTimeout=15
-            -o LogLevel=ERROR
-          )
-          KC='sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl'
-
-          remote() {
-            ssh "${SSH_OPTS[@]}" "root@${preview_host}" "$@" 2>&1
-          }
-
-          # Defence-in-depth redaction of any secret-shaped lines that might slip into logs.
-          redact() {
-            sed -E \
-              -e 's/((pass(word)?|secret|token|api[_-]?key|bearer)[^=:[:space:]]*[=:][[:space:]]*)[^[:space:]"'\''`]+/\1***REDACTED***/Ig' \
-              -e 's/(Authorization:[[:space:]]*Bearer[[:space:]]+)[A-Za-z0-9._~+\/=-]+/\1***REDACTED***/Ig'
-          }
-
-          echo "::group::SSH reachability check"
-          remote "echo ok && uname -a" | redact
-          echo "::endgroup::"
-
-          ns_list="$(remote "${KC} get pods -A -l app.kubernetes.io/name=nextcloud -o jsonpath='{range .items[*]}{.metadata.namespace}{\"\n\"}{end}'" | sort -u)"
-
-          if [[ -z "${ns_list// /}" || "${ns_list}" == *"error:"* ]]; then
-            echo "::warning::No Nextcloud pods found via label selector; dumping preview namespaces."
-            echo "::group::Preview namespaces (pp-*)"
-            remote "${KC} get ns -o name | grep '^namespace/pp-' || true" | redact
-            echo "::endgroup::"
-            echo "::group::All pods in pp-* namespaces"
-            remote "for ns in \$(${KC} get ns -o name | sed -n 's#^namespace/\\(pp-.*\\)#\\1#p'); do echo \"--- \$ns ---\"; ${KC} -n \"\$ns\" get pods -o wide; done" | redact
-            echo "::endgroup::"
-            exit 0
-          fi
-
-          # Narrow columns avoid leaking env vars that `describe pod` would otherwise expose.
-          NC_COLUMNS='NAME:.metadata.name,PHASE:.status.phase,READY:.status.containerStatuses[*].ready,RESTARTS:.status.containerStatuses[*].restartCount,INIT-WAIT:.status.initContainerStatuses[*].state.waiting.reason,INIT-LAST:.status.initContainerStatuses[*].lastState.terminated.reason,WAIT:.status.containerStatuses[*].state.waiting.reason,LAST-REASON:.status.containerStatuses[*].lastState.terminated.reason,LAST-EXIT:.status.containerStatuses[*].lastState.terminated.exitCode'
-
-          while IFS= read -r ns; do
-            [[ -z "${ns}" ]] && continue
-
-            echo "::group::[${ns}] pods"
-            remote "${KC} -n ${ns} get pods -o wide" | redact
-            echo "::endgroup::"
-
-            echo "::group::[${ns}] Nextcloud pod status"
-            remote "${KC} -n ${ns} get pods -l app.kubernetes.io/name=nextcloud -o custom-columns='${NC_COLUMNS}'" | redact
-            echo "::endgroup::"
-
-            echo "::group::[${ns}] recent events (last 50)"
-            remote "${KC} -n ${ns} get events --sort-by=.lastTimestamp | tail -n 50" | redact
-            echo "::endgroup::"
-
-            echo "::group::[${ns}] Nextcloud logs (current, tail 500, all containers)"
-            remote "${KC} -n ${ns} logs -l app.kubernetes.io/name=nextcloud --all-containers=true --prefix=true --tail=500" | redact
-            echo "::endgroup::"
-
-            echo "::group::[${ns}] Nextcloud logs (previous, tail 500, all containers)"
-            remote "${KC} -n ${ns} logs -l app.kubernetes.io/name=nextcloud --all-containers=true --prefix=true --tail=500 --previous" | redact
-            echo "::endgroup::"
-          done <<< "${ns_list}"
-
       - name: Export hosts for Playwright
         if: steps.pullpreview_up.outputs.live == 'true'
         shell: bash
+        env:
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
         run: |
           set -euo pipefail
-          preview_url="${{ steps.pullpreview_up.outputs.url }}"
+          preview_url="${PREVIEW_URL}"
           preview_host="${preview_url#https://}"
           preview_host="${preview_host#http://}"
           preview_host="${preview_host%%/*}"
@@ -362,10 +296,10 @@ jobs:
           {
             echo "### PullPreview endpoints"
             echo ""
-            echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
+            echo "- Preview name: \`${PREVIEW_NAME}\`"
             echo "- OpenProject: ${preview_url}"
             echo "- Nextcloud: https://nextcloud.${preview_host}"
-            echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
+            echo "- Keycloak: https://keycloak.${preview_host}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Use Node.js
@@ -387,6 +321,8 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
+        # continue-on-error is load-bearing: lets teardown + Final status
+        # run after a red test step, so we can still report and clean up.
         id: tests
         if: steps.pullpreview_up.outputs.live == 'true'
         continue-on-error: true
@@ -397,16 +333,54 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CMD="npx playwright test"
+          args=(npx playwright test)
           if [ -n "${TAG_GREP:-}" ]; then
-            CMD="${CMD} --grep \"${TAG_GREP}\""
+            args+=(--grep "${TAG_GREP}")
           fi
-          echo "Running: ${CMD}"
+          echo "Running: ${args[*]}"
           echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST}"
-          eval "${CMD}"
+          "${args[@]}"
+
+      - name: Add detected versions to summary
+        if: always() && steps.pullpreview_up.outputs.live == 'true'
+        working-directory: e2e
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          json="test-results/e2e-env.json"
+          if [[ ! -f "${json}" ]]; then
+            echo "::warning::Version file not found at ${json}; skipping versions summary."
+            exit 0
+          fi
+
+          get() {
+            jq -r --arg k "$1" '.[$k] // "not-detected"' "${json}"
+          }
+
+          op="$(get OPENPROJECT_VERSION)"
+          nc="$(get NEXTCLOUD_VERSION)"
+          nc_api="$(get NEXTCLOUD_API_VERSION)"
+          integration_app="$(get INTEGRATION_APP_VERSION)"
+          team_folders="$(get NEXTCLOUD_TEAM_FOLDERS_VERSION)"
+          keycloak="$(get KEYCLOAK_VERSION)"
+
+          {
+            echo "### Versions"
+            echo ""
+            printf '%s\n' "- OpenProject: \`${op}\`"
+            printf '%s\n' "- Nextcloud: \`${nc}\`"
+            printf '%s\n' "- Nextcloud API: \`${nc_api}\`"
+            printf '%s\n' "- Integration app (integration_openproject): \`${integration_app}\`"
+            printf '%s\n' "- Team Folders: \`${team_folders}\`"
+            printf '%s\n' "- Keycloak: \`${keycloak}\`"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Trigger PullPreview teardown
-        if: always() && (steps.tests.outcome == 'success' || github.event.inputs.keep_environment_on_failure != 'true' || steps.pullpreview_up.outputs.live != 'true')
+        # Keep environment only when tests did not succeed AND the checkbox is enabled.
+        # We still tear down when the preview never became live, to avoid leaking resources.
+        if: always() && github.event.inputs.action == 'up' && (steps.pullpreview_up.outputs.live != 'true' || steps.tests.outcome == 'success' || (steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure != 'true'))
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
         with:
           provider: hetzner
@@ -418,34 +392,42 @@ jobs:
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
 
       - name: Keep environment notice
-        if: always() && steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure == 'true' && steps.pullpreview_up.outputs.live == 'true'
+        if: always() && github.event.inputs.action == 'up' && steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure == 'true' && steps.pullpreview_up.outputs.live == 'true'
         shell: bash
+        env:
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
         run: |
           {
             echo "### PullPreview environment kept for debugging"
             echo ""
-            echo "- Preview name: \`${{ steps.resolve.outputs.preview_name }}\`"
-            echo "- OpenProject: ${OPENPROJECT_URL:-}"
-            echo "- Nextcloud: https://${NEXTCLOUD_HOST:-}"
-            echo "- Keycloak: https://${KEYCLOAK_HOST:-}/realms/opnc"
+            echo "- Preview name: \`${PREVIEW_NAME}\`"
+            echo ""
+            echo "To tear down later:"
+            echo "- Run workflow: **PullPreview Teardown**"
+            echo "- Input: \`preview_name=${PREVIEW_NAME}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright report
-        if: always() && steps.pullpreview_up.outputs.live == 'true'
+        if: always() && github.event.inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: e2e/playwright-report
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Final status
-        if: always()
+        if: always() && github.event.inputs.action == 'up'
         shell: bash
+        env:
+          PREVIEW_LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
         run: |
-          if [ "${{ steps.pullpreview_up.outputs.live }}" != "true" ]; then
+          if [ "${PREVIEW_LIVE}" != "true" ]; then
             echo "::error::PullPreview did not become live; tests were not run."
             exit 1
           fi
-          case "${{ steps.tests.outcome }}" in
+          case "${TESTS_OUTCOME}" in
             success) exit 0 ;;
             failure)
               echo "::error::Playwright tests failed."
@@ -456,8 +438,17 @@ jobs:
               exit 1
               ;;
             *)
-              echo "::error::Unexpected Playwright step outcome: ${{ steps.tests.outcome }}"
+              echo "::error::Unexpected Playwright step outcome: ${TESTS_OUTCOME}"
               exit 1
               ;;
           esac
+
+      - name: Final status (teardown)
+        if: always() && github.event.inputs.action == 'down'
+        shell: bash
+        env:
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+        run: |
+          echo "PullPreview teardown completed for label: ${PREVIEW_NAME}"
+          exit 0
 
