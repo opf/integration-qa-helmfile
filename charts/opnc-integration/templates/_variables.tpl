@@ -20,6 +20,10 @@ Host name of the servers used in the stack.
 {{ .Values.keycloakHost | default "keycloak.test" }}
 {{- end -}}
 
+{{- define "opnc.xwikiHost" -}}
+{{ .Values.xwikiHost | default "xwiki.test" }}
+{{- end -}}
+
 {{/*
 ---------------------------------------------
 Variables for cert-manager and TLS secrets.

@@ -1,0 +1,21 @@
+image:
+  tag: {{ .Values.xwiki.version | default "latest" | quote }}
+customConfigs:
+  xwiki.properties:
+    distribution.job.interactive: false
+    distribution.job.interactive.wiki: false
+customConfigsSecrets:
+  xwiki.cfg:
+    xwiki.superadminpassword:
+      value: admin
+mysql:
+  enabled: true
+extraVolumes:
+  - name: xwiki-entrypoint
+    configMap:
+      name: xwiki-entrypoint-configmap
+      defaultMode: 0755
+extraVolumeMounts:
+  - name: xwiki-entrypoint
+    mountPath: /entrypoint.sh
+    subPath: entrypoint.sh

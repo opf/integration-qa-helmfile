@@ -37,6 +37,8 @@ repositories:
     url: https://charts.bitnami.com/bitnami
   - name: cert-manager
     url: https://charts.jetstack.io
+  - name: xwiki-helm
+    url: https://xwiki-contrib.github.io/xwiki-helm
 
 namespace: opnc-integration
 
@@ -88,3 +90,13 @@ releases:
       - values/kc-values.gotmpl
     needs:
       - opnc-integration
+  - name: xwiki
+    chart: xwiki-helm/xwiki
+    version: ~1.6.7
+    installed: {{ .Values.xwiki.enabled }}
+    needs:
+      - opnc-integration
+    values:
+      - values/xwiki-values.gotmpl
+    strategicMergePatches:
+      - patches/xwiki/xwiki.yaml

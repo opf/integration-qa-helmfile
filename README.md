@@ -19,6 +19,7 @@
 - [helm-diff](https://github.com/databus23/helm-diff?tab=readme-ov-file#using-helm-plugin-manager--23x) plugin
 - [helmfile](https://helmfile.readthedocs.io/en/latest/#installation)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
+- [kustomize](https://kubectl.docs.kubernetes.io/installation/kustomize/binaries)
 - [make](https://sp21.datastructur.es/materials/guides/make-install.html)
 
 ## Deploy Setup Locally (k3d)
@@ -43,7 +44,7 @@
 
 4. Add these hosts to your `/etc/hosts` file:
    ```bash
-    sudo echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test" | sudo tee -a /etc/hosts
+   echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test xwiki.test" | sudo tee -a /etc/hosts
    ```
 
 NOTE: make sure at least one `setup-job-*` pod is completed successfully before proceeding.
@@ -59,6 +60,12 @@ Access the services via the following URLs:
 - OpenProject: [https://openproject.test](https://openproject.test)
 - Nextcloud: [https://nextcloud.test](https://nextcloud.test)
 - Keycloak: [https://keycloak.test](https://keycloak.test)
+- XWiki: [https://xwiki.test](https://xwiki.test)
+
+> [!NOTE]
+> XWiki will take good amount of time to install the standard flavor.
+>
+> You can check the installation logs: `kubectl logs -n opnc-integration -f xwiki-0`
 
 To uninstall the deployment, run:
 
@@ -93,6 +100,16 @@ nextcloud:
 
 openproject:
   version: '17'
+```
+
+Once the `override.yaml` file is updated, redeploy the charts using the desired command:
+
+```bash
+make deploy
+# or
+make deploy-dev
+# or
+make deploy-op-standalone
 ```
 
 ## PullPreview

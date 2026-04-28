@@ -8,6 +8,7 @@ openprojectHost: openproject.test
 openprojectAssetHost: openproject-assets.test
 nextcloudHost: nextcloud.test
 keycloakHost: keycloak.test
+xwikiHost: xwiki.test
 
 oidcProvider:
   name: keycloak
@@ -65,3 +66,6 @@ persistence:
   storageClassName: ''
   accessModes:
     - 'ReadWriteOnce'
+
+xwiki:
+  enabled: false

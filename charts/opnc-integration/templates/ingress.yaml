@@ -24,6 +24,9 @@ spec:
         {{ if .Values.openproject.localSourcePath }}
         - {{ include "opnc.openprojectAssetHost" . }}
         {{ end }}
+        {{ if .Values.xwiki.enabled }}
+        - {{ include "opnc.xwikiHost" . }}
+        {{ end }}
       secretName: {{ include "opnc.tlsSecretName" . }}
   {{- end }}
   rules:
@@ -71,3 +74,16 @@ spec:
                 name: keycloak
                 port:
                   number: 8080
+
+    {{ if .Values.xwiki.enabled }}
+    - host: {{ include "opnc.xwikiHost" . }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: xwiki
+                port:
+                  number: 80
+    {{ end }}
