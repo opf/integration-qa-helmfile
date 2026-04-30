@@ -8,8 +8,9 @@ customConfigsSecrets:
   xwiki.cfg:
     xwiki.superadminpassword:
       value: admin
-mysql:
-  enabled: true
+extraEnvVars:
+  - name: EXTENSION_OPENPROJECT_VERSION
+    value: {{ .Values.xwiki.extensions.openproject.version | default "1.1.0" | quote }}
 extraVolumes:
   - name: xwiki-entrypoint
     configMap:
@@ -19,3 +20,5 @@ extraVolumeMounts:
   - name: xwiki-entrypoint
     mountPath: /entrypoint.sh
     subPath: entrypoint.sh
+mysql:
+  enabled: true
