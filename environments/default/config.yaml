@@ -134,3 +134,6 @@ xwiki:
   enabled: true
   host: xwiki.test
   version: '17.10.6'
+  extensions:
+    openproject:
+      version: '1.1.0'

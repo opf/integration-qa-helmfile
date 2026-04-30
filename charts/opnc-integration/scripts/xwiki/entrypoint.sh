@@ -215,7 +215,7 @@ install_flavor
 echo "############################################"
 echo "# Install OpenProject Extension            #"
 echo "############################################"
-install_extension "com.xwiki.projectmanagement:project-management-openproject-ui" "1.1.0"
+install_extension "com.xwiki.projectmanagement:project-management-openproject-ui" "$EXTENSION_OPENPROJECT_VERSION"
 
 # let xwiki run in foreground
 wait
