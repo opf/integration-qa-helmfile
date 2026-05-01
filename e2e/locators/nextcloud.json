@@ -27,6 +27,28 @@
         }
       }
     },
+    "firstRunWizard": {
+      "by": "locator",
+      "value": "#firstrunwizard, .first-run-wizard[role='dialog']"
+    },
+    "firstRunWizardDialog": {
+      "by": "getByRole",
+      "value": {
+        "role": "dialog"
+      }
+    },
+    "firstRunWizardIntroVideo": {
+      "by": "locator",
+      "value": "video[poster*='nextcloudHub'], video:has(source[src*='nextcloudHub'])"
+    },
+    "firstRunWizardSkipButton": {
+      "by": "locator",
+      "value": "#firstrunwizard button:has-text('Skip'), .first-run-wizard[role='dialog'] button:has-text('Skip'), button[class*='introAnimation__skipButton']:has-text('Skip')"
+    },
+    "firstRunWizardCloseButton": {
+      "by": "locator",
+      "value": "#firstrunwizard button[aria-label='Close'], .first-run-wizard[role='dialog'] button[aria-label='Close'], [role='dialog'] button[aria-label='Close']"
+    },
     "profileIcon": {
       "by": "locator",
       "value": "button[aria-label='Settings menu']"
@@ -132,4 +154,3 @@
     }
   }
 }
-
