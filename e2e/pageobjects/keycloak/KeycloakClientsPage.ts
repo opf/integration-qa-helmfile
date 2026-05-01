@@ -49,8 +49,8 @@ export class KeycloakClientsPage extends KeycloakBasePage {
       const openprojectHref = await openprojectClient.getAttribute('href');
       logDebug('[CLIENTS VERIFICATION] Nextcloud href: %s', nextcloudHref);
       logDebug('[CLIENTS VERIFICATION] Openproject href: %s', openprojectHref);
-      const result = (nextcloudMatch || nextcloudHref?.includes('nextcloud')) &&
-                    (openprojectMatch || openprojectHref?.includes('openproject'));
+      const result = Boolean(nextcloudMatch || nextcloudHref?.includes('nextcloud')) &&
+                    Boolean(openprojectMatch || openprojectHref?.includes('openproject'));
       logDebug('[CLIENTS VERIFICATION] Final result: %s', result);
       return result;
     } catch (error: unknown) {
@@ -61,4 +61,3 @@ export class KeycloakClientsPage extends KeycloakBasePage {
     }
   }
 }
-

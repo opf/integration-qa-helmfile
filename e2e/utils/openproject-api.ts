@@ -64,6 +64,19 @@ export interface OpenProjectApiProjectStorage {
   };
 }
 
+export interface OpenProjectApiFileLink {
+  id: number;
+  originData?: {
+    name?: string;
+  };
+  _links: {
+    self: {
+      href: string;
+      title?: string;
+    };
+  };
+}
+
 interface ProjectStoragesCollection {
   _type: string;
   total: number;
@@ -72,6 +85,17 @@ interface ProjectStoragesCollection {
   offset: number;
   _embedded?: {
     elements?: OpenProjectApiProjectStorage[];
+  };
+}
+
+interface FileLinksCollection {
+  _type: string;
+  total: number;
+  count: number;
+  pageSize: number;
+  offset: number;
+  _embedded?: {
+    elements?: OpenProjectApiFileLink[];
   };
 }
 
@@ -115,7 +139,7 @@ async function apiRequest<T>(
     method,
     headers,
     body: payload,
-    dispatcher,
+    ...(dispatcher ? { dispatcher } : {}),
   });
 
   if (!response.ok) {
@@ -278,6 +302,46 @@ export async function listProjectStorages(
   );
 
   return data._embedded?.elements ?? [];
+}
+
+export async function listWorkPackageFileLinks(
+  workPackageId: number,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiFileLink[]> {
+  const data = await apiRequest<FileLinksCollection>(
+    `/work_packages/${workPackageId}/file_links`,
+    'GET',
+    credentials
+  );
+  return data._embedded?.elements ?? [];
+}
+
+export async function deleteFileLink(
+  fileLinkId: number,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<void> {
+  await apiRequest<void>(
+    `/file_links/${fileLinkId}`,
+    'DELETE',
+    credentials
+  );
+}
+
+export async function deleteWorkPackageFileLinksByName(
+  workPackageId: number,
+  fileName: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<number> {
+  const fileLinks = await listWorkPackageFileLinks(workPackageId, credentials);
+  const matchingLinks = fileLinks.filter((fileLink) => {
+    return fileLink.originData?.name === fileName || fileLink._links.self.title === fileName;
+  });
+
+  for (const fileLink of matchingLinks) {
+    await deleteFileLink(fileLink.id, credentials);
+  }
+
+  return matchingLinks.length;
 }
 
 /**

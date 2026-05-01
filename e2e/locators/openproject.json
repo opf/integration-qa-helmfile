@@ -180,6 +180,22 @@
       "by": "locator",
       "value": "a.op-file-list--item-action span.ellipsis"
     },
+    "workPackageLinkedFileItem": {
+      "by": "locator",
+      "value": "[data-test-selector='op-file-list--item'], .op-file-list--item, li:has(a.op-file-list--item-action), tr:has(a.op-file-list--item-action)"
+    },
+    "workPackageLinkedFileDownloadAction": {
+      "by": "locator",
+      "value": "a[title*='Download'], button[title*='Download'], a[aria-label*='Download'], button[aria-label*='Download'], a[href*='download'], a:has([title*='Download']), button:has([title*='Download'])"
+    },
+    "workPackageLinkedFileOpenLocationAction": {
+      "by": "locator",
+      "value": "a[title*='Open file location'], button[title*='Open file location'], a[aria-label*='Open file location'], button[aria-label*='Open file location'], a[title*='Open file in location'], button[title*='Open file in location'], a[aria-label*='Open file in location'], button[aria-label*='Open file in location'], a[title*='Open containing folder'], button[title*='Open containing folder'], a[aria-label*='Open containing folder'], button[aria-label*='Open containing folder'], a[title*='Show in folder'], button[title*='Show in folder'], a[aria-label*='Show in folder'], button[aria-label*='Show in folder']"
+    },
+    "workPackageLinkedFileRemoveLinkAction": {
+      "by": "locator",
+      "value": "a[title*='Remove link'], button[title*='Remove link'], a[aria-label*='Remove link'], button[aria-label*='Remove link'], a[title*='Remove file link'], button[title*='Remove file link'], a[aria-label*='Remove file link'], button[aria-label*='Remove file link'], a[title*='Unlink'], button[title*='Unlink'], a[aria-label*='Unlink'], button[aria-label*='Unlink'], a:has([title*='Remove link']), button:has([title*='Remove link']), a:has([title*='Remove file link']), button:has([title*='Remove file link'])"
+    },
     "loginToNextcloudRequiredHeading": {
       "by": "getByText",
       "value": "Login to Nextcloud required"
@@ -257,4 +273,3 @@
     }
   }
 }
-

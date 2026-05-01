@@ -7,7 +7,7 @@ description: E2E test conventions for OpenProject integration tests. Use when wr
 
 Canonical source: `.agents/shared/openproject-e2e.md`.
 
-When this skill triggers, read `.agents/shared/openproject-e2e.md` before writing or reviewing E2E tests. This adapter stays at `.cursor/skills/tests/SKILL.md` so Cursor can auto-discover it.
+When this skill triggers, read `.agents/shared/openproject-e2e.md` before writing or reviewing E2E tests. This adapter stays at `.agents/skills/tests/SKILL.md` so Codex can auto-discover it.
 
 Bootstrap rules:
 
