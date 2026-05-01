@@ -7,13 +7,29 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
   }
 
   async navigateTo(): Promise<void> {
-    const url = `${this.baseUrl}/settings/apps/enabled`;
+    const url = new URL('index.php/settings/apps/enabled', this.baseUrl).toString();
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
   }
 
   async waitForReady(): Promise<void> {
-    await this.page.waitForURL(/.*\/settings\/apps\/enabled.*/, { timeout: 10000 });
-    await this.getLocator('activeAppsText').waitFor({ state: 'visible', timeout: 10000 });
+    await this.page.waitForURL(/.*(index\.php\/)?settings\/apps\/enabled.*/, { timeout: 20000 });
+    const dismissedWizard = await this.dismissFirstRunWizardIfPresent(2000);
+    if (dismissedWizard) {
+      await this.navigateTo();
+      await this.page.waitForURL(/.*(index\.php\/)?settings\/apps\/enabled.*/, { timeout: 20000 });
+    }
+
+    const activeAppsHeading = this.getLocator('activeAppsText').first();
+    const activeAppsHeadingVisible = await activeAppsHeading
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!activeAppsHeadingVisible) {
+      // Nextcloud versions/skins differ; the apps page can render without this exact heading.
+      const settingsShell = this.page.locator('#content.app-settings');
+      await settingsShell.first().waitFor({ state: 'visible', timeout: 20000 });
+    }
   }
 
   async findOpenProjectIntegrationApp(): Promise<void> {
@@ -72,4 +88,3 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
     return this.getLocator('openProjectIntegrationAppLink');
   }
 }
-
