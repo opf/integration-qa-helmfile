@@ -12,32 +12,14 @@ alwaysApply: false
 
 # OpenProject E2E
 
-Full detail: `.cursor/skills/tests/SKILL.md`. Summaries below.
+Canonical source: `.agents/shared/openproject-e2e.md`.
 
-## Layout
+Cursor should apply this rule for the matching paths and read the canonical guide before changing tests, page objects, locators, utils, `playwright.config.ts`, or `global-setup.ts`.
 
-- `tests/` — specs; **no inline selectors** in spec files.
-- `pageobjects/` — extend `BasePage` or `OpenProjectBasePage` / `NextcloudBasePage` / `KeycloakBasePage`. Use `getLocator(key)`; selectors come from JSON only.
-- `locators/` — `openproject.json`, `nextcloud.json`, `keycloak.json`. Prefer `getByRole`, `getByLabel`, `getByText`; `getByTestId` when present; CSS/XPath `locator` last. See `utils/locators_guide.md`.
-- `utils/` — config, env hosts, APIs, logging, errors. Use `resolveEnvName` / `resolveHosts` from `utils/env-hosts.ts` and `testConfig` from `utils/config.ts`; do not duplicate env logic.
+Minimum rules:
 
-## New tests
-
-Reuse or extend an existing page object before adding a new one. Export via domain `index.ts` barrels where used.
-
-## UI vs `test-helpers`
-
-Put navigations, clicks, and form flows in **page objects**. `utils/test-helpers.ts` is for API helpers and orchestration (API + optional page object), not standalone UI flows.
-
-## Logging and errors
-
-- `logDebug` / `logInfo` / `logWarn` / `logError` from `utils/logger.ts` — not `console.*`.
-- `catch (error: unknown)` and `getErrorMessage(error)` from `utils/error-utils.ts`. No `catch (error: any)`.
-
-## TypeScript
-
-`strict` is on. Prefer explicit types for APIs and config; avoid `Record<string, any>` in new code.
-
-## Running tests
-
-Headless by default; workers often `1` unless `E2E_WORKERS` / CLI. Native: `npx playwright test`. Docker: `./run-tests.sh`. Document new env vars in `README.md`.
+- `tests/` specs use page objects and locator keys; no inline selectors.
+- `locators/` stores JSON locator definitions; prefer semantic locators and `getByTestId` before CSS/XPath.
+- UI flows belong in page objects; API helpers and orchestration belong in `utils/`.
+- Use shared env/config helpers, central logging, typed catches, and strict TypeScript patterns from the canonical guide.
+- For OpenProject/Nextcloud file tests, clean OpenProject file links separately from Nextcloud WebDAV files.

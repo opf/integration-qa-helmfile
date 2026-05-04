@@ -1,4 +1,4 @@
-import type { Page, Response } from '@playwright/test';
+import type { Locator, Page, Response } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
 import { logDebug, logWarn } from '../../utils/logger';
 import { waitForProjectCreated } from '../../utils/openproject-api';
@@ -235,6 +235,43 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     await this.copyDemoProjectTo(newIdentifier);
   }
 
+  getLinkedWorkPackageFileItem(fileName: string): Locator {
+    return this.getLocator('workPackageLinkedFileItem').filter({ hasText: fileName }).first();
+  }
+
+  async hoverLinkedWorkPackageFile(fileName: string): Promise<Locator> {
+    const fileItem = this.getLinkedWorkPackageFileItem(fileName);
+    await fileItem.waitFor({ state: 'visible', timeout: 15000 });
+    await fileItem.hover();
+    return fileItem;
+  }
+
+  getLinkedWorkPackageFileDownloadAction(fileName: string): Locator {
+    return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileDownloadAction');
+  }
+
+  getLinkedWorkPackageFileOpenLocationAction(fileName: string): Locator {
+    return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileOpenLocationAction');
+  }
+
+  getLinkedWorkPackageFileRemoveLinkAction(fileName: string): Locator {
+    return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileRemoveLinkAction');
+  }
+
+  private getLinkedWorkPackageFileAction(fileName: string, locatorKey: string): Locator {
+    const actionSelector = this.getCssLocatorValue(locatorKey);
+    return this.getLinkedWorkPackageFileItem(fileName).locator(actionSelector).first();
+  }
+
+  private getCssLocatorValue(locatorKey: string): string {
+    const descriptor = this.locators.selectors[locatorKey];
+    if (!descriptor || descriptor.by !== 'locator') {
+      throw new Error(`Locator '${locatorKey}' must be a CSS locator`);
+    }
+
+    return descriptor.value;
+  }
+
   async copyDemoProjectTo(name: string): Promise<void> {
     const demoProjectKebabButton = this.getLocator('demoProjectKebabButton').first();
     await demoProjectKebabButton.waitFor({ state: 'visible', timeout: 15000 });
@@ -271,4 +308,3 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     }
   }
 }
-

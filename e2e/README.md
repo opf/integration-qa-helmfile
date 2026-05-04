@@ -21,11 +21,15 @@ npm run playwright:install
 E2E_ENV=local npx playwright test
 ```
 
-For more run options (envs, tags, report), see `.cursor/skills/tests/SKILL.md`.
+## Docs
 
-## `.claude`
+**E2E conventions and runs:** `.agents/shared/openproject-e2e.md` (thin adapters: Cursor `.cursor/skills/tests/SKILL.md`, `.cursor/rules/openproject-e2e.mdc`; Codex `.agents/skills/tests/SKILL.md`; Claude `.claude/skills/tests/SKILL.md`).
 
-Optional documentation for the **`playwright-cli`** tool (interactive browser control, snapshots, tracing, session helpers). Entry point: `.claude/skills/playwright-cli/SKILL.md`; deeper topics live under `.claude/skills/playwright-cli/references/`. This is separate from `npx playwright test`: committed specs and page objects follow `.cursor/skills/tests/SKILL.md`.
+**`playwright-cli`** (interactive only; not `npx playwright test`): `.claude/skills/playwright-cli/SKILL.md` or `.agents/skills/playwright-cli/SKILL.md` · `.claude/skills/playwright-cli/references/`.
+
+## CI
+
+Manual workflow: `.github/workflows/e2e.yml` (deploy PullPreview, run Playwright, optional keep-on-failure).
 
 ## Environment Variables
 

@@ -9,6 +9,7 @@
 - [Serve Standalone OpenProject (Local Branch)](#serve-standalone-openproject-local-branch)
 - [Trust Self-Signed Certificates](#trust-self-signed-certificates)
 - [Running RSpec Tests](#running-rspec-tests)
+- [End-to-end tests (Playwright)](#end-to-end-tests-playwright)
 - [Available Make Commands](#available-make-commands)
 
 ## Dependencies
@@ -285,8 +286,4 @@ make help
 
 ## End-to-end tests (Playwright)
 
-E2E tests live under [`e2e/`](e2e/) (subtree-merged from `opf/openproject-e2e`).
-
-- Quick start: see [`TEST_AUTOMATION.md`](TEST_AUTOMATION.md)
-- More details: see [`e2e/README.md`](e2e/README.md)
-- CI: run the manual GitHub Actions workflow `.github/workflows/e2e.yml`
+E2E tests live under [`e2e/`](e2e/) (subtree-merged from `opf/openproject-e2e`). Deploy the stack locally first ([Deploy Setup Locally (k3d)](#deploy-setup-locally-k3d)), then follow **[`e2e/README.md`](e2e/README.md)** for running tests, env vars, and links to convention docs.

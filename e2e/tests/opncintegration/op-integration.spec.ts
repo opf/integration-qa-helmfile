@@ -4,6 +4,7 @@ import {
   openProjectUrl,
   integrationTags,
 } from '../base-test';
+import type { Page } from '@playwright/test';
 import { OpenProjectLoginPage, OpenProjectHomePage } from '../../pageobjects/openproject';
 import { ALICE_USER } from '../../utils/test-users';
 import {
@@ -12,11 +13,53 @@ import {
   ensureProjectHasNextcloudStorage,
   ensureUserIsAdmin,
 } from '../../utils/test-helpers';
-import { setUserAdmin } from '../../utils/openproject-api';
+import {
+  deleteWorkPackageFileLinksByName,
+  setUserAdmin,
+} from '../../utils/openproject-api';
+import type { EnsureAdminResult } from '../../utils/openproject-api';
 import { testConfig } from '../../utils/config';
 import { logInfo, logWarn } from '../../utils/logger';
 
+async function ensureAliceAdmin(): Promise<EnsureAdminResult> {
+  const identifiers = [
+    ALICE_USER.username,
+    ALICE_USER.email,
+    `${ALICE_USER.username}@example.com`,
+  ].filter((identifier, index, all): identifier is string => {
+    return Boolean(identifier) && all.indexOf(identifier) === index;
+  });
+
+  let lastError: unknown;
+  for (const identifier of identifiers) {
+    try {
+      return await ensureUserIsAdmin(identifier);
+    } catch (error: unknown) {
+      lastError = error;
+      if (!(error instanceof Error) || !error.message.includes('not found via API')) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('OpenProject user for Alice not found via API');
+}
+
+async function ensureAliceAdminForCurrentSession(
+  page: Page,
+  homePage: OpenProjectHomePage
+): Promise<void> {
+  const { updated } = await ensureAliceAdmin();
+  if (!updated) return;
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await homePage.waitForReady();
+}
+
 test.describe('SSO External - OpenProject Integration', integrationTags, () => {
+  test.describe.configure({ mode: 'serial' });
   //OpenProject integration tests
   
   test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
@@ -40,9 +83,6 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   });
   
   test('Add Nextcloud file storage to Demo project', async ({ page }) => {
-    const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
-    await ensureUserIsAdmin(loginIdentifier);
-
     const loginPage = new OpenProjectLoginPage(page);
     await loginPage.navigateTo();
     const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
@@ -50,6 +90,8 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
     const homePage = new OpenProjectHomePage(page);
     await homePage.waitForReady();
+
+    await ensureAliceAdminForCurrentSession(page, homePage);
 
     await ensureProjectHasNextcloudStorage('demo-project', page);
 
@@ -63,8 +105,6 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   });
 
   test('Upload a file from OP to NC using ampf', async ({ page }) => {
-    const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
-    await ensureUserIsAdmin(loginIdentifier);
     const uploadedFileName = 'op-to-nc-upload-test.md';
 
     const loginPage = new OpenProjectLoginPage(page);
@@ -74,6 +114,11 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
     const homePage = new OpenProjectHomePage(page);
     await homePage.waitForReady();
+
+    await ensureAliceAdminForCurrentSession(page, homePage);
+
+    await ensureProjectHasNextcloudStorage('demo-project', page);
+    await deleteWorkPackageFileLinksByName(2, uploadedFileName);
 
     await homePage.navigateToDemoProjectWorkPackageFiles(2);
     await homePage.waitForDemoProjectWorkPackageFilesUrl();
@@ -103,10 +148,8 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     await expect(uploadSuccessMessage).toContainText('Successfully created 1 file link.');
   });
 
-  test('Copy ampf Demo project', async ({ page }) => {
-    test.setTimeout(120_000);
-    const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
-    await ensureUserIsAdmin(loginIdentifier);
+  test('OpenProject Files tab lists linked Nextcloud items and available actions', async ({ page }) => {
+    const uploadedFileName = 'op-to-nc-upload-test.md';
 
     const loginPage = new OpenProjectLoginPage(page);
     await loginPage.navigateTo();
@@ -114,6 +157,43 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
     const homePage = new OpenProjectHomePage(page);
+    await homePage.waitForReady();
+
+    await ensureAliceAdminForCurrentSession(page, homePage);
+
+    await ensureProjectHasNextcloudStorage('demo-project', page);
+
+    await homePage.navigateToDemoProjectWorkPackageFiles(2);
+    await homePage.waitForDemoProjectWorkPackageFilesUrl();
+
+    const linkedFileItem = await homePage.hoverLinkedWorkPackageFile(uploadedFileName);
+    await expect(linkedFileItem).toContainText(uploadedFileName);
+
+    const downloadAction = homePage.getLinkedWorkPackageFileDownloadAction(uploadedFileName);
+    await expect(downloadAction).toBeVisible();
+    await expect(downloadAction).toBeEnabled();
+
+    const openLocationAction = homePage.getLinkedWorkPackageFileOpenLocationAction(uploadedFileName);
+    await expect(openLocationAction).toBeVisible();
+    await expect(openLocationAction).toBeEnabled();
+
+    const removeLinkAction = homePage.getLinkedWorkPackageFileRemoveLinkAction(uploadedFileName);
+    await expect(removeLinkAction).toBeVisible();
+    await expect(removeLinkAction).toBeEnabled();
+  });
+
+  test('Copy ampf Demo project', async ({ page }) => {
+    test.setTimeout(120_000);
+
+    const loginPage = new OpenProjectLoginPage(page);
+    await loginPage.navigateTo();
+    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+
+    const homePage = new OpenProjectHomePage(page);
+    await homePage.waitForReady();
+    await ensureAliceAdminForCurrentSession(page, homePage);
+
     await homePage.copyDemoProjectViaUi('test');
 
     await expect(page).toHaveURL(openProjectUrl('/projects/test'));
@@ -127,6 +207,13 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
   test.afterAll(async () => {
     // Clean up test data created during the test suite
+    try {
+      const deletedLinks = await deleteWorkPackageFileLinksByName(2, 'op-to-nc-upload-test.md');
+      logInfo('[Cleanup] Deleted uploaded test file links:', deletedLinks);
+    } catch (err) {
+      logWarn('[Cleanup] Failed to delete uploaded test file links:', err);
+    }
+
     try {
       await deleteUploadedTestFile(
         'op-to-nc-upload-test.md',
@@ -150,8 +237,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     }
 
     try {
-      const loginIdentifier = ALICE_USER.email ?? `${ALICE_USER.username}@example.com`;
-      const { userId } = await ensureUserIsAdmin(loginIdentifier);
+      const { userId } = await ensureAliceAdmin();
       await setUserAdmin(userId, false);
       logInfo('[Cleanup] Revoked admin permissions from Alice');
     } catch (err) {
@@ -160,4 +246,3 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   });
 
 });
-

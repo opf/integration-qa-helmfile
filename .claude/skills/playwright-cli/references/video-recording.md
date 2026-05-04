@@ -1,45 +1,5 @@
 # Video Recording
 
-Capture browser automation sessions as video for debugging, documentation, or verification. Produces WebM (VP8/VP9 codec).
+Canonical source: `.agents/shared/playwright-cli/references/video-recording.md`.
 
-**OpenProject E2E repository:** `video-start` / `video-stop` are for **playwright-cli** sessions. The test runner uses `playwright.config.ts` (`video: 'retain-on-failure'`, etc.) and outputs under `test-results/`; that is separate from CLI video files.
-
-## Basic Recording
-
-```bash
-# Start recording
-playwright-cli video-start
-
-# Perform actions
-playwright-cli open https://example.com
-playwright-cli snapshot
-playwright-cli click e1
-playwright-cli fill e2 "test input"
-
-# Stop and save
-playwright-cli video-stop demo.webm
-```
-
-## Best Practices
-
-### 1. Use Descriptive Filenames
-
-```bash
-# Include context in filename
-playwright-cli video-stop recordings/login-flow-2024-01-15.webm
-playwright-cli video-stop recordings/checkout-test-run-42.webm
-```
-
-## Tracing vs Video
-
-| Feature | Video | Tracing |
-|---------|-------|---------|
-| Output | WebM file | Trace file (viewable in Trace Viewer) |
-| Shows | Visual recording | DOM snapshots, network, console, actions |
-| Use case | Demos, documentation | Debugging, analysis |
-| Size | Larger | Smaller |
-
-## Limitations
-
-- Recording adds slight overhead to automation
-- Large recordings can consume significant disk space
+Read the canonical source instead of this adapter.
