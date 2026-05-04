@@ -22,20 +22,23 @@ openproject:
   tmpVolumesStorageClassName: {{ .Values.persistence.storageClassName | quote }}
   oidc:
     enabled: {{ if not (eq .Values.integration.setupMethod "oauth2") }}true{{ else }}false{{ end }}
-    {{ if .Values.integration.setupMethod | eq "sso-external" }}
     scope: '[openid offline_access]'
+
+    {{ if eq .Values.integration.setupMethod "sso-external" }}
+    provider: "Keycloak"
     displayName: {{ .Values.keycloak.providerName }}
-    identifier: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
-    secret: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
+    identifier: {{ .Values.integration.oidcClients.openprojectKC.id }}
+    secret: {{ .Values.integration.oidcClients.openprojectKC.secret }}
     authorizationEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/auth
     tokenEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/token
     userinfoEndpoint: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/userinfo
     host: {{ .Values.keycloak.host }}
 
-    {{ else if .Values.integration.setupMethod | eq "sso-nextcloud" }}
+    {{ else if eq .Values.integration.setupMethod "sso-nextcloud" }}
+    provider: "Nextcloud"
     displayName: 'nextcloud'
-    identifier: 'openproject' # this should be replaced with actual value
-    secret: 'openproject' # this should be replaced with actual value
+    identifier: {{ .Values.integration.oidcClients.openprojectNC.id }}
+    secret: {{ .Values.integration.oidcClients.openprojectNC.secret }}
     authorizationEndpoint: /index.php/apps/oidc/authorize
     tokenEndpoint: /index.php/apps/oidc/token
     userinfoEndpoint: /index.php/apps/oidc/userinfo
