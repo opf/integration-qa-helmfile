@@ -380,9 +380,33 @@ jobs:
           check_url "Main login" "https://${preview_host}/login" "200"
           check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200" 60 10
           check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
-          # XWiki container runs a custom entrypoint that performs first-time setup and installs extensions.
-          # The root path can be served earlier than the wiki UI; validate a stable page with more patience.
-          check_url "XWiki" "https://xwiki.${preview_host}/bin/view/Main/" "200" 60 10
+          # XWiki does first-time setup and extension installs. Validate the distribution page,
+          # which the XWiki entrypoint itself waits on, to avoid false negatives during setup.
+          check_url "XWiki" "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution" "200" 120 10
+
+      - name: Diagnostics (on URL validation failure)
+        if: always() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome != 'success'
+        env:
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+        run: |
+          set -euo pipefail
+          preview_url="${PREVIEW_URL}"
+          preview_host="${preview_url#https://}"
+          preview_host="${preview_host#http://}"
+          preview_host="${preview_host%%/*}"
+          preview_host="${preview_host%%:*}"
+
+          dump() {
+            local url="$1"
+            echo "::group::Diagnostics: ${url}"
+            /usr/bin/curl -skS -D- -o /dev/null --connect-timeout 10 "${url}" 2>&1 | head -n 80 || true
+            echo "::endgroup::"
+          }
+
+          dump "https://xwiki.${preview_host}/"
+          dump "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution"
+          dump "https://xwiki.${preview_host}/bin/view/Main/"
+          dump "https://xwiki.${preview_host}/rest/wikis/xwiki"
 
       - name: Export hosts for Playwright
         id: export_hosts
