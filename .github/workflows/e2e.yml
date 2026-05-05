@@ -380,7 +380,9 @@ jobs:
           check_url "Main login" "https://${preview_host}/login" "200"
           check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200" 60 10
           check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
-          check_url "XWiki" "https://xwiki.${preview_host}/" "200"
+          # XWiki container runs a custom entrypoint that performs first-time setup and installs extensions.
+          # The root path can be served earlier than the wiki UI; validate a stable page with more patience.
+          check_url "XWiki" "https://xwiki.${preview_host}/bin/view/Main/" "200" 60 10
 
       - name: Export hosts for Playwright
         id: export_hosts

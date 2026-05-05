@@ -7,6 +7,8 @@
 {{- $integrationOpenProjectGitBranch := trim (env "INTEGRATION_OPENPROJECT_GIT_BRANCH") -}}
 {{- $openprojectBranch := trim (env "OPENPROJECT_BRANCH") -}}
 {{- $nextcloudBranch := trim (env "NEXTCLOUD_BRANCH") -}}
+{{- $xwikiVersion := trim (env "XWIKI_VERSION") -}}
+{{- $xwikiExtensionOpenProjectVersion := trim (env "XWIKI_EXTENSION_OPENPROJECT_VERSION") -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 opnc-integration:
   integrationSetupMethod: {{ $setupMethod | quote }}
@@ -14,6 +16,9 @@ opnc-integration:
   openprojectAssetHost: "openproject-assets.{{ pullpreview_public_dns }}"
   nextcloudHost: "nextcloud.{{ pullpreview_public_dns }}"
   keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
+  xwikiHost: "xwiki.{{ pullpreview_public_dns }}"
+  xwiki:
+    enabled: true
 {{- if or $openprojectVersion $openprojectBranch }}
   openproject:
 {{- if $openprojectVersion }}
@@ -108,3 +113,31 @@ keycloak:
       value: openproject-secret
     - name: KC_OPENPROJECT_CLIENT_HOST
       value: "{{ pullpreview_public_dns }}"
+
+xwiki:
+{{- if $xwikiVersion }}
+  image:
+    tag: {{ $xwikiVersion | quote }}
+{{- end }}
+  customConfigs:
+    xwiki.properties:
+      distribution.job.interactive: false
+      distribution.job.interactive.wiki: false
+  customConfigsSecrets:
+    xwiki.cfg:
+      xwiki.superadminpassword:
+        value: admin
+  extraEnvVars:
+    - name: EXTENSION_OPENPROJECT_VERSION
+      value: {{ $xwikiExtensionOpenProjectVersion | default "1.1.0" | quote }}
+  extraVolumes:
+    - name: xwiki-entrypoint
+      configMap:
+        name: xwiki-entrypoint-configmap
+        defaultMode: 0755
+  extraVolumeMounts:
+    - name: xwiki-entrypoint
+      mountPath: /entrypoint.sh
+      subPath: entrypoint.sh
+  mysql:
+    enabled: true

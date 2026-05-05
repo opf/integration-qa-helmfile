@@ -10,6 +10,7 @@ opnc-integration:
   openprojectAssetHost: openproject-assets.preview.invalid
   nextcloudHost: nextcloud.preview.invalid
   keycloakHost: keycloak.preview.invalid
+  xwikiHost: xwiki.preview.invalid
 
   oidcProvider:
     name: keycloak
@@ -47,6 +48,10 @@ opnc-integration:
     storageClassName: local-path
     accessModes:
       - ReadWriteOnce
+
+xwiki:
+  # Ensure the service name is exactly `xwiki` so opnc-integration ingress can route to it.
+  fullnameOverride: xwiki
 
 openproject:
   fullnameOverride: openproject
