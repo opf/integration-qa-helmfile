@@ -1,5 +1,24 @@
 name: E2E Manual Run
-run-name: "e2e - ${{ github.event.inputs.suite }} - ${{ github.event.inputs.setupMethod }} - op ${{ github.event.inputs.openproject_version || '17.0' }} - nc ${{ github.event.inputs.nextcloud_version || '32' }}"
+run-name: >-
+  ${{
+    github.event.inputs.action == 'down'
+      && format('disable pullpreview: {0}', github.event.inputs.preview_name)
+      || format(
+        'e2e - {0} - {1} - op {2} - nc {3}',
+        github.event.inputs.suite,
+        github.event.inputs.setupMethod,
+        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '16',
+        github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32'
+      )
+  }}
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: e2e-manual-${{ github.repository }}-${{ github.event.inputs.action }}-${{ github.event.inputs.preview_name || github.run_id }}
+  cancel-in-progress: false
 
 on:
   workflow_dispatch:
@@ -13,7 +32,7 @@ on:
           - up
           - down
       preview_name:
-        description: "When action=down (pull preview label)"
+        description: "PullPreview label (for action=down only)"
         required: false
         type: string
       suite:
@@ -40,13 +59,18 @@ on:
           - sso-external
           - sso-nextcloud
           - oauth2
-      keep_environment_on_failure:
-        description: "Keep PullPreview environment when tests fail"
+      keep_pullpreview:
+        description: "Keep preview after tests?"
         required: true
-        default: false
-        type: boolean
+        # Quoted so YAML does not coerce yes/no to booleans in workflow_dispatch metadata.
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "only_on_test_fail"
+          - "yes"
       openproject_version:
-        description: "OpenProject image tag (empty = 17.0)"
+        description: "OpenProject image tag (empty = 16)"
         required: false
         type: string
       openproject_branch:
@@ -73,39 +97,128 @@ on:
         description: "integration_openproject git branch override"
         required: false
         type: string
+      xwiki_version:
+        description: "XWiki image tag (empty = 17.10.6)"
+        required: false
+        type: string
+      xwiki_extension_openproject_version:
+        description: "XWiki openproject extension version (empty = 1.1.0)"
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  e2e:
+  teardown_manual:
+    if: github.event.inputs.action == 'down'
     runs-on: ubuntu-latest
-    timeout-minutes: 140
+    timeout-minutes: 30
+    env:
+      CI: true
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Validate required secrets
+        env:
+          SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
+          SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SECRET_HCLOUD:-}" ]]; then
+            echo "::error::Secret HCLOUD_TOKEN is not set or empty."
+            exit 1
+          fi
+          if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
+            echo "::error::Secret HETZNER_CA_KEY is not set or empty."
+            exit 1
+          fi
+
+      - name: Resolve preview name
+        id: resolve
+        env:
+          IN_PREVIEW_NAME: ${{ github.event.inputs.preview_name }}
+        run: |
+          set -euo pipefail
+          preview_name="${IN_PREVIEW_NAME}"
+          if [[ -z "${preview_name}" ]]; then
+            echo "::error::For action=down, you must provide preview_name."
+            exit 1
+          fi
+          # Validate label to fail fast with a clear message (PullPreview/Hetzner label constraints).
+          if ! [[ "${preview_name}" =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]]; then
+            echo "::error::Invalid preview_name '${preview_name}'. Use lowercase letters/digits/hyphens, max 39 chars, must start with a letter/digit."
+            exit 1
+          fi
+          delim="EOF_$(openssl rand -hex 8)"
+          {
+            printf 'preview_name<<%s\n%s\n%s\n' "${delim}" "${preview_name}" "${delim}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Teardown PullPreview (action=down)
+        id: pullpreview_down
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+        with:
+          provider: hetzner
+          label: ${{ steps.resolve.outputs.preview_name }}
+          force_action: down
+          deployment_target: helm
+
+      - name: Final status (teardown)
+        if: always()
+        env:
+          DOWN_OUTCOME: ${{ steps.pullpreview_down.outcome }}
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+        run: |
+          set -euo pipefail
+          echo "PullPreview teardown for label: ${PREVIEW_NAME} (step outcome: ${DOWN_OUTCOME})"
+          if [[ "${DOWN_OUTCOME}" != "success" ]]; then
+            echo "::error::PullPreview teardown did not succeed (outcome=${DOWN_OUTCOME})."
+            exit 1
+          fi
+
+  deploy:
+    if: github.event.inputs.action == 'up'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
     env:
       CI: true
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+    outputs:
+      live: ${{ steps.publish.outputs.live }}
+      preview_name: ${{ steps.publish.outputs.preview_name }}
+      grep_b64: ${{ steps.publish.outputs.grep_b64 }}
+      tests_should_run: ${{ steps.publish.outputs.tests_should_run }}
+      openproject_host: ${{ steps.publish.outputs.openproject_host }}
+      openproject_url: ${{ steps.publish.outputs.openproject_url }}
+      nextcloud_host: ${{ steps.publish.outputs.nextcloud_host }}
+      keycloak_host: ${{ steps.publish.outputs.keycloak_host }}
+      xwiki_host: ${{ steps.publish.outputs.xwiki_host }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Record run start time (Europe/Berlin)
-        shell: bash
         run: |
           set -euo pipefail
           ts="$(TZ=Europe/Berlin date '+%d %b %Y %H:%M:%S')"
           {
-            echo "### E2E manual run"
+            echo "### E2E manual run (deploy)"
             echo ""
             echo "**Started (Europe/Berlin):** ${ts}"
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
-          echo "::notice::E2E started (Europe/Berlin): ${ts}"
+          echo "::notice::E2E deploy started (Europe/Berlin): ${ts}"
 
       - name: Resolve grep and preview name
         id: resolve
-        shell: bash
         env:
           IN_ACTION: ${{ github.event.inputs.action }}
           IN_SUITE: ${{ github.event.inputs.suite }}
@@ -113,8 +226,24 @@ jobs:
           IN_PREVIEW_NAME: ${{ github.event.inputs.preview_name }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
+          SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
+          SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+          SECRET_OP_ENTERPRISE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
         run: |
           set -euo pipefail
+
+          if [[ -z "${SECRET_HCLOUD:-}" ]]; then
+            echo "::error::Secret HCLOUD_TOKEN is not set or empty."
+            exit 1
+          fi
+          if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
+            echo "::error::Secret HETZNER_CA_KEY is not set or empty."
+            exit 1
+          fi
+          if [[ -z "${SECRET_OP_ENTERPRISE:-}" ]]; then
+            echo "::error::Secret OPENPROJECT_ENTERPRISE_TOKEN is not set or empty."
+            exit 1
+          fi
 
           grep=""
           case "${IN_SUITE}" in
@@ -135,15 +264,7 @@ jobs:
           fi
 
           preview_name=""
-          if [[ "${IN_ACTION}" == "down" ]]; then
-            preview_name="${IN_PREVIEW_NAME}"
-            if [[ -z "${preview_name}" ]]; then
-              echo "::error::For action=down, you must provide preview_name."
-              exit 1
-            fi
-          else
-            preview_name="e2e-${RUN_ID}-${RUN_ATTEMPT}"
-          fi
+          preview_name="e2e-${RUN_ID}-${RUN_ATTEMPT}"
 
           # Heredoc-delimited outputs guard against newlines/special chars in
           # user-provided inputs (e.g. custom_grep or preview_name).
@@ -153,22 +274,10 @@ jobs:
             printf 'preview_name<<%s\n%s\n%s\n' "${delim}" "${preview_name}" "${delim}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Teardown PullPreview (action=down)
-        if: github.event.inputs.action == 'down'
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
-        with:
-          provider: hetzner
-          label: ${{ steps.resolve.outputs.preview_name }}
-          force_action: down
-          deployment_target: helm
-        env:
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
-
       - name: PullPreview up
         id: pullpreview_up
-        if: github.event.inputs.action == 'up'
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
+        if: success()
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
         with:
           provider: hetzner
           label: ${{ steps.resolve.outputs.preview_name }}
@@ -182,11 +291,9 @@ jobs:
           chart: ./charts/pullpreview-stack
           chart_values: pullpreview/stack-values.yaml.gotmpl
           proxy_tls: traefik:80
-          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
+          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }},xwiki.{{ pullpreview_public_dns }}
           ttl: 72h
         env:
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
           INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           OPENPROJECT_VERSION: ${{ github.event.inputs.openproject_version }}
@@ -196,10 +303,21 @@ jobs:
           KEYCLOAK_VERSION: ${{ github.event.inputs.keycloak_version }}
           INTEGRATION_OPENPROJECT_VERSION: ${{ github.event.inputs.integration_openproject_version }}
           INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
+          XWIKI_VERSION: ${{ github.event.inputs.xwiki_version }}
+          XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ github.event.inputs.xwiki_extension_openproject_version }}
+
+      - name: Strip SSH lines from PullPreview summary
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        run: |
+          set -euo pipefail
+          [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || exit 0
+          [[ -f "${GITHUB_STEP_SUMMARY}" ]] || exit 0
+          # Do not use `grep -v`: GNU grep exits 1 when no lines are emitted (empty file / no matches), which breaks `set -e`.
+          sed -i -E '/^- SSH (Username|IP|Command):/d' "${GITHUB_STEP_SUMMARY}"
 
       - name: Validate preview URLs
-        if: steps.pullpreview_up.outputs.live == 'true'
-        shell: bash
+        id: validate_urls
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
         env:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
         run: |
@@ -260,15 +378,13 @@ jobs:
 
           check_url "Main root" "https://${preview_host}/" "302"
           check_url "Main login" "https://${preview_host}/login" "200"
-          # Nextcloud first boot runs schema migrations and the integration_openproject
-          # app install from before-starting/beforestart.sh; probes are disabled in
-          # nc-values.gotmpl, so we poll status.php longer here (~10 min).
           check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200" 60 10
           check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
+          check_url "XWiki" "https://xwiki.${preview_host}/" "200"
 
       - name: Export hosts for Playwright
-        if: steps.pullpreview_up.outputs.live == 'true'
-        shell: bash
+        id: export_hosts
+        if: success() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome == 'success'
         env:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
           PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
@@ -280,7 +396,6 @@ jobs:
           preview_host="${preview_host%%/*}"
           preview_host="${preview_host%%:*}"
 
-          # Normalize https default port to avoid https://host:443 form.
           if [[ "${preview_url}" == *:443 ]]; then
             preview_url="${preview_url%:443}"
           fi
@@ -289,6 +404,7 @@ jobs:
             echo "OPENPROJECT_HOST=${preview_host}"
             echo "NEXTCLOUD_HOST=nextcloud.${preview_host}"
             echo "KEYCLOAK_HOST=keycloak.${preview_host}"
+            echo "XWIKI_HOST=xwiki.${preview_host}"
             echo "OPENPROJECT_URL=${preview_url}"
             echo "E2E_ENV=pullpreview"
           } >> "$GITHUB_ENV"
@@ -300,131 +416,314 @@ jobs:
             echo "- OpenProject: ${preview_url}"
             echo "- Nextcloud: https://nextcloud.${preview_host}"
             echo "- Keycloak: https://keycloak.${preview_host}"
+            echo "- XWiki: https://xwiki.${preview_host}"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Publish deploy outputs
+        id: publish
+        if: always()
+        env:
+          LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          GREP: ${{ steps.resolve.outputs.grep }}
+          VALIDATE_OUTCOME: ${{ steps.validate_urls.outcome }}
+        run: |
+          set -euo pipefail
+          tests_should_run=false
+          if [[ "${LIVE}" == "true" ]] && [[ "${VALIDATE_OUTCOME}" == "success" ]]; then
+            tests_should_run=true
+          fi
+          grep_b64="$(printf '%s' "${GREP}" | base64 -w0)"
+          {
+            echo "live=${LIVE:-}"
+            echo "preview_name=${PREVIEW_NAME}"
+            echo "grep_b64=${grep_b64}"
+            echo "tests_should_run=${tests_should_run}"
+            echo "openproject_host=${OPENPROJECT_HOST:-}"
+            echo "openproject_url=${OPENPROJECT_URL:-}"
+            echo "nextcloud_host=${NEXTCLOUD_HOST:-}"
+            echo "keycloak_host=${KEYCLOAK_HOST:-}"
+            echo "xwiki_host=${XWIKI_HOST:-}"
+          } >> "$GITHUB_OUTPUT"
+
+  test_and_finish:
+    needs: deploy
+    if: always() && github.event.inputs.action == 'up'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CI: true
+      HEADLESS: true
+      SKIP_SETUP_JOB_CHECK: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+      OPENPROJECT_HOST: ${{ needs.deploy.outputs.openproject_host }}
+      NEXTCLOUD_HOST: ${{ needs.deploy.outputs.nextcloud_host }}
+      KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
+      XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
+      OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
+      E2E_ENV: pullpreview
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Record test phase start
+        if: needs.deploy.outputs.tests_should_run == 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "### E2E manual run (tests)"
+            echo ""
+            echo "**Deploy job:** ${{ needs.deploy.result }} | live=${{ needs.deploy.outputs.live }} | tests_should_run=${{ needs.deploy.outputs.tests_should_run }}"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Use Node.js
-        if: steps.pullpreview_up.outputs.live == 'true'
-        uses: actions/setup-node@v4
+        if: needs.deploy.outputs.tests_should_run == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: e2e/.node-version
           cache: npm
           cache-dependency-path: e2e/package-lock.json
 
       - name: Install dependencies
-        if: steps.pullpreview_up.outputs.live == 'true'
+        if: needs.deploy.outputs.tests_should_run == 'true'
         working-directory: e2e
         run: npm ci
 
       - name: Install Playwright browsers
-        if: steps.pullpreview_up.outputs.live == 'true'
+        if: needs.deploy.outputs.tests_should_run == 'true'
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
-        # continue-on-error is load-bearing: lets teardown + Final status
-        # run after a red test step, so we can still report and clean up.
         id: tests
-        if: steps.pullpreview_up.outputs.live == 'true'
+        if: needs.deploy.outputs.tests_should_run == 'true'
         continue-on-error: true
         working-directory: e2e
         env:
           SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
-          TAG_GREP: ${{ steps.resolve.outputs.grep }}
-        shell: bash
+          TAG_GREP_B64: ${{ needs.deploy.outputs.grep_b64 }}
         run: |
           set -euo pipefail
+          TAG_GREP=""
+          if [[ -n "${TAG_GREP_B64:-}" ]]; then
+            TAG_GREP="$(printf '%s' "${TAG_GREP_B64}" | base64 -d)"
+          fi
           args=(npx playwright test)
           if [ -n "${TAG_GREP:-}" ]; then
             args+=(--grep "${TAG_GREP}")
           fi
           echo "Running: ${args[*]}"
-          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST}"
+          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST}"
           "${args[@]}"
 
-      - name: Add detected versions to summary
-        if: always() && steps.pullpreview_up.outputs.live == 'true'
+      - name: Add detected versions and workflow inputs to summary
+        if: always() && needs.deploy.outputs.live == 'true'
         working-directory: e2e
-        shell: bash
+        env:
+          IN_OP_BRANCH: ${{ github.event.inputs.openproject_branch }}
+          IN_NC_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
+          IN_IO_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
+          IN_IO_VER: ${{ github.event.inputs.integration_openproject_version }}
+          IN_OP_VER: ${{ github.event.inputs.openproject_version }}
+          IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
+          IN_KC_VER: ${{ github.event.inputs.keycloak_version }}
+          IN_XWIKI_VER: ${{ github.event.inputs.xwiki_version }}
+          IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_openproject_version }}
         run: |
           set -euo pipefail
 
           json="test-results/e2e-env.json"
           if [[ ! -f "${json}" ]]; then
-            echo "::warning::Version file not found at ${json}; skipping versions summary."
-            exit 0
+            echo "::warning::Version file not found at ${json}; skipping detected versions in summary."
           fi
 
           get() {
             jq -r --arg k "$1" '.[$k] // "not-detected"' "${json}"
           }
 
-          op="$(get OPENPROJECT_VERSION)"
-          nc="$(get NEXTCLOUD_VERSION)"
-          nc_api="$(get NEXTCLOUD_API_VERSION)"
-          integration_app="$(get INTEGRATION_APP_VERSION)"
-          team_folders="$(get NEXTCLOUD_TEAM_FOLDERS_VERSION)"
-          keycloak="$(get KEYCLOAK_VERSION)"
-
           {
             echo "### Versions"
             echo ""
-            printf '%s\n' "- OpenProject: \`${op}\`"
-            printf '%s\n' "- Nextcloud: \`${nc}\`"
-            printf '%s\n' "- Nextcloud API: \`${nc_api}\`"
-            printf '%s\n' "- Integration app (integration_openproject): \`${integration_app}\`"
-            printf '%s\n' "- Team Folders: \`${team_folders}\`"
-            printf '%s\n' "- Keycloak: \`${keycloak}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ -f "${json}" ]]; then
+            op="$(get OPENPROJECT_VERSION)"
+            nc="$(get NEXTCLOUD_VERSION)"
+            nc_api="$(get NEXTCLOUD_API_VERSION)"
+            integration_app="$(get INTEGRATION_APP_VERSION)"
+            team_folders="$(get NEXTCLOUD_TEAM_FOLDERS_VERSION)"
+            keycloak="$(get KEYCLOAK_VERSION)"
+            {
+              printf '%s\n' "- OpenProject (detected): \`${op}\`"
+              printf '%s\n' "- Nextcloud (detected): \`${nc}\`"
+              printf '%s\n' "- Nextcloud API: \`${nc_api}\`"
+              printf '%s\n' "- Integration app (integration_openproject): \`${integration_app}\`"
+              printf '%s\n' "- Team Folders: \`${team_folders}\`"
+              printf '%s\n' "- Keycloak: \`${keycloak}\`"
+              echo ""
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          {
+            echo "#### Workflow inputs (image / source)"
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
+          if [[ -n "${IN_OP_VER:-}" ]]; then
+            echo "- OpenProject image tag: \`${IN_OP_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${IN_OP_BRANCH:-}" ]]; then
+            echo "- OpenProject git source branch: \`${IN_OP_BRANCH}\`" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${IN_NC_VER:-}" ]]; then
+            echo "- Nextcloud image tag: \`${IN_NC_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${IN_NC_BRANCH:-}" ]]; then
+            echo "- Nextcloud git source branch: \`${IN_NC_BRANCH}\`" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${IN_IO_VER:-}" ]]; then
+            echo "- integration_openproject app version (workflow input): \`${IN_IO_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${IN_IO_BRANCH:-}" ]]; then
+            echo "- integration_openproject git branch: \`${IN_IO_BRANCH}\`" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${IN_KC_VER:-}" ]]; then
+            echo "- Keycloak image tag (workflow input): \`${IN_KC_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- Keycloak image tag: \`26.2.5\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${IN_XWIKI_VER:-}" ]]; then
+            echo "- XWiki image tag: \`${IN_XWIKI_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- XWiki image tag: \`17.10.6\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
+            echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- XWiki OpenProject extension version: \`1.1.0\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Compute teardown policy
+        id: policy
+        if: always()
+        env:
+          LIVE: ${{ needs.deploy.outputs.live }}
+          PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
+          TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          KEEP: '${{ github.event.inputs.keep_pullpreview }}'
+        run: |
+          set -euo pipefail
+          outcome="${TESTS_OUTCOME:-skipped}"
+          if [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
+            outcome="skipped"
+          fi
+          # YAML 1.1 can coerce unquoted `yes`/`no` in env to `true`/`false`; normalize for policy checks.
+          if [[ "${KEEP}" == "true" ]]; then KEEP=yes; elif [[ "${KEEP}" == "false" ]]; then KEEP=no; fi
+          should_teardown=false
+          if [[ -z "${PREVIEW_NAME:-}" ]]; then
+            echo "should_teardown=false" >> "$GITHUB_OUTPUT"
+            echo "tests_effective_outcome=${outcome}" >> "$GITHUB_OUTPUT"
+            echo "No preview label (deploy did not publish outputs); skip teardown."
+            exit 0
+          fi
+          # Live preview but tests never ran (e.g. URL validation failed): tear down to avoid leaks unless user chose keep=yes.
+          if [[ "${LIVE}" == "true" ]] && [[ "${TESTS_SHOULD_RUN}" != "true" ]] && [[ "${KEEP}" != "yes" ]]; then
+            should_teardown=true
+          elif [[ "${LIVE}" != "true" ]]; then
+            should_teardown=true
+          elif [[ "${outcome}" == "success" ]] && [[ "${KEEP}" != "yes" ]]; then
+            should_teardown=true
+          elif [[ "${outcome}" != "success" ]] && [[ "${KEEP}" == "no" ]]; then
+            should_teardown=true
+          fi
+          echo "should_teardown=${should_teardown}" >> "$GITHUB_OUTPUT"
+          echo "tests_effective_outcome=${outcome}" >> "$GITHUB_OUTPUT"
+          echo "Computed: live=${LIVE} tests_should_run=${TESTS_SHOULD_RUN} effective_outcome=${outcome} keep=${KEEP} -> should_teardown=${should_teardown}"
+
       - name: Trigger PullPreview teardown
-        # Keep environment only when tests did not succeed AND the checkbox is enabled.
-        # We still tear down when the preview never became live, to avoid leaking resources.
-        if: always() && github.event.inputs.action == 'up' && (steps.pullpreview_up.outputs.live != 'true' || steps.tests.outcome == 'success' || (steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure != 'true'))
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
+        if: >-
+          always() &&
+          steps.policy.outputs.should_teardown == 'true' &&
+          needs.deploy.outputs.preview_name != ''
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
         with:
           provider: hetzner
-          label: ${{ steps.resolve.outputs.preview_name }}
+          label: ${{ needs.deploy.outputs.preview_name }}
           force_action: down
           deployment_target: helm
-        env:
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
 
       - name: Keep environment notice
-        if: always() && github.event.inputs.action == 'up' && steps.tests.outcome != 'success' && github.event.inputs.keep_environment_on_failure == 'true' && steps.pullpreview_up.outputs.live == 'true'
-        shell: bash
+        if: >-
+          always() &&
+          needs.deploy.outputs.live == 'true' &&
+          needs.deploy.outputs.tests_should_run == 'true' &&
+          needs.deploy.outputs.preview_name != '' &&
+          steps.policy.outputs.should_teardown == 'false'
         env:
-          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
+          OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
+          NEXTCLOUD_HOST: ${{ needs.deploy.outputs.nextcloud_host }}
+          KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
+          XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
         run: |
           {
             echo "### PullPreview environment kept for debugging"
             echo ""
             echo "- Preview name: \`${PREVIEW_NAME}\`"
+            echo "- OpenProject: ${OPENPROJECT_URL}"
+            echo "- Nextcloud: https://${NEXTCLOUD_HOST}"
+            echo "- Keycloak: https://${KEYCLOAK_HOST}"
+            echo "- XWiki: https://${XWIKI_HOST}"
+            echo ""
+            echo "Note: if URL validation failed and tests were skipped, the preview is still torn down unless **keep_pullpreview=yes**."
             echo ""
             echo "To tear down later:"
-            echo "- Run workflow: **PullPreview Teardown**"
+            echo "- Run workflow: **E2E Manual Run** with \`action=down\`"
             echo "- Input: \`preview_name=${PREVIEW_NAME}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright report
-        if: always() && github.event.inputs.action == 'up' && steps.pullpreview_up.outputs.live == 'true'
-        uses: actions/upload-artifact@v4
+        if: always() && needs.deploy.outputs.live == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
           path: e2e/playwright-report
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Upload e2e test results (incl. e2e-env.json)
+        if: always() && needs.deploy.outputs.live == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-test-results
+          path: e2e/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Final status
-        if: always() && github.event.inputs.action == 'up'
-        shell: bash
+        if: always()
         env:
-          PREVIEW_LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          PREVIEW_LIVE: ${{ needs.deploy.outputs.live }}
+          TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
         run: |
-          if [ "${PREVIEW_LIVE}" != "true" ]; then
-            echo "::error::PullPreview did not become live; tests were not run."
+          set -euo pipefail
+          if [[ "${PREVIEW_LIVE}" != "true" ]]; then
+            if [[ "${DEPLOY_RESULT}" == "failure" ]]; then
+              echo "::error::Deploy job failed before the preview was ready; see the **deploy** job logs."
+            else
+              echo "::error::PullPreview did not become live; tests were not run."
+            fi
+            exit 1
+          fi
+          if [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
+            echo "::error::Preview was live but URL validation or host export did not complete; tests were not run."
             exit 1
           fi
           case "${TESTS_OUTCOME}" in
@@ -442,13 +741,3 @@ jobs:
               exit 1
               ;;
           esac
-
-      - name: Final status (teardown)
-        if: always() && github.event.inputs.action == 'down'
-        shell: bash
-        env:
-          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
-        run: |
-          echo "PullPreview teardown completed for label: ${PREVIEW_NAME}"
-          exit 0
-
