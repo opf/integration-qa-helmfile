@@ -9,7 +9,7 @@ dependencies:
   repository: https://nextcloud.github.io/helm
   version: 7.0.4
 - name: xwiki
-  repository: https://xwiki-contrib.github.io/xwiki-helm
+  repository: file://../xwiki
   version: 1.6.7
 - name: keycloak
   repository: https://charts.bitnami.com/bitnami
@@ -17,5 +17,5 @@ dependencies:
 - name: traefik
   repository: https://traefik.github.io/charts
   version: 39.0.9
-digest: sha256:23b0fcb0384b81a3455c4cc99067416c8eb7fed571a4a471e35befd07e8d593e
-generated: "2026-05-05T16:52:44.952513+03:00"
+digest: sha256:f915f255f0e1ed4064353af9ba4b7268137a324ebbccbb802bf9b75265855469
+generated: "2026-05-06T12:29:32.649175+03:00"

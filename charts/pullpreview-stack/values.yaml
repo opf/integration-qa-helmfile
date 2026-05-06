@@ -50,7 +50,6 @@ opnc-integration:
       - ReadWriteOnce
 
 xwiki:
-  # Ensure the service name is exactly `xwiki` so opnc-integration ingress can route to it.
   fullnameOverride: xwiki
 
 openproject:

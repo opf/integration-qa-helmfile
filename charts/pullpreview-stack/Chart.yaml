@@ -15,7 +15,7 @@ dependencies:
     repository: https://nextcloud.github.io/helm
   - name: xwiki
     version: ~1.6.7
-    repository: https://xwiki-contrib.github.io/xwiki-helm
+    repository: file://../xwiki
   - name: keycloak
     version: ~24.7.5
     repository: https://charts.bitnami.com/bitnami

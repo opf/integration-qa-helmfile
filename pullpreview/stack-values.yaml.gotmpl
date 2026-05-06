@@ -119,6 +119,9 @@ xwiki:
   image:
     tag: {{ $xwikiVersion | quote }}
 {{- end }}
+  command:
+    - /bin/bash
+    - /entrypoint.sh
   customConfigs:
     xwiki.properties:
       distribution.job.interactive: false
