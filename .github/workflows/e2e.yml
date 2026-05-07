@@ -334,6 +334,7 @@ jobs:
             local expected_status="$3"
             local attempts="${4:-12}"
             local sleep_seconds="${5:-10}"
+            local follow_redirects="${6:-false}"
             local attempt
             local status=""
             local curl_exit=0
@@ -344,6 +345,7 @@ jobs:
                 /usr/bin/curl -skS -o /dev/null \
                   --connect-timeout 10 \
                   --write-out '%{http_code}' \
+                  $([[ "${follow_redirects}" == "true" ]] && echo -n "-L") \
                   "$url" 2>/dev/null
               )"
               curl_exit=$?
@@ -381,8 +383,8 @@ jobs:
           check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200" 60 10
           check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
           # XWiki does first-time setup and extension installs. Validate the distribution page,
-          # which the XWiki entrypoint itself waits on, to avoid false negatives during setup.
-          check_url "XWiki" "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution" "200" 120 10
+          # but note it can redirect (302) once setup is complete. Follow redirects and accept final 200.
+          check_url "XWiki" "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution" "200" 120 10 true
 
           check_xwiki_extension_installed() {
             local name="$1"
