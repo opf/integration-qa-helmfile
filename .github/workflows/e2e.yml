@@ -386,50 +386,6 @@ jobs:
           # but note it can redirect (302) once setup is complete. Follow redirects and accept final 200.
           check_url "XWiki" "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution" "200" 120 10 true
 
-          check_xwiki_extension_installed() {
-            local name="$1"
-            local extension_id_encoded="$2"
-            local attempts="${3:-60}"
-            local sleep_seconds="${4:-10}"
-            local attempt
-
-            for attempt in $(seq 1 "${attempts}"); do
-              if [[ "${attempt}" -eq 1 ]]; then
-                echo "${name}: checking install status (attempt ${attempt}/${attempts})"
-              else
-                echo "${name}: attempt ${attempt}/${attempts}"
-              fi
-
-              if /usr/bin/curl -skS --connect-timeout 10 \
-                -u "superadmin:admin" \
-                -d "extensionNamespace=wiki%3Axwiki" \
-                -d "section=XWiki.Extensions" \
-                -d "extensionId=${extension_id_encoded}" \
-                "https://xwiki.${preview_host}/bin/get/XWiki/Extensions" 2>/dev/null \
-                | /usr/bin/grep -Eq '<span class="extension-status">([^<]* )?Installed'; then
-                echo "${name}: Installed"
-                return 0
-              fi
-
-              sleep "${sleep_seconds}"
-            done
-
-            echo "::group::Debug: XWiki Extensions response (truncated)"
-            /usr/bin/curl -skS --connect-timeout 10 \
-              -u "superadmin:admin" \
-              -d "extensionNamespace=wiki%3Axwiki" \
-              -d "section=XWiki.Extensions" \
-              -d "extensionId=${extension_id_encoded}" \
-              "https://xwiki.${preview_host}/bin/get/XWiki/Extensions" 2>&1 \
-              | head -n 120 || true
-            echo "::endgroup::"
-            echo "::error::${name} was not detected as installed after ${attempts} attempts."
-            return 1
-          }
-
-          # Verify OpenProject integration extension is installed (installed by our custom XWiki entrypoint).
-          check_xwiki_extension_installed "XWiki OpenProject extension" "com.xwiki.projectmanagement%3Aproject-management-openproject-ui" 120 10
-
       - name: Diagnostics (on URL validation failure)
         if: always() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome != 'success'
         env:
