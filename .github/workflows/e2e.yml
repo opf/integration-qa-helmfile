@@ -406,7 +406,7 @@ jobs:
                 -d "section=XWiki.Extensions" \
                 -d "extensionId=${extension_id_encoded}" \
                 "https://xwiki.${preview_host}/bin/get/XWiki/Extensions" 2>/dev/null \
-                | /usr/bin/grep -Eq 'extension-status[^>]*>Installed<'; then
+                | /usr/bin/grep -Eq '<span class="extension-status">([^<]* )?Installed'; then
                 echo "${name}: Installed"
                 return 0
               fi
