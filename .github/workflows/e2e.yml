@@ -290,6 +290,7 @@ jobs:
           deployment_target: helm
           chart: ./charts/pullpreview-stack
           chart_values: pullpreview/stack-values.yaml.gotmpl
+          pre_script: pullpreview/pre-script-helm-deps.sh
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }},xwiki.{{ pullpreview_public_dns }}
           ttl: 72h
