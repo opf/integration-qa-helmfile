@@ -1,0 +1,695 @@
+# Default values for node.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  security:
+    # Temporary solution for https://jira.xwiki.org/browse/HELM-103
+    allowInsecureImages: true
+
+cluster:
+  enabled: false
+  replicas: 1
+  jgroups:
+    port: 7800
+    kube_ping:
+      version: "2.0.1.Final"
+      url: "https://nexus.xwiki.org/nexus/service/local/repositories/central/content/org/jgroups/kubernetes/jgroups-kubernetes/${KUBEPING_VERSION}/jgroups-kubernetes-${KUBEPING_VERSION}.jar"
+
+commonAnnotations: {}
+
+image:
+  name: xwiki
+  pullPolicy: IfNotPresent
+## Image Tag useful when externalDB is been used
+  tag: ''
+service:
+  annotations: {}
+  portName: node
+  name: http
+  type: ClusterIP
+  externalPort: 80
+  internalPort: 8080
+  # Set an array of externalIPs for the service
+  externalIPs: []
+    # - 10.20.30.40
+    # - 10.20.30.41
+  # Reference: https://kubernetes.io/docs/reference/networking/virtual-ips/#session-affinity
+  sessionAffinity: ClientIP
+serviceAccount:
+  annotations: {}
+resources: {}
+#  limits:
+#    cpu: 2000m
+#    memory: 2000Mi
+#  requests:
+#    cpu: 500m
+#    memory: 768Mi
+
+podAnnotations: {}
+
+javaOpts: []
+#  - "-Xmx1024m"
+
+# Secrets for any given Java option
+javaOptsSecrets:
+  # The option will be included in the environment variable JAVA_OPTS and is mandatory.
+  # The following example will create and include -Djavax.net.ssl.trustStorePassword=${TRUSTSTOREPASSWORD} in the JAVA_OPTS environment variable
+  # trustStorePassword:
+  #   option: "-Djavax.net.ssl.trustStorePassword="
+  #   # -- Superadmin password as plain value (fallback if no secret exists inside of Kubernetes).
+  #   value: "testvalue"
+  #   # Superadmin password from existing secret (higher precedence than plain value)
+  #   secret:
+  #     # -- Name of the Kubernetes secret that contains the superadmin password
+  #     name: "secretname"
+  #     # -- Key inside the Kubernetes secret that contains the superadmin password
+  #     key: "keyinsecret"
+
+extraEnvVars: []
+#  - name: FOO
+#    value: "bar"
+
+# Optionally specify an extra list of additional volumes.
+extraVolumes: []
+
+# Optionally specify an extra list of additional volumeMounts.
+extraVolumeMounts: []
+
+# Override the container command/args.
+# Useful when you need a custom entrypoint (e.g. first-run flavor/extension installation).
+# Example:
+#   command: ["/bin/bash", "/entrypoint.sh"]
+#   args: []
+command: []
+args: []
+
+# Enable to choose witch kind of workload will be used: (true) StatefulSet or (false) for Deployment
+workloadStateful: true
+
+securityContext:
+  enabled: false
+  fsGroup: 101
+
+containerSecurityContext:
+  enabled: false
+  runAsUser: 100
+  runAsNonRoot: true
+  seccompProfile:
+    type: "RuntimeDefault"
+
+volumePermissions:
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 0
+    seccompProfile:
+      type: "RuntimeDefault"
+  enabled: false
+
+##
+## MySql chart configuration
+##
+## https://github.com/bitnami/charts/tree/main/bitnami/mysql
+##
+mysql:
+ ## Whether to deploy a mysql server. Set false for a different database.
+  enabled: true
+  image:
+    # Temporary solution for https://jira.xwiki.org/browse/HELM-103
+    repository: bitnamilegacy/mysql
+  auth:
+    rootPassword: "xwiki"
+    username: "xwiki"
+    password: "xwiki"
+    database: "xwiki"
+  initdbScripts:
+    00-init.sql: |
+      grant all privileges on *.* to xwiki@'%'
+  primary:
+    # Changed to use UTF8mb4, check future versions if this was already changed.
+    # TODO: review explicit_defaults_for_timestamp
+    configuration: |-
+      [mysqld]
+      authentication_policy='{{- .Values.auth.authenticationPolicy | default "* ,," }}'
+      skip-name-resolve
+      explicit_defaults_for_timestamp
+      basedir=/opt/bitnami/mysql
+      plugin_dir=/opt/bitnami/mysql/lib/plugin
+      port={{ .Values.primary.containerPorts.mysql }}
+      mysqlx={{ ternary 1 0 .Values.primary.enableMySQLX }}
+      mysqlx_port={{ .Values.primary.containerPorts.mysqlx }}
+      socket=/opt/bitnami/mysql/tmp/mysql.sock
+      datadir=/bitnami/mysql/data
+      tmpdir=/opt/bitnami/mysql/tmp
+      max_allowed_packet=16M
+      bind-address=*
+      pid-file=/opt/bitnami/mysql/tmp/mysqld.pid
+      log-error=/opt/bitnami/mysql/logs/mysqld.log
+      character-set-server=utf8mb4
+      collation-server=utf8mb4_bin
+      mysql_native_password=ON
+      slow_query_log=0
+      long_query_time=10.0
+      {{- if .Values.tls.enabled }}
+      ssl_cert=/opt/bitnami/mysql/certs/{{ .Values.tls.certFilename }}
+      ssl_key=/opt/bitnami/mysql/certs/{{ .Values.tls.certKeyFilename }}
+      {{- if (include "mysql.tlsCACert" .) }}
+      ssl_ca={{ include "mysql.tlsCACert" . }}
+      {{- end }}
+      {{- end }}
+
+      [client]
+      port={{ .Values.primary.containerPorts.mysql }}
+      socket=/opt/bitnami/mysql/tmp/mysql.sock
+      default-character-set=utf8mb4
+      plugin_dir=/opt/bitnami/mysql/lib/plugin
+
+      [manager]
+      port={{ .Values.primary.containerPorts.mysql }}
+      socket=/opt/bitnami/mysql/tmp/mysql.sock
+      pid-file=/opt/bitnami/mysql/tmp/mysqld.pid
+
+##
+## MariaDB chart configuration
+##
+## https://github.com/bitnami/charts/tree/main/bitnami/mariadb
+##
+mariadb:
+ ## Whether to deploy a mysql server. Set false for a different database.
+  enabled: false
+  image:
+    # Temporary solution for https://jira.xwiki.org/browse/HELM-103
+    repository: bitnamilegacy/mariadb
+  auth:
+    rootPassword: "xwiki"
+    username: "xwiki"
+    password: "xwiki"
+    database: "xwiki"
+  initdbScripts:
+    00-init.sql: |
+      grant all privileges on *.* to xwiki@'%'
+  primary:
+    # Changed to use UTF8mb4, check future versions if this was already changed.
+    # TODO: review explicit_defaults_for_timestamp
+    configuration: |-
+      [mysqld]
+      skip-name-resolve
+      explicit_defaults_for_timestamp
+      basedir=/opt/bitnami/mariadb
+      datadir=/bitnami/mariadb/data
+      plugin_dir=/opt/bitnami/mariadb/plugin
+      port={{ .Values.primary.containerPorts.mysql }}
+      socket=/opt/bitnami/mariadb/tmp/mysql.sock
+      tmpdir=/opt/bitnami/mariadb/tmp
+      max_allowed_packet=16M
+      bind-address=*
+      pid-file=/opt/bitnami/mariadb/tmp/mysqld.pid
+      log-error=/opt/bitnami/mariadb/logs/mysqld.log
+      character-set-server=UTF8MB4
+      collation-server=utf8mb4_general_ci
+      slow_query_log=0
+      long_query_time=10.0
+      binlog_expire_logs_seconds=2592000
+      {{- if .Values.tls.enabled }}
+      ssl_cert=/opt/bitnami/mariadb/certs/{{ .Values.tls.certFilename }}
+      ssl_key=/opt/bitnami/mariadb/certs/{{ .Values.tls.certKeyFilename }}
+      {{- if (include "mariadb.tlsCACert" .) }}
+      ssl_ca={{ include "mariadb.tlsCACert" . }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.tde.enabled }}
+      plugin_load_add=file_key_management
+      file_key_management_filename=/opt/bitnami/mariadb/tde/{{ .Values.tde.encryptedKeyFilename }}
+      file_key_management_filekey=FILE:/opt/bitnami/mariadb/tde/{{ .Values.tde.randomKeyFilename }}
+      file_key_management_encryption_algorithm={{ .Values.tde.fileKeyManagementEncryptionAlgorithm }}
+      innodb_encrypt_tables={{ .Values.tde.innodbEncryptTables }}
+      innodb_encrypt_log={{ .Values.tde.innodbEncryptLog }}
+      innodb_encrypt_temporary_tables={{ .Values.tde.innodbEncryptTemporaryTables }}
+      innodb_encryption_threads={{ .Values.tde.innodbEncryptionThreads }}
+      encrypt_tmp_disk_tables={{ .Values.tde.encryptTmpDiskTables }}
+      encrypt_tmp_files={{ .Values.tde.encryptTmpTiles }}
+      encrypt_binlog={{ .Values.tde.encryptBINLOG }}
+      aria_encrypt_tables={{ .Values.tde.ariaEncryptTables }}
+      {{- end }}
+
+      [client]
+      port=3306
+      socket=/opt/bitnami/mariadb/tmp/mysql.sock
+      default-character-set=utf8mb4
+
+      plugin_dir=/opt/bitnami/mariadb/plugin
+
+      [manager]
+      port=3306
+      socket=/opt/bitnami/mariadb/tmp/mysql.sock
+      pid-file=/opt/bitnami/mariadb/tmp/mysqld.pid
+##
+## PostgreSQL chart configuration
+##
+## https://github.com/helm/charts/tree/master/stable/postgresql
+##
+postgresql:
+ ## Whether to deploy a postgresql server. Set false for a different database.
+  enabled: false
+  image:
+    # Temporary solution for https://jira.xwiki.org/browse/HELM-103
+    repository: bitnamilegacy/postgresql
+  auth:
+    postgresPassword: "xwiki"
+    username: "xwiki"
+    password: "xwiki"
+    database: "xwiki"
+  primary:
+    initdb:
+      args: "--encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8"
+  # persistence:
+  #  size: 8Gi
+
+##
+## For custom mysql and postgres database. Use externalDB.
+## Would be used only if postgres and mysql is disabled.
+## Set the image tag if want to use externalDB
+##
+externalDB:
+  password: ''
+  user: ''
+  database: ''
+  host: ''
+  # To set if database init containers are enabled, supported values are mysql, postgresql, mariadb
+  type: ''
+  # If set to true default secret will not be created, use custom secret
+  customKeyRef:
+    enabled: false
+    name: ''
+    key: ''
+
+##
+## To use external solr enable solr, provide host and port
+##
+solr:
+  # If set to false mount an internal Solr instance
+  enabled: false
+  replicaCount: 1
+  image:
+    registry: ""
+    repository: solr
+    tag: 8.11.4-slim
+    digest: ""
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  extraEnvVars: []
+    # - name: FOO
+    #   value: "bar"
+  resources: {}
+  downloadCores:
+    enabled: true
+  containerSecurityContext:
+    enabled: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    privileged: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  service:
+    annotations: {}
+    portName: solr-node
+    name: http
+    type: ClusterIP
+    externalPort: 8983
+    internalPort: 8983
+    sessionAffinity: ClientIP
+  persistence:
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: "500Mi"
+    annotations: {}
+    labels: {}
+    selector: {}
+    dataSource: {}
+  podAnnotations: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: {}
+  probes:
+    customLiveness: {}
+    customReadiness: {}
+    customStartup: {}
+    liveness:
+      enabled: true
+      initialDelaySeconds: 40
+      periodSeconds: 10
+      timeoutSeconds: 15
+      failureThreshold: 6
+      successThreshold: 1
+    readiness:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      timeoutSeconds: 15
+      failureThreshold: 6
+      successThreshold: 1
+    startup:
+      enabled: true
+      initialDelaySeconds: 40
+      periodSeconds: 10
+      timeoutSeconds: 15
+      failureThreshold: 15
+      successThreshold: 1
+
+# To use ingress for routing set ingress.enabled value to true and istio.enabled value to false
+ingress:
+  enabled: false
+  className: ""
+  annotations:
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/session-cookie-name: XNGINX
+    nginx.ingress.kubernetes.io/session-cookie-expires: "1800"
+    # kubernetes.io/tls-acme: "true"
+    # ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: secret-tls
+  #    hosts:
+  #      - xwiki.local
+
+# To use istio for routing set istio.enabled value to true and ingress.enabled value to false
+istio:
+  enabled: false
+  host: "*"
+  httpCookie:
+    name: xistio
+    path: /
+    ttl: 1800s
+  externalGatewayName: ""
+  gateway:
+    enabled: false
+    # `ingress` is used on new helm intalls, otherwise use `ingressgateway`
+    selectorIstio: ingress
+  tls:
+    enabled: false
+    httpsRedirect: true
+    secretName: ""
+    minProtocolVersion: "TLSV1_2"
+    mode: "SIMPLE"
+    certificate:
+      # Generate certificate (cert-manager)
+      enabled: false
+      namespace: istio-ingress
+      issuerRef: {}
+      #  name: issuer
+      #  kind: ClusterIssuer
+
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: "500Mi"
+  annotations: {}
+  labels: {}
+  selector: {}
+  dataSource: {}
+  customVolume: {}
+
+## Read about PostDistribution budget at https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+## Use only on a clustered setup
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# Reference: https://kubernetes.io/docs/tasks/configure-pod-container/assign-pods-nodes/#create-a-pod-that-gets-scheduled-to-your-chosen-node
+nodeSelector: {}
+
+# Reference: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+  # - key: "key"
+  #   operator: "Equal"
+  #   value: "value"
+  #   effect: "NoSchedule"
+
+# https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+affinity: {}
+  # nodeAffinity:
+  #   requiredDuringSchedulingIgnoredDuringExecution:
+  #     nodeSelectorTerms:
+  #     - matchExpressions:
+  #       - key: kubernetes.io/e2e-az-name
+  #         operator: In
+  #         values:
+  #         - e2e-az1
+  #         - e2e-az2
+
+# Credentials to fetch images from private registry.
+# Ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+#
+# imagePullSecrets:
+#   - "docker-registry"
+#
+imagePullSecrets: []
+
+# https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/
+hostAliases: []
+#  - ip: "127.0.0.1"
+#    hostnames:
+#    - "foo.local"
+#    - "bar.local"
+#  - ip: "10.1.2.3"
+#    hostnames:
+#    - "foo.remote"
+#    - "bar.remote"
+
+# Allow to disable configurations files in data directory.
+# By default, helm will copy configuration files from image to have always
+# most up-to-date configuration files.
+overrideDataConfigs: true
+
+# Custom configuration files for xwiki
+customConfigs:
+  # Properties key that exists, replace in line is done with value here defined.
+  # If key don't exists, this key and value will be appended in that specific file.
+  # This files are list of key: value that are translated as key=value in that file.
+  # xwiki.cfg:
+    #
+  # xwiki.properties:
+    #
+
+# Secrets for custom configuration files for xwiki
+customConfigsSecrets:
+  # Properties key that exists, replace in line is done with value here defined.
+  # If key don't exists, this key and value will be appended in that specific file.
+  # The following example will set xwiki.superadminpassword in the file xwiki.cfg
+  # xwiki.cfg:
+  #   xwiki.superadminpassword:
+  #     # -- Superadmin password as plain value (fallback if no secret exists inside of Kubernetes).
+  #     value: "testvalue"
+  #     # Superadmin password from existing secret (higher precedence than plain value)
+  #     secret:
+  #       # -- Name of the Kubernetes secret that contains the superadmin password
+  #       name: "secretname"
+  #       # -- Key inside the Kubernetes secret that contains the superadmin password
+  #       key: "keyinsecret"
+
+# Properties to be passed to Java process with -D parameters using JAVA_OPTS
+properties:
+  # "key": "value"
+
+# Name of a secret that contains a file listing properties and their value separated by '=' line by line.
+# Those values will be prefixed by '-D' and depending on the used software/version appended to the environment
+# variable 'JAVA_OPTS' or a file that holds properties and get loaded later on.
+# The following example shows a single line how it is expected to be formatted:
+# property:xwiki:Mail.MailConfig^Mail.SendMailConfigClass.password="<password>"
+propertiesSecret:
+  # -- Name of the Kubernetes secret that contains the properties file
+  name: ""
+  # -- Key inside the Kubernetes secret that contains the properties file
+  key: ""
+
+# Init containers for the xwiki deployment/statefullSet
+initContainers:
+  database:
+    enabled: false
+    # Custom command to be executed in the init container
+    # command: ''
+    # To set when using externalDB
+    # image: "mysql:latest"
+    containerSecurityContext:
+      enabled: false
+      runAsUser: 0
+      seccompProfile:
+        type: "RuntimeDefault"
+  solr:
+    enabled: false
+    image: ""
+    # Resource requests/limits for the wait-for-solr init container.
+    # If not set, inherits from the main XWiki container resources.
+    resources: {}
+    containerSecurityContext:
+      enabled: false
+      runAsUser: 0
+      seccompProfile:
+        type: "RuntimeDefault"
+
+glowroot:
+  enabled: false
+  version: 0.14.0
+  url: https://github.com/glowroot/glowroot/releases/download/v${GLOWROOT_VERSION}/glowroot-${GLOWROOT_VERSION}-dist.zip
+  properties:
+    data.dir: /usr/local/xwiki/data/glowroot/data
+    log.dir: /usr/local/xwiki/data/glowroot/log
+    tmp.dir: /usr/local/xwiki/data/glowroot/tmp
+
+logback:
+  enabled: false
+#  customConfiguration: |
+#    <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
+#      <!-- Direct log messages to stdout -->
+#      <Target>System.out</Target>
+#      <encoder>
+#        <pattern>%d [%t] %-5p %-30.30c{2} - %m %n</pattern>
+#      </encoder>
+#    </appender>
+#  extraConfiguration: |
+#    <logger name="org.xwiki" level="debug"/>
+#    <logger name="com.xwiki" level="debug"/>
+
+# Enable Autoscaling for the xwiki deployment/statefullSet:
+# https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  # Custom metrics to trigger the Autoscaling
+  # https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#autoscaling-on-multiple-metrics-and-custom-metrics
+  metrics: {}
+  # - type: Resource
+  #   resource:
+  #     name: cpu
+  #     target:
+  #       type: Utilization
+  #       averageUtilization: 50
+  status: {}
+  # observedGeneration: 1
+  # lastScaleTime: <some-time>
+  # currentReplicas: 1
+  # desiredReplicas: 1
+  # currentMetrics:
+  # - type: Resource
+  #   resource:
+  #     name: cpu
+  #     current:
+  #       averageUtilization: 0
+  #       averageValue: 0
+
+# Ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+probes:
+  startup:
+    enabled: true
+    httpGet:
+      enabled: false
+      path: /
+    initialDelaySeconds: 120
+    timeoutSeconds: 60
+    periodSeconds: 30
+    failureThreshold: 5
+    successThreshold: 1
+  liveness:
+    enabled: true
+    httpGet:
+      enabled: true
+      path: /rest
+    initialDelaySeconds: 30
+    timeoutSeconds: 3
+    periodSeconds: 30
+    # 5 minutes
+    failureThreshold: 10
+    successThreshold: 1
+  readiness:
+    enabled: true
+    httpGet:
+      enabled: true
+      path: /rest/wikis/xwiki/spaces
+    initialDelaySeconds: 30
+    timeoutSeconds: 3
+    periodSeconds: 30
+    # 5 minutes
+    failureThreshold: 10
+    successThreshold: 1
+
+infinispan:
+  enabled: false
+  customConfig: ""
+  defaultMemoryMaxCount: 10000
+
+prometheus:
+  javaagent:
+    # https://github.com/prometheus/jmx_exporter
+    # Enable to download and use this agent
+    enabled: false
+    port: 12345
+    version: 0.20.0
+    url: https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/${PROMETHEUS_JAVAAGENT_VERSION}/jmx_prometheus_javaagent-${PROMETHEUS_JAVAAGENT_VERSION}.jar
+    config: |
+      rules:
+      - pattern: ".*"
+  podmonitor:
+    enabled: true
+    labels: {}
+
+customJdbc:
+  enabled: false
+  properties:
+    # Kept using replace values, for better wide support. Supporting externals references and other types of pass secrets.
+    connection.username: replaceuser
+    connection.password: replacepassword
+    show_sql: false
+    use_outer_join: true
+    jdbc.use_scrollable_resultset: false
+    dbcp.defaultAutoCommit: false
+    dbcp.maxTotal: 50
+    dbcp.maxIdle: 5
+    dbcp.maxWaitMillis: 30000
+    connection.provider_class: com.xpn.xwiki.store.DBCPConnectionProvider
+
+    hibernate.connection.charSet: UTF-8
+    hibernate.connection.useUnicode: true
+    hibernate.connection.characterEncoding: utf8
+  extraConfig: |
+    <mapping resource="xwiki.hbm.xml"/>
+    <mapping resource="feeds.hbm.xml"/>
+    <mapping resource="instance.hbm.xml"/>
+    <mapping resource="notification-filter-preferences.hbm.xml"/>
+    <mapping resource="mailsender.hbm.xml"/>
+  mysql:
+    properties:
+      connection.url: "jdbc:mysql://replacecontainer/replacedatabasereplacejdbcparams"
+      connection.driver_class: com.mysql.cj.jdbc.Driver
+      dbcp.poolPreparedStatements: true
+      dbcp.maxOpenPreparedStatements: 20
+    extraConfig: {}
+  mariadb:
+    properties:
+      connection.url: "jdbc:mariadb://replacecontainer/replacedatabasereplacejdbcparams"
+      connection.driver_class: org.mariadb.jdbc.Driver
+    extraConfig: {}
+  postgresql:
+    properties:
+      connection.url: "jdbc:postgresql://replacecontainer/replacedatabasereplacejdbcparams"
+      connection.driver_class: org.postgresql.Driver
+      jdbc.use_streams_for_binary: false
+      xwiki.virtual_mode: schema
+    extraConfig: |
+      <mapping resource="xwiki.postgresql.hbm.xml"/>

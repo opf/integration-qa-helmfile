@@ -1,5 +1,11 @@
 charts/opnc-integration/charts/*
 charts/openproject/charts/*
+charts/**/charts/*.tgz
+
+# Vendored XWiki chart cleanup
+charts/xwiki/tests/
+charts/xwiki/charts/mariadb/
+charts/xwiki/charts/postgresql/
 tmpcharts-*/
 helmfile-*/
 tmp/
