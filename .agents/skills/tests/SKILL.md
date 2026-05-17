@@ -1,13 +1,20 @@
 ---
 name: tests
 description: E2E test conventions for OpenProject integration tests. Use when writing, modifying, or reviewing Playwright tests, page objects, utilities, or locators in this repository.
+paths:
+  - "e2e/tests/**/*.ts"
+  - "e2e/pageobjects/**/*.ts"
+  - "e2e/utils/**/*.ts"
+  - "e2e/locators/**/*.json"
+  - "e2e/playwright.config.ts"
+  - "e2e/global-setup.ts"
 ---
 
 # OpenProject E2E Tests Skill
 
 Canonical source: `.agents/shared/openproject-e2e.md`.
 
-When this skill triggers, read `.agents/shared/openproject-e2e.md` before writing or reviewing E2E tests. This adapter stays at `.agents/skills/tests/SKILL.md` so Codex can auto-discover it.
+When this skill triggers, read `.agents/shared/openproject-e2e.md` before writing or reviewing E2E tests. This adapter stays at `.agents/skills/tests/SKILL.md` so Codex and Cursor can auto-discover it.
 
 Bootstrap rules:
 

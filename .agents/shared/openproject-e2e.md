@@ -7,10 +7,10 @@ description: E2E test conventions for OpenProject integration tests. Use when wr
 
 Canonical source for:
 
-- `.cursor/skills/tests/SKILL.md`
 - `.cursor/rules/openproject-e2e.mdc`
 - `.agents/skills/tests/SKILL.md`
 - `.claude/skills/tests/SKILL.md`
+- root `AGENTS.md` E2E summary
 
 ## Architecture Overview
 
@@ -158,9 +158,9 @@ try {
 
 The `playwright-cli` tool is for **interactive** exploration against a live site: snapshots, optional tracing or video outside the normal `npx playwright test` run, and discovering selector strategies. Output lines that look like Playwright API calls are **hints** for locator design, not something to paste into this repo’s specs.
 
-- **Install / run:** use `playwright-cli` if installed globally; otherwise `npx playwright-cli` (see `.claude/skills/playwright-cli/SKILL.md` under "Local installation").
+- **Install / run:** use `playwright-cli` if installed globally; otherwise `npx playwright-cli` (see `.agents/shared/playwright-cli/SKILL.md` under "Local installation").
 - **Useful commands (subset):** `open`, `goto`, `snapshot`, `click`, `fill`, `close`; `tracing-start` / `tracing-stop`; `video-start` / `video-stop`; named sessions `-s=name`, `list`, `close-all`.
-- **Full command reference:** `.claude/skills/playwright-cli/SKILL.md` and its `references/` files.
+- **Full command reference:** `.agents/shared/playwright-cli/SKILL.md` and `.agents/shared/playwright-cli/references/`.
 
 **This repository:** do not put raw selectors or CLI-generated `page.*` lines into `tests/`. Add stable keys to `locators/*.json`, use `getLocator` in page objects, and call page object methods from specs (see Locator Rules and Page Object Conventions above).
 

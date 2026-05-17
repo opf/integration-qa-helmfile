@@ -1,12 +1,12 @@
 ---
 description: OpenProject E2E Playwright conventions (page objects, locators, utils)
 globs:
-  - tests/**/*.ts
-  - pageobjects/**/*.ts
-  - utils/**/*.ts
-  - locators/**/*.json
-  - playwright.config.ts
-  - global-setup.ts
+  - e2e/tests/**/*.ts
+  - e2e/pageobjects/**/*.ts
+  - e2e/utils/**/*.ts
+  - e2e/locators/**/*.json
+  - e2e/playwright.config.ts
+  - e2e/global-setup.ts
 alwaysApply: false
 ---
 
@@ -14,12 +14,6 @@ alwaysApply: false
 
 Canonical source: `.agents/shared/openproject-e2e.md`.
 
-Cursor should apply this rule for the matching paths and read the canonical guide before changing tests, page objects, locators, utils, `playwright.config.ts`, or `global-setup.ts`.
+Cursor should apply this path-scoped rule for matching E2E files and read `.agents/shared/openproject-e2e.md` before changing tests, page objects, locators, utils, `playwright.config.ts`, or `global-setup.ts`.
 
-Minimum rules:
-
-- `tests/` specs use page objects and locator keys; no inline selectors.
-- `locators/` stores JSON locator definitions; prefer semantic locators and `getByTestId` before CSS/XPath.
-- UI flows belong in page objects; API helpers and orchestration belong in `utils/`.
-- Use shared env/config helpers, central logging, typed catches, and strict TypeScript patterns from the canonical guide.
-- For OpenProject/Nextcloud file tests, clean OpenProject file links separately from Nextcloud WebDAV files.
+Do not duplicate E2E conventions here. Keep this rule as the Cursor glob trigger and keep the canonical guidance under `.agents/shared/openproject-e2e.md`.
