@@ -14,6 +14,7 @@ environments/override.yaml
 # E2E (Playwright)
 logs
 *.log
+openproject-*-logs.md
 npm-debug.log*
 node_modules/
 *.tsbuildinfo

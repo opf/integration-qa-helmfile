@@ -15,6 +15,7 @@
   "include": [
     "tests/**/*",
     "pageobjects/**/*",
+    "scripts/**/*",
     "utils/**/*",
     "playwright.config.ts",
     "global-setup.ts"

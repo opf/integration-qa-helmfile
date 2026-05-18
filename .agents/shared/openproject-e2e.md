@@ -137,6 +137,30 @@ try {
 - OpenProject file links and Nextcloud WebDAV files have separate cleanup paths. Deleting `OpenProject/<project folder>/<file>` from Nextcloud does not remove `/api/v3/file_links` records from the work package. Repeatable upload/link tests should delete stale OpenProject file links by work package and file name before uploading, and clean them again in `afterAll`.
 - Files-tab hover actions can be icon-only. In OpenProject 17.3, the linked-file actions observed are: download via `/download`, open location with accessible name `"Open file in location"`, and unlink with accessible name `"Remove file link"`. Prefer locator keys/page-object helpers for these actions and avoid clicking destructive actions in availability-only tests.
 
+## Squash TM Reporting
+
+- Squash TM result import maps Playwright results through the test's automated test reference, and this repository stores that mapping in Playwright annotations.
+- When a Playwright test corresponds to a Squash TM test case, add `squashTestCase(...)` from `utils/squash-metadata.ts` to the test declaration. The first argument is the numeric Squash test case ID.
+- Use `squashTestCase(2148, { tag: ['@smoke'] })` when a mapped test also needs Playwright tags. Playwright accepts one details object per test, so do not add a second custom metadata object.
+- The publisher derives the automated reference from the Playwright report as `integration-qa-helmfile/<spec folder>#<spec file>#<test title>`. Set the same value in Squash TM's automated test reference field.
+- Squash test case, campaign, and iteration IDs are numeric Squash API IDs. Do not invent these IDs from date/time, `@smoke`, `@regression`, GitHub run ID, or other labels; use those values in generated names/descriptions instead.
+- If a Squash-mapped test is renamed or moved, update the Squash TM automated test reference to match the new generated reference.
+- CI publishing uses `npm run squash:publish` after Playwright has produced `playwright-report/run-*/results.json`. Publishing needs `SQUASH_TM_API_TOKEN` and either `SQUASH_TM_ITERATION_ID` or a future campaign-based iteration creation flow.
+
+Example:
+
+```ts
+import { squashTestCase } from '../../utils/squash-metadata';
+
+test(
+  'OpenProject Files tab lists linked Nextcloud items and available actions',
+  squashTestCase(2148),
+  async ({ page }) => {
+    // test body
+  }
+);
+```
+
 ## Running Tests
 
 - Tests run in headless mode by default (see `playwright.config.ts`).

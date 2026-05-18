@@ -14,5 +14,6 @@ Bootstrap rules:
 - The Playwright project lives under `e2e/`.
 - Keep selectors in `locators/*.json`, not in spec files.
 - Put UI flows in page objects and API/data orchestration in `utils/`.
+- For Squash TM-mapped tests, use `squashTestCase(...)` from `utils/squash-metadata.ts`; follow the canonical guide for reference format and numeric Squash IDs.
 - Use `logDebug` / `logInfo` / `logWarn` / `logError`, typed catches, and `getErrorMessage`.
 - For OpenProject/Nextcloud integration details, especially SSO user provisioning and file-link cleanup, follow the canonical guide.

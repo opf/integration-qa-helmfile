@@ -50,6 +50,20 @@ on:
         description: "Custom --grep expression"
         required: false
         type: string
+      squash_iteration_id:
+        description: "Optional Squash TM iteration ID for result import"
+        required: false
+        type: string
+      squash_dry_run:
+        description: "Write Squash TM payload but do not publish"
+        required: false
+        default: false
+        type: boolean
+      squash_sync_test_plan:
+        description: "Add mapped Squash TM test cases to the iteration before publish"
+        required: false
+        default: false
+        type: boolean
       setupMethod:
         description: "Integration setup mode"
         required: true
@@ -547,6 +561,27 @@ jobs:
           echo "Running: ${args[*]}"
           echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST}"
           "${args[@]}"
+
+      - name: Publish Playwright results to Squash TM
+        if: always() && needs.deploy.outputs.tests_should_run == 'true'
+        working-directory: e2e
+        env:
+          SQUASH_TM_URL: ${{ vars.SQUASH_TM_URL }}
+          SQUASH_TM_API_TOKEN: ${{ secrets.SQUASH_TM_API_TOKEN }}
+          SQUASH_TM_ITERATION_ID: ${{ github.event.inputs.squash_iteration_id != '' && github.event.inputs.squash_iteration_id || vars.SQUASH_TM_ITERATION_ID }}
+          SQUASH_TM_DRY_RUN: ${{ github.event.inputs.squash_dry_run }}
+          SQUASH_TM_SYNC_TEST_PLAN: ${{ github.event.inputs.squash_sync_test_plan == 'true' && 'true' || vars.SQUASH_TM_SYNC_TEST_PLAN }}
+          SQUASH_TM_SKIP_MISSING_AUTH: "true"
+        run: npm run squash:publish
+
+      - name: Upload Squash TM payload
+        if: always() && needs.deploy.outputs.tests_should_run == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: squash-results
+          path: e2e/playwright-report/**/squash-results.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Add detected versions and workflow inputs to summary
         if: always() && needs.deploy.outputs.live == 'true'

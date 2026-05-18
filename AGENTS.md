@@ -26,6 +26,7 @@ This file is the canonical always-on project guidance for AI coding agents. Code
 - API helpers and orchestration belong in `e2e/utils/`.
 - Selectors belong in `e2e/locators/*.json`; do not put raw selectors in specs.
 - Use page object methods and `getLocator(...)` rather than inline Playwright selectors.
+- For Squash TM-mapped tests, add the numeric Squash test case ID in code with `squashTestCase(...)` from `e2e/utils/squash-metadata.ts`; keep the generated automated test reference in Squash TM aligned with the Playwright test title and spec path.
 - Use the shared logger and typed catches from the E2E guide; do not add direct `console.*` logging in tests, page objects, or utilities.
 - OpenProject file links and Nextcloud WebDAV files have separate cleanup paths; handle both when changing repeatable upload or file-link tests.
 
