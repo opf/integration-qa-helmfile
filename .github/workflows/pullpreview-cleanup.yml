@@ -166,20 +166,96 @@ jobs:
 
           declare -A INITIATOR_CACHE=()
           declare -A LAUNCHED_CACHE=()
+          declare -A UPTIME_CACHE=()
+
+          format_uptime_seconds() {
+            local seconds="$1"
+            local days hours minutes
+
+            days=$((seconds / 86400))
+            hours=$(((seconds % 86400) / 3600))
+            minutes=$(((seconds % 3600) / 60))
+
+            if [[ "${days}" -gt 0 ]]; then
+              echo "${days}d ${hours}h"
+            elif [[ "${hours}" -gt 0 ]]; then
+              echo "${hours}h ${minutes}m"
+            elif [[ "${minutes}" -gt 0 ]]; then
+              echo "${minutes}m"
+            else
+              echo "<1m"
+            fi
+          }
+
+          compute_uptime_from_iso() {
+            local iso="$1"
+            local started_epoch now_epoch diff
+
+            [[ -n "${iso}" ]] || return 1
+            started_epoch="$(date -u -d "${iso}" +%s 2>/dev/null || true)"
+            [[ -n "${started_epoch}" ]] || return 1
+
+            now_epoch="$(date -u +%s)"
+            diff=$((now_epoch - started_epoch))
+            if [[ "${diff}" -lt 0 ]]; then
+              diff=0
+            fi
+            format_uptime_seconds "${diff}"
+          }
+
+          format_launched_display() {
+            local iso="$1"
+            local launched="${iso}"
+
+            [[ -n "${launched}" ]] || return 1
+            launched="${launched/T/ }"
+            launched="${launched/Z/ UTC}"
+            echo "${launched}"
+          }
+
+          extract_hetzner_created_iso() {
+            local line="$1"
+            local part
+
+            while IFS= read -r part; do
+              if [[ "${part}" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]+[0-9]{2}:[0-9]{2}:[0-9]{2}) ]]; then
+                echo "${BASH_REMATCH[1]} UTC"
+                return 0
+              fi
+            done < <(printf '%s' "${line}" | tr '\t' '\n')
+
+            return 1
+          }
 
           resolve_run_meta() {
             local label="$1"
-            local run_id actor launched response link
+            local line="${2:-}"
+            local run_id actor launched_iso launched_display uptime response link hetzner_created
 
             INITIATOR_CACHE["_current"]="—"
             LAUNCHED_CACHE["_current"]="—"
+            UPTIME_CACHE["_current"]="—"
 
             if [[ "${label}" == "pullpreview" ]]; then
               INITIATOR_CACHE["_current"]="— (PR preview)"
+              hetzner_created="$(extract_hetzner_created_iso "${line}")"
+              if [[ -n "${hetzner_created}" ]]; then
+                launched_display="$(format_launched_display "${hetzner_created}")"
+                uptime="$(compute_uptime_from_iso "${hetzner_created}" || true)"
+                LAUNCHED_CACHE["_current"]="${launched_display:-—}"
+                UPTIME_CACHE["_current"]="${uptime:-—}"
+              fi
               return
             fi
 
             if [[ ! "${label}" =~ ^(e2e|setup)-([0-9]+)-[0-9]+$ ]]; then
+              hetzner_created="$(extract_hetzner_created_iso "${line}")"
+              if [[ -n "${hetzner_created}" ]]; then
+                launched_display="$(format_launched_display "${hetzner_created}")"
+                uptime="$(compute_uptime_from_iso "${hetzner_created}" || true)"
+                LAUNCHED_CACHE["_current"]="${launched_display:-—}"
+                UPTIME_CACHE["_current"]="${uptime:-—}"
+              fi
               return
             fi
 
@@ -187,6 +263,7 @@ jobs:
             if [[ -n "${INITIATOR_CACHE[${run_id}]+x}" ]]; then
               INITIATOR_CACHE["_current"]="${INITIATOR_CACHE[${run_id}]}"
               LAUNCHED_CACHE["_current"]="${LAUNCHED_CACHE[${run_id}]}"
+              UPTIME_CACHE["_current"]="${UPTIME_CACHE[${run_id}]}"
               return
             fi
 
@@ -201,22 +278,23 @@ jobs:
             )"
 
             actor="$(printf '%s' "${response}" | jq -r '.actor.login // empty' 2>/dev/null || true)"
-            launched="$(printf '%s' "${response}" | jq -r '.run_started_at // .created_at // empty' 2>/dev/null || true)"
-            if [[ -n "${launched}" ]]; then
-              launched="${launched/T/ }"
-              launched="${launched/Z/ UTC}"
-            fi
+            launched_iso="$(printf '%s' "${response}" | jq -r '.run_started_at // .created_at // empty' 2>/dev/null || true)"
+            launched_display="$(format_launched_display "${launched_iso}" || true)"
+            uptime="$(compute_uptime_from_iso "${launched_iso}" || true)"
 
             if [[ -z "${actor}" ]]; then
               INITIATOR_CACHE["${run_id}"]="— (run [${run_id}](${link}) not found)"
               LAUNCHED_CACHE["${run_id}"]="—"
+              UPTIME_CACHE["${run_id}"]="—"
             else
               INITIATOR_CACHE["${run_id}"]="[@${actor}](${link})"
-              LAUNCHED_CACHE["${run_id}"]="${launched:-—}"
+              LAUNCHED_CACHE["${run_id}"]="${launched_display:-—}"
+              UPTIME_CACHE["${run_id}"]="${uptime:-—}"
             fi
 
             INITIATOR_CACHE["_current"]="${INITIATOR_CACHE[${run_id}]}"
             LAUNCHED_CACHE["_current"]="${LAUNCHED_CACHE[${run_id}]}"
+            UPTIME_CACHE["_current"]="${UPTIME_CACHE[${run_id}]}"
           }
 
           matched=0
@@ -229,8 +307,11 @@ jobs:
             echo "- Target filter: \`${IN_TARGET}\`"
             echo "- Mode: \`${IN_MODE}\`"
             echo ""
-            echo "| Instance name | Label | IP | Branch | Workflow started | Initiated by | Selected |"
-            echo "| --- | --- | --- | --- | --- | --- | --- |"
+            echo "| Instance name | Label | IP | Branch | Workflow started (UTC) | Uptime | Initiated by | Selected |"
+            echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
+            echo ""
+            echo "_Uptime for \`e2e-*\` / \`setup-*\` labels is measured from workflow start. PR previews use the Hetzner instance created timestamp when present._"
+            echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
           while IFS= read -r line || [[ -n "${line}" ]]; do
@@ -261,9 +342,10 @@ jobs:
               branch="—"
             fi
 
-            resolve_run_meta "${label}"
+            resolve_run_meta "${label}" "${line}"
             initiator="${INITIATOR_CACHE[_current]}"
             launched="${LAUNCHED_CACHE[_current]}"
+            uptime="${UPTIME_CACHE[_current]}"
 
             selected=no
             if [[ "${label}" != "(missing pullpreview_label)" ]] && label_matches_target "${label}"; then
@@ -275,8 +357,8 @@ jobs:
             fi
 
             {
-              printf '| `%s` | `%s` | %s | %s | %s | %s | %s |\n' \
-                "${name}" "${label}" "${ip:-—}" "${branch}" "${launched}" "${initiator}" "${selected}"
+              printf '| `%s` | `%s` | %s | %s | %s | %s | %s | %s |\n' \
+                "${name}" "${label}" "${ip:-—}" "${branch}" "${launched}" "${uptime}" "${initiator}" "${selected}"
             } >> "${GITHUB_STEP_SUMMARY}"
           done < "${list_file}"
 
