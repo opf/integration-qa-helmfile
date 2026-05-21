@@ -46,5 +46,11 @@ Manual workflow: `.github/workflows/e2e.yml` (deploy PullPreview, run Playwright
 | `E2E_BRIAN_USER/PASS` | Realm user brian | `brian/1234` |
 | `E2E_WORKERS` | Worker count | `1` |
 | `SETUP_JOB_CHECK` | Wait for K8s setup-job | `false` |
+| `SQUASH_TM_URL` | Squash TM base URL for result import | `https://squashtm.openproject.org/squash` |
+| `SQUASH_TM_API_TOKEN` | Squash TM API token for result import | none |
+| `SQUASH_TM_ITERATION_ID` | Target Squash TM iteration ID | none |
+| `SQUASH_TM_SYNC_TEST_PLAN` | Add mapped test case IDs to the iteration before import | `false` |
+| `SQUASH_TM_DRY_RUN` | Write Squash payload without publishing | `false` |
+| `SQUASH_TM_TEST_ATTACHMENT_EXTENSIONS` | Allowed per-test attachment extensions for Squash payloads | `txt,html,xml,doc,png,jpg,jpeg,webm,zip` |
 
 Put variables in `.env.local` for local runs. Place `opnc-root-ca.crt` in the project root for self-signed CA.

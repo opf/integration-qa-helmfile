@@ -20,6 +20,7 @@ import {
 import type { EnsureAdminResult } from '../../utils/openproject-api';
 import { testConfig } from '../../utils/config';
 import { logInfo, logWarn } from '../../utils/logger';
+import { squashTestCase } from '../../utils/squash-metadata';
 
 async function ensureAliceAdmin(): Promise<EnsureAdminResult> {
   const identifiers = [
@@ -60,7 +61,6 @@ async function ensureAliceAdminForCurrentSession(
 
 test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   test.describe.configure({ mode: 'serial' });
-  //OpenProject integration tests
   
   test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
     const loginPage = new OpenProjectLoginPage(page);
@@ -148,39 +148,43 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     await expect(uploadSuccessMessage).toContainText('Successfully created 1 file link.');
   });
 
-  test('OpenProject Files tab lists linked Nextcloud items and available actions', async ({ page }) => {
-    const uploadedFileName = 'op-to-nc-upload-test.md';
+  test(
+    'OpenProject Files tab lists linked Nextcloud items and available actions',
+    squashTestCase(2148),
+    async ({ page }) => {
+      const uploadedFileName = 'op-to-nc-upload-test.md';
 
-    const loginPage = new OpenProjectLoginPage(page);
-    await loginPage.navigateTo();
-    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      const loginPage = new OpenProjectLoginPage(page);
+      await loginPage.navigateTo();
+      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
-    const homePage = new OpenProjectHomePage(page);
-    await homePage.waitForReady();
+      const homePage = new OpenProjectHomePage(page);
+      await homePage.waitForReady();
 
-    await ensureAliceAdminForCurrentSession(page, homePage);
+      await ensureAliceAdminForCurrentSession(page, homePage);
 
-    await ensureProjectHasNextcloudStorage('demo-project', page);
+      await ensureProjectHasNextcloudStorage('demo-project', page);
 
-    await homePage.navigateToDemoProjectWorkPackageFiles(2);
-    await homePage.waitForDemoProjectWorkPackageFilesUrl();
+      await homePage.navigateToDemoProjectWorkPackageFiles(2);
+      await homePage.waitForDemoProjectWorkPackageFilesUrl();
 
-    const linkedFileItem = await homePage.hoverLinkedWorkPackageFile(uploadedFileName);
-    await expect(linkedFileItem).toContainText(uploadedFileName);
+      const linkedFileItem = await homePage.hoverLinkedWorkPackageFile(uploadedFileName);
+      await expect(linkedFileItem).toContainText(uploadedFileName);
 
-    const downloadAction = homePage.getLinkedWorkPackageFileDownloadAction(uploadedFileName);
-    await expect(downloadAction).toBeVisible();
-    await expect(downloadAction).toBeEnabled();
+      const downloadAction = homePage.getLinkedWorkPackageFileDownloadAction(uploadedFileName);
+      await expect(downloadAction).toBeVisible();
+      await expect(downloadAction).toBeEnabled();
 
-    const openLocationAction = homePage.getLinkedWorkPackageFileOpenLocationAction(uploadedFileName);
-    await expect(openLocationAction).toBeVisible();
-    await expect(openLocationAction).toBeEnabled();
+      const openLocationAction = homePage.getLinkedWorkPackageFileOpenLocationAction(uploadedFileName);
+      await expect(openLocationAction).toBeVisible();
+      await expect(openLocationAction).toBeEnabled();
 
-    const removeLinkAction = homePage.getLinkedWorkPackageFileRemoveLinkAction(uploadedFileName);
-    await expect(removeLinkAction).toBeVisible();
-    await expect(removeLinkAction).toBeEnabled();
-  });
+      const removeLinkAction = homePage.getLinkedWorkPackageFileRemoveLinkAction(uploadedFileName);
+      await expect(removeLinkAction).toBeVisible();
+      await expect(removeLinkAction).toBeEnabled();
+    }
+  );
 
   test('Copy ampf Demo project', async ({ page }) => {
     test.setTimeout(120_000);
