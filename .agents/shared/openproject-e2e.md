@@ -147,6 +147,17 @@ try {
 - If a Squash-mapped test is renamed or moved, update the Squash TM automated test reference to match the new generated reference.
 - CI publishing uses `npm run squash:publish` after Playwright has produced `playwright-report/run-*/results.json`. Publishing needs `SQUASH_TM_API_TOKEN` and either `SQUASH_TM_ITERATION_ID` or a future campaign-based iteration creation flow.
 
+### Per-test step results (Playwright `test.step()`)
+
+Squash TM import supports `tests[].test_steps[]` with per-step status and attachments. The API matches steps **by position**: the number of imported steps must equal the number of manual steps on the Squash test case (see [import from pipelines](https://tm-en.doc.squashtest.com/latest/user-guide/manage-automated-tests/devops/importResultsFromPipeline.html)).
+
+- Enable in CI with `SQUASH_TM_IMPORT_STEPS=true` (set in `.github/workflows/e2e.yml`).
+- Use **top-level** `test.step('...', async () => { ... })` only; do not rely on nested steps for Squash alignment.
+- Pass `stepCount: N` in `squashTestCase(...)` where `N` is the Squash manual step count. The publisher validates Playwright step count against this annotation and, when `SQUASH_TM_VALIDATE_STEP_COUNT=true`, against Squash TM via API.
+- On mismatch, the publisher logs a warning and omits `test_steps` for that test (unless `SQUASH_TM_STRICT_STEP_COUNT=true`).
+- When step import is enabled, suite-level `junit.xml` is not attached (per-test results and step attachments are used instead). `github-run.txt` remains at suite level.
+- Squash manual steps must be defined in the same order as Playwright `test.step()` blocks.
+
 Example:
 
 ```ts
@@ -154,9 +165,20 @@ import { squashTestCase } from '../../utils/squash-metadata';
 
 test(
   'OpenProject Files tab lists linked Nextcloud items and available actions',
-  squashTestCase(2148),
+  squashTestCase(2148, { stepCount: 4 }),
   async ({ page }) => {
-    // test body
+    await test.step('Login to OpenProject as the test user', async () => {
+      // ...
+    });
+    await test.step('Open the target work package', async () => {
+      // ...
+    });
+    await test.step('Open the Files tab', async () => {
+      // ...
+    });
+    await test.step('Hover over a linked file', async () => {
+      // ...
+    });
   }
 );
 ```

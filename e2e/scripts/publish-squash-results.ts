@@ -5,6 +5,7 @@ import { logError, logInfo, logWarn } from '../utils/logger';
 import {
   SQUASH_AUTOMATED_REFERENCE_ANNOTATION,
   SQUASH_DATASET_NAME_ANNOTATION,
+  SQUASH_STEP_COUNT_ANNOTATION,
   SQUASH_TEST_CASE_ID_ANNOTATION,
   squashAutomatedReference,
 } from '../utils/squash-metadata';
@@ -23,6 +24,11 @@ interface SquashAttachment {
   content: string;
 }
 
+interface SquashStepResult {
+  status: SquashStatus;
+  attachments?: SquashAttachment[];
+}
+
 interface SquashTestResult {
   reference: string;
   dataset_name?: string;
@@ -30,6 +36,7 @@ interface SquashTestResult {
   duration?: number;
   failure_details?: string[];
   attachments?: SquashAttachment[];
+  test_steps?: SquashStepResult[];
 }
 
 interface SquashPayload {
@@ -54,6 +61,8 @@ interface CollectedTest {
   duration: number;
   failureDetails: string[];
   attachments: SquashAttachment[];
+  testSteps: SquashStepResult[];
+  expectedStepCount?: number;
 }
 
 interface AttachmentPolicy {
@@ -88,6 +97,9 @@ async function main(): Promise<void> {
       '  SQUASH_TM_API_TOKEN        Bearer token with permission to import results',
       '  SQUASH_TM_ITERATION_ID     Target iteration ID',
       '  SQUASH_TM_SYNC_TEST_PLAN   When true, add mapped test case IDs to the iteration before import',
+      '  SQUASH_TM_IMPORT_STEPS     When true, import Playwright test.step() results as Squash test_steps',
+      '  SQUASH_TM_VALIDATE_STEP_COUNT  When true with IMPORT_STEPS, compare counts to Squash TM test case',
+      '  SQUASH_TM_STRICT_STEP_COUNT    When true, abort if step counts mismatch instead of skipping steps',
       '  SQUASH_TM_DRY_RUN          When true, write payload without publishing',
       '  SQUASH_TM_TEST_ATTACHMENT_EXTENSIONS  Allowed per-test attachment extensions',
     ].join('\n'));
@@ -124,7 +136,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const payload = buildSquashPayload(collectedTests, reportRunDir, attachmentPolicy);
+  const configForValidation = dryRun
+    ? undefined
+    : getPublisherConfig(skipMissingAuth);
+  const testsForPayload = await prepareTestsForImport(
+    collectedTests,
+    configForValidation,
+  );
+
+  const payload = buildSquashPayload(testsForPayload, reportRunDir, attachmentPolicy);
   const outputPath = path.join(reportRunDir, 'squash-results.json');
   fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   logInfo(`[Squash TM] Wrote payload: ${outputPath}`);
@@ -135,7 +155,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const config = getPublisherConfig(skipMissingAuth);
+  const config = configForValidation ?? getPublisherConfig(skipMissingAuth);
   if (!config) return;
 
   if (envFlag('SQUASH_TM_SYNC_TEST_PLAN')) {
@@ -253,7 +273,14 @@ function collectFromSpec(
     if (!reference) continue;
 
     const datasetName = getAnnotationDescription(annotations, SQUASH_DATASET_NAME_ANNOTATION);
+    const expectedStepCount = parsePositiveInteger(
+      getAnnotationDescription(annotations, SQUASH_STEP_COUNT_ANNOTATION),
+    );
     const summary = summarizePlaywrightTest(testObject, reportRunDir, attachmentPolicy);
+    const importSteps = envFlag('SQUASH_TM_IMPORT_STEPS');
+    const testSteps = importSteps
+      ? collectTopLevelPlaywrightSteps(testObject, reportRunDir, attachmentPolicy)
+      : [];
 
     collected.push({
       reference,
@@ -265,6 +292,8 @@ function collectFromSpec(
       duration: summary.duration,
       failureDetails: summary.failureDetails,
       attachments: summary.attachments,
+      testSteps,
+      expectedStepCount,
     });
   }
 }
@@ -422,6 +451,180 @@ function resolveAttachmentPath(attachmentPath: string, reportRunDir: string): st
   return path.resolve(e2eRoot, attachmentPath);
 }
 
+function collectTopLevelPlaywrightSteps(
+  testObject: Record<string, unknown>,
+  reportRunDir: string,
+  attachmentPolicy: AttachmentPolicy,
+): SquashStepResult[] {
+  const results = asArray(testObject.results)
+    .map((result) => asObject(result))
+    .filter((result): result is Record<string, unknown> => Boolean(result));
+
+  if (results.length === 0) return [];
+
+  const lastResult = results[results.length - 1];
+  return asArray(lastResult.steps).flatMap((step) => {
+    const stepObject = asObject(step);
+    if (!stepObject) return [];
+    return [summarizePlaywrightStep(stepObject, reportRunDir, attachmentPolicy)];
+  });
+}
+
+function summarizePlaywrightStep(
+  stepObject: Record<string, unknown>,
+  reportRunDir: string,
+  attachmentPolicy: AttachmentPolicy,
+): SquashStepResult {
+  const failureDetails = getFailureDetails(stepObject);
+  const nestedSteps = asArray(stepObject.steps)
+    .map((nested) => asObject(nested))
+    .filter((nested): nested is Record<string, unknown> => Boolean(nested));
+
+  let status: SquashStatus = failureDetails.length > 0 ? 'FAILURE' : 'SUCCESS';
+  for (const nested of nestedSteps) {
+    if (getFailureDetails(nested).length > 0) {
+      status = 'FAILURE';
+      break;
+    }
+  }
+
+  const attachments: SquashAttachment[] = [];
+  if (status === 'FAILURE') {
+    const stepTitle = getString(stepObject.title) || 'step';
+    const summary = failureDetails.join('\n\n') || 'Step failed';
+    const textAttachment = createTextAttachment(
+      `${sanitizeAttachmentBaseName(stepTitle)}-failure.txt`,
+      `${stepTitle}\n\n${summary}\n`,
+      attachmentPolicy.testExtensions,
+      attachmentPolicy.maxBytes,
+    );
+    if (textAttachment) attachments.push(textAttachment);
+  }
+
+  const stepAttachments = getResultAttachments(stepObject, reportRunDir, attachmentPolicy);
+  attachments.push(...stepAttachments);
+
+  return {
+    status,
+    attachments: attachments.length > 0 ? attachments : undefined,
+  };
+}
+
+function sanitizeAttachmentBaseName(value: string): string {
+  const sanitized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return sanitized.slice(0, 48) || 'step';
+}
+
+async function prepareTestsForImport(
+  tests: CollectedTest[],
+  config: PublisherConfig | undefined,
+): Promise<CollectedTest[]> {
+  if (!envFlag('SQUASH_TM_IMPORT_STEPS')) {
+    return tests.map((test) => ({ ...test, testSteps: [] }));
+  }
+
+  const strict = envFlag('SQUASH_TM_STRICT_STEP_COUNT');
+  const validateAgainstSquash = envFlag('SQUASH_TM_VALIDATE_STEP_COUNT') && Boolean(config);
+  const prepared: CollectedTest[] = [];
+
+  for (const test of tests) {
+    const playwrightStepCount = test.testSteps.length;
+
+    if (playwrightStepCount === 0 && !test.expectedStepCount) {
+      prepared.push(test);
+      continue;
+    }
+
+    if (test.expectedStepCount !== undefined && playwrightStepCount !== test.expectedStepCount) {
+      const message =
+        `[Squash TM] ${test.reference}: Playwright top-level test.step() count ` +
+        `(${playwrightStepCount}) does not match squash_step_count annotation ` +
+        `(${test.expectedStepCount}).`;
+      if (strict) throw new Error(message);
+      logWarn(`${message} Skipping test_steps for this test.`);
+      prepared.push({ ...test, testSteps: [] });
+      continue;
+    }
+
+    if (validateAgainstSquash && config && test.testCaseId) {
+      const squashStepCount = await getSquashTestCaseStepCount(config, test.testCaseId);
+      if (
+        squashStepCount !== undefined &&
+        playwrightStepCount > 0 &&
+        playwrightStepCount !== squashStepCount
+      ) {
+        const message =
+          `[Squash TM] ${test.reference} (TC ${test.testCaseId}): Playwright step count ` +
+          `(${playwrightStepCount}) does not match Squash TM manual steps (${squashStepCount}).`;
+        if (strict) throw new Error(message);
+        logWarn(`${message} Skipping test_steps for this test.`);
+        prepared.push({ ...test, testSteps: [] });
+        continue;
+      }
+    }
+
+    if (playwrightStepCount === 0) {
+      prepared.push(test);
+      continue;
+    }
+
+    logInfo(
+      `[Squash TM] ${test.reference}: importing ${playwrightStepCount} test step result(s).`,
+    );
+    prepared.push(test);
+  }
+
+  return prepared;
+}
+
+async function getSquashTestCaseStepCount(
+  config: PublisherConfig,
+  testCaseId: number,
+): Promise<number | undefined> {
+  const response = await fetchWithRetry(
+    buildApiUrl(config.baseUrl, `test-cases/${testCaseId}?fields=id,steps[action]`),
+    {
+      headers: {
+        Authorization: `Bearer ${config.apiToken}`,
+        Accept: 'application/json',
+      },
+    },
+  );
+  const body = await response.text();
+  if (!response.ok) {
+    logWarn(
+      `[Squash TM] Could not read test case ${testCaseId} steps: HTTP ${response.status} ${body}`,
+    );
+    return undefined;
+  }
+
+  try {
+    return countSquashTestCaseSteps(JSON.parse(body) as unknown);
+  } catch (error: unknown) {
+    logWarn(
+      `[Squash TM] Could not parse test case ${testCaseId} steps: ${getErrorMessage(error)}`,
+    );
+    return undefined;
+  }
+}
+
+function countSquashTestCaseSteps(value: unknown): number {
+  const root = asObject(value);
+  if (!root) return 0;
+
+  const directSteps = asArray(root.steps);
+  if (directSteps.length > 0) return directSteps.length;
+
+  const embedded = asObject(root._embedded);
+  const embeddedSteps = asArray(embedded?.steps);
+  if (embeddedSteps.length > 0) return embeddedSteps.length;
+
+  return 0;
+}
+
 function mergeCollectedTests(tests: CollectedTest[]): CollectedTest[] {
   const merged = new Map<string, CollectedTest>();
 
@@ -440,8 +643,10 @@ function mergeCollectedTests(tests: CollectedTest[]): CollectedTest[] {
       ...test.failureDetails,
     ]);
     existing.attachments.push(...test.attachments);
+    existing.testSteps.push(...test.testSteps);
     existing.testCaseId = existing.testCaseId ?? test.testCaseId;
     existing.file = existing.file ?? test.file;
+    existing.expectedStepCount = existing.expectedStepCount ?? test.expectedStepCount;
   }
 
   return [...merged.values()];
@@ -464,6 +669,7 @@ function buildSquashPayload(
   attachmentPolicy: AttachmentPolicy,
 ): SquashPayload {
   const suiteAttachments = getSuiteAttachments(reportRunDir, attachmentPolicy);
+  const importSteps = envFlag('SQUASH_TM_IMPORT_STEPS');
 
   return {
     automated_test_suite: suiteAttachments.length > 0
@@ -476,6 +682,8 @@ function buildSquashPayload(
       duration: test.duration > 0 ? Math.round(test.duration) : undefined,
       failure_details: test.failureDetails.length > 0 ? test.failureDetails : undefined,
       attachments: test.attachments.length > 0 ? test.attachments : undefined,
+      test_steps:
+        importSteps && test.testSteps.length > 0 ? test.testSteps : undefined,
     })),
   };
 }
@@ -485,14 +693,17 @@ function getSuiteAttachments(
   attachmentPolicy: AttachmentPolicy,
 ): SquashAttachment[] {
   const attachments: SquashAttachment[] = [];
-  const junitPath = path.join(reportRunDir, 'junit.xml');
-  const junitAttachment = createFileAttachment(
-    junitPath,
-    'junit.xml',
-    attachmentPolicy.suiteExtensions,
-    attachmentPolicy.maxBytes,
-  );
-  if (junitAttachment) attachments.push(junitAttachment);
+
+  if (!envFlag('SQUASH_TM_IMPORT_STEPS')) {
+    const junitPath = path.join(reportRunDir, 'junit.xml');
+    const junitAttachment = createFileAttachment(
+      junitPath,
+      'junit.xml',
+      attachmentPolicy.suiteExtensions,
+      attachmentPolicy.maxBytes,
+    );
+    if (junitAttachment) attachments.push(junitAttachment);
+  }
 
   const githubRunAttachment = createTextAttachment(
     'github-run.txt',

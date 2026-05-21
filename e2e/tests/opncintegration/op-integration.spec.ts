@@ -5,7 +5,11 @@ import {
   integrationTags,
 } from '../base-test';
 import type { Page } from '@playwright/test';
-import { OpenProjectLoginPage, OpenProjectHomePage } from '../../pageobjects/openproject';
+import {
+  OpenProjectLoginPage,
+  OpenProjectHomePage,
+  OpenProjectProjectStoragesPage,
+} from '../../pageobjects/openproject';
 import { ALICE_USER } from '../../utils/test-users';
 import {
   deleteProject,
@@ -56,11 +60,11 @@ async function ensureAliceAdminForCurrentSession(
   if (!updated) return;
 
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await homePage.waitForReady();
+  await homePage.waitForReady({ dismissOnboarding: false });
 }
 
 test.describe('SSO External - OpenProject Integration', integrationTags, () => {
-  test.describe.configure({ mode: 'serial' });
+  test.describe.configure({ mode: 'serial', timeout: 120_000 });
   
   test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
     const loginPage = new OpenProjectLoginPage(page);
@@ -95,13 +99,12 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
     await ensureProjectHasNextcloudStorage('demo-project', page);
 
-    await homePage.navigateToDemoProjectStoragesExternal();
-    await homePage.waitForDemoProjectStoragesExternalUrl();
+    const storagesPage = new OpenProjectProjectStoragesPage(page);
+    if (!(await storagesPage.hasNextcloudStorage())) {
+      await storagesPage.navigateToProjectStorages('demo-project');
+    }
     await expect(page).toHaveURL(openProjectUrl('/projects/demo-project/settings/project_storages/external_file_storages'));
-
-    const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
-    await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
-    await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
+    await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toContainText(/Nextcloud/i);
   });
 
   test('Upload a file from OP to NC using ampf', async ({ page }) => {
@@ -150,45 +153,57 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
   test(
     'OpenProject Files tab lists linked Nextcloud items and available actions',
-    squashTestCase(2148),
+    squashTestCase(2148, { stepCount: 4 }),
     async ({ page }) => {
+      const workPackageId = 2;
       const uploadedFileName = 'op-to-nc-upload-test.md';
+      let homePage = new OpenProjectHomePage(page);
 
-      const loginPage = new OpenProjectLoginPage(page);
-      await loginPage.navigateTo();
-      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      await test.step('Login to OpenProject as the test user', async () => {
+        const loginPage = new OpenProjectLoginPage(page);
+        await loginPage.navigateTo();
+        const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+        await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
-      const homePage = new OpenProjectHomePage(page);
-      await homePage.waitForReady();
+        homePage = new OpenProjectHomePage(page);
+        await homePage.waitForReady();
+        await ensureAliceAdminForCurrentSession(page, homePage);
+      });
 
-      await ensureAliceAdminForCurrentSession(page, homePage);
+      await test.step('Open the target work package', async () => {
+        await homePage.navigateToDemoProjectWorkPackage(workPackageId);
+        await homePage.waitForDemoProjectWorkPackageUrl();
+      });
 
-      await ensureProjectHasNextcloudStorage('demo-project', page);
+      await test.step('Open the Files tab', async () => {
+        await homePage.openWorkPackageFilesTab();
 
-      await homePage.navigateToDemoProjectWorkPackageFiles(2);
-      await homePage.waitForDemoProjectWorkPackageFilesUrl();
+        const linkedFileItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
+        await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });
+        await expect(linkedFileItem).toContainText(uploadedFileName);
+      });
 
-      const linkedFileItem = await homePage.hoverLinkedWorkPackageFile(uploadedFileName);
-      await expect(linkedFileItem).toContainText(uploadedFileName);
+      await test.step('Hover over a linked file', async () => {
+        const linkedFileItem = await homePage.hoverLinkedWorkPackageFile(uploadedFileName);
+        await expect(linkedFileItem).toContainText(uploadedFileName);
 
-      const downloadAction = homePage.getLinkedWorkPackageFileDownloadAction(uploadedFileName);
-      await expect(downloadAction).toBeVisible();
-      await expect(downloadAction).toBeEnabled();
+        const downloadAction = homePage.getLinkedWorkPackageFileDownloadAction(uploadedFileName);
+        await expect(downloadAction).toBeVisible();
+        await expect(downloadAction).toBeEnabled();
 
-      const openLocationAction = homePage.getLinkedWorkPackageFileOpenLocationAction(uploadedFileName);
-      await expect(openLocationAction).toBeVisible();
-      await expect(openLocationAction).toBeEnabled();
+        const openLocationAction =
+          homePage.getLinkedWorkPackageFileOpenLocationAction(uploadedFileName);
+        await expect(openLocationAction).toBeVisible();
+        await expect(openLocationAction).toBeEnabled();
 
-      const removeLinkAction = homePage.getLinkedWorkPackageFileRemoveLinkAction(uploadedFileName);
-      await expect(removeLinkAction).toBeVisible();
-      await expect(removeLinkAction).toBeEnabled();
+        const removeLinkAction = homePage.getLinkedWorkPackageFileRemoveLinkAction(uploadedFileName);
+        await expect(removeLinkAction).toBeVisible();
+        await expect(removeLinkAction).toBeEnabled();
+      });
     }
   );
 
   test('Copy ampf Demo project', async ({ page }) => {
-    test.setTimeout(120_000);
-
     const loginPage = new OpenProjectLoginPage(page);
     await loginPage.navigateTo();
     const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();

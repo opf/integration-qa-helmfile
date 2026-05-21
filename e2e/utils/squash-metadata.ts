@@ -1,6 +1,7 @@
 export const SQUASH_TEST_CASE_ID_ANNOTATION = 'squash_test_case_id';
 export const SQUASH_AUTOMATED_REFERENCE_ANNOTATION = 'squash_automated_test_reference';
 export const SQUASH_DATASET_NAME_ANNOTATION = 'squash_dataset_name';
+export const SQUASH_STEP_COUNT_ANNOTATION = 'squash_step_count';
 
 const defaultRepositoryName = 'integration-qa-helmfile';
 
@@ -12,6 +13,8 @@ interface SquashAnnotation {
 interface SquashTestCaseOptions {
   automatedReference?: string;
   datasetName?: string;
+  /** Expected Squash manual step count; must match top-level test.step() calls when importing step results. */
+  stepCount?: number;
   tag?: string | string[];
 }
 
@@ -51,6 +54,13 @@ export function squashTestCase(
     annotation.push({
       type: SQUASH_DATASET_NAME_ANNOTATION,
       description: options.datasetName,
+    });
+  }
+
+  if (options.stepCount !== undefined && options.stepCount > 0) {
+    annotation.push({
+      type: SQUASH_STEP_COUNT_ANNOTATION,
+      description: String(options.stepCount),
     });
   }
 
