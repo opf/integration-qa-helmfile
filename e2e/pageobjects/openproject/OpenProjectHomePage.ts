@@ -3,6 +3,11 @@ import { OpenProjectBasePage } from './OpenProjectBasePage';
 import { logDebug, logWarn } from '../../utils/logger';
 import { waitForProjectCreated } from '../../utils/openproject-api';
 
+interface WaitForReadyOptions {
+  /** When false, skip first-login language/tutorial dismissal (e.g. after an admin reload). */
+  dismissOnboarding?: boolean;
+}
+
 export class OpenProjectHomePage extends OpenProjectBasePage {
   private static readonly FIRST_LOGIN_PROMPT_PASSES = 3;
   private firstTimeTourExpected = false;
@@ -12,11 +17,15 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     super(page);
   }
 
-  async waitForReady(): Promise<void> {
+  async waitForReady(options: WaitForReadyOptions = {}): Promise<void> {
+    const dismissOnboarding = options.dismissOnboarding !== false;
+
     await this.waitForOpenProjectUrl(15000);
-    this.installFirstLoginSignalListeners();
-    await this.dismissFirstLoginPromptsIfPresent();
-    this.uninstallFirstLoginSignalListeners();
+    if (dismissOnboarding) {
+      this.installFirstLoginSignalListeners();
+      await this.dismissFirstLoginPromptsIfPresent();
+      this.uninstallFirstLoginSignalListeners();
+    }
     const userProfileButton = this.getLocator('userProfileButton').first();
     await userProfileButton.waitFor({ state: 'visible', timeout: 10000 });
   }
@@ -95,13 +104,23 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
   }
 
   async dismissTutorialOverlayIfPresent(): Promise<boolean> {
+    const overlay = this.getLocator('tutorialOverlay').first();
+    const overlayVisible = await overlay.isVisible({ timeout: 500 }).catch(() => false);
+    const urlExpectsTour = this.isFirstTimeUserUrl();
+
+    // Onboarding JS can load on repeat logins without showing the tour overlay.
+    if (!overlayVisible && !urlExpectsTour) {
+      this.firstTimeTourExpected = false;
+      return false;
+    }
+
     const skipButton = this.getLocator('tutorialSkipButton').first();
-    const signalExpectsTour = this.isFirstTimeUserUrl() || this.firstTimeTourExpected;
-    const skipWaitTimeout = signalExpectsTour ? 15_000 : 1_000;
+    const skipWaitTimeout = overlayVisible ? 10_000 : 5_000;
 
     try {
       await skipButton.waitFor({ state: 'visible', timeout: skipWaitTimeout });
     } catch {
+      this.firstTimeTourExpected = false;
       return false;
     }
 

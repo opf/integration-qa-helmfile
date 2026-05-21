@@ -5,7 +5,11 @@ import {
   integrationTags,
 } from '../base-test';
 import type { Page } from '@playwright/test';
-import { OpenProjectLoginPage, OpenProjectHomePage } from '../../pageobjects/openproject';
+import {
+  OpenProjectLoginPage,
+  OpenProjectHomePage,
+  OpenProjectProjectStoragesPage,
+} from '../../pageobjects/openproject';
 import { ALICE_USER } from '../../utils/test-users';
 import {
   deleteProject,
@@ -56,11 +60,11 @@ async function ensureAliceAdminForCurrentSession(
   if (!updated) return;
 
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await homePage.waitForReady();
+  await homePage.waitForReady({ dismissOnboarding: false });
 }
 
 test.describe('SSO External - OpenProject Integration', integrationTags, () => {
-  test.describe.configure({ mode: 'serial' });
+  test.describe.configure({ mode: 'serial', timeout: 120_000 });
   
   test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
     const loginPage = new OpenProjectLoginPage(page);
@@ -95,13 +99,12 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
     await ensureProjectHasNextcloudStorage('demo-project', page);
 
-    await homePage.navigateToDemoProjectStoragesExternal();
-    await homePage.waitForDemoProjectStoragesExternalUrl();
+    const storagesPage = new OpenProjectProjectStoragesPage(page);
+    if (!(await storagesPage.hasNextcloudStorage())) {
+      await storagesPage.navigateToProjectStorages('demo-project');
+    }
     await expect(page).toHaveURL(openProjectUrl('/projects/demo-project/settings/project_storages/external_file_storages'));
-
-    const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
-    await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
-    await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
+    await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toContainText(/Nextcloud/i);
   });
 
   test('Upload a file from OP to NC using ampf', async ({ page }) => {
@@ -201,8 +204,6 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   );
 
   test('Copy ampf Demo project', async ({ page }) => {
-    test.setTimeout(120_000);
-
     const loginPage = new OpenProjectLoginPage(page);
     await loginPage.navigateTo();
     const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
