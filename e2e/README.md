@@ -50,6 +50,9 @@ Manual workflow: `.github/workflows/e2e.yml` (deploy PullPreview, run Playwright
 | `SQUASH_TM_API_TOKEN` | Squash TM API token for result import | none |
 | `SQUASH_TM_ITERATION_ID` | Target Squash TM iteration ID | none |
 | `SQUASH_TM_SYNC_TEST_PLAN` | Add mapped test case IDs to the iteration before import | `false` |
+| `SQUASH_TM_IMPORT_STEPS` | Import Playwright `test.step()` results as Squash `test_steps` | `false` |
+| `SQUASH_TM_VALIDATE_STEP_COUNT` | Compare Playwright step count to Squash TM manual steps via API | `false` |
+| `SQUASH_TM_STRICT_STEP_COUNT` | Fail publish on step count mismatch | `false` |
 | `SQUASH_TM_DRY_RUN` | Write Squash payload without publishing | `false` |
 | `SQUASH_TM_TEST_ATTACHMENT_EXTENSIONS` | Allowed per-test attachment extensions for Squash payloads | `txt,html,xml,doc,png,jpg,jpeg,webm,zip` |
 

@@ -235,6 +235,15 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     await this.copyDemoProjectTo(newIdentifier);
   }
 
+  async openWorkPackageFilesTab(timeout: number = 15000): Promise<void> {
+    const filesTab = this.getLocator('filesMenuItem').first();
+    await filesTab.waitFor({ state: 'visible', timeout });
+    await Promise.all([
+      this.waitForDemoProjectWorkPackageFilesUrl(timeout),
+      filesTab.click(),
+    ]);
+  }
+
   getLinkedWorkPackageFileItem(fileName: string): Locator {
     return this.getLocator('workPackageLinkedFileItem').filter({ hasText: fileName }).first();
   }

@@ -409,7 +409,7 @@ jobs:
             echo "xwiki_host=${XWIKI_HOST:-}"
           } >> "$GITHUB_OUTPUT"
 
-  test_and_finish:
+  running_tests:
     needs: deploy
     if: always()
     runs-on: ubuntu-latest
@@ -489,6 +489,8 @@ jobs:
           SQUASH_TM_API_TOKEN: ${{ secrets.SQUASH_TM_API_TOKEN }}
           SQUASH_TM_ITERATION_ID: ${{ github.event.inputs.squash_iteration_id != '' && github.event.inputs.squash_iteration_id || vars.SQUASH_TM_ITERATION_ID }}
           SQUASH_TM_SYNC_TEST_PLAN: ${{ github.event.inputs.squash_sync_test_plan == 'true' && 'true' || 'false' }}
+          SQUASH_TM_IMPORT_STEPS: "true"
+          SQUASH_TM_VALIDATE_STEP_COUNT: "true"
           SQUASH_TM_SKIP_MISSING_AUTH: "true"
         run: npm run squash:publish
 

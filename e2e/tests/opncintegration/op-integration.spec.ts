@@ -150,39 +150,53 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
   test(
     'OpenProject Files tab lists linked Nextcloud items and available actions',
-    squashTestCase(2148),
+    squashTestCase(2148, { stepCount: 4 }),
     async ({ page }) => {
+      const workPackageId = 2;
       const uploadedFileName = 'op-to-nc-upload-test.md';
+      let homePage = new OpenProjectHomePage(page);
 
-      const loginPage = new OpenProjectLoginPage(page);
-      await loginPage.navigateTo();
-      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      await test.step('Login to OpenProject as the test user', async () => {
+        const loginPage = new OpenProjectLoginPage(page);
+        await loginPage.navigateTo();
+        const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+        await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
-      const homePage = new OpenProjectHomePage(page);
-      await homePage.waitForReady();
+        homePage = new OpenProjectHomePage(page);
+        await homePage.waitForReady();
+        await ensureAliceAdminForCurrentSession(page, homePage);
+      });
 
-      await ensureAliceAdminForCurrentSession(page, homePage);
+      await test.step('Open the target work package', async () => {
+        await homePage.navigateToDemoProjectWorkPackage(workPackageId);
+        await homePage.waitForDemoProjectWorkPackageUrl();
+      });
 
-      await ensureProjectHasNextcloudStorage('demo-project', page);
+      await test.step('Open the Files tab', async () => {
+        await homePage.openWorkPackageFilesTab();
 
-      await homePage.navigateToDemoProjectWorkPackageFiles(2);
-      await homePage.waitForDemoProjectWorkPackageFilesUrl();
+        const linkedFileItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
+        await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });
+        await expect(linkedFileItem).toContainText(uploadedFileName);
+      });
 
-      const linkedFileItem = await homePage.hoverLinkedWorkPackageFile(uploadedFileName);
-      await expect(linkedFileItem).toContainText(uploadedFileName);
+      await test.step('Hover over a linked file', async () => {
+        const linkedFileItem = await homePage.hoverLinkedWorkPackageFile(uploadedFileName);
+        await expect(linkedFileItem).toContainText(uploadedFileName);
 
-      const downloadAction = homePage.getLinkedWorkPackageFileDownloadAction(uploadedFileName);
-      await expect(downloadAction).toBeVisible();
-      await expect(downloadAction).toBeEnabled();
+        const downloadAction = homePage.getLinkedWorkPackageFileDownloadAction(uploadedFileName);
+        await expect(downloadAction).toBeVisible();
+        await expect(downloadAction).toBeEnabled();
 
-      const openLocationAction = homePage.getLinkedWorkPackageFileOpenLocationAction(uploadedFileName);
-      await expect(openLocationAction).toBeVisible();
-      await expect(openLocationAction).toBeEnabled();
+        const openLocationAction =
+          homePage.getLinkedWorkPackageFileOpenLocationAction(uploadedFileName);
+        await expect(openLocationAction).toBeVisible();
+        await expect(openLocationAction).toBeEnabled();
 
-      const removeLinkAction = homePage.getLinkedWorkPackageFileRemoveLinkAction(uploadedFileName);
-      await expect(removeLinkAction).toBeVisible();
-      await expect(removeLinkAction).toBeEnabled();
+        const removeLinkAction = homePage.getLinkedWorkPackageFileRemoveLinkAction(uploadedFileName);
+        await expect(removeLinkAction).toBeVisible();
+        await expect(removeLinkAction).toBeEnabled();
+      });
     }
   );
 
