@@ -14,7 +14,7 @@ on:
           - pr
           - all
       mode:
-        description: "List matched previews in the job summary, or tear them down"
+        description: "List or Teardown"
         required: true
         default: list
         type: choice
@@ -22,7 +22,7 @@ on:
           - list
           - teardown
       confirm_teardown:
-        description: "Must be true when mode=teardown (safety gate)"
+        description: "Check for Teardown confirmation"
         required: false
         default: false
         type: boolean
@@ -165,24 +165,28 @@ jobs:
           }
 
           declare -A INITIATOR_CACHE=()
+          declare -A LAUNCHED_CACHE=()
 
-          lookup_initiator() {
+          resolve_run_meta() {
             local label="$1"
-            local run_id actor response link
+            local run_id actor launched response link
+
+            INITIATOR_CACHE["_current"]="—"
+            LAUNCHED_CACHE["_current"]="—"
 
             if [[ "${label}" == "pullpreview" ]]; then
-              echo "— (PR preview)"
+              INITIATOR_CACHE["_current"]="— (PR preview)"
               return
             fi
 
             if [[ ! "${label}" =~ ^(e2e|setup)-([0-9]+)-[0-9]+$ ]]; then
-              echo "—"
               return
             fi
 
             run_id="${BASH_REMATCH[2]}"
             if [[ -n "${INITIATOR_CACHE[${run_id}]+x}" ]]; then
-              echo "${INITIATOR_CACHE[${run_id}]}"
+              INITIATOR_CACHE["_current"]="${INITIATOR_CACHE[${run_id}]}"
+              LAUNCHED_CACHE["_current"]="${LAUNCHED_CACHE[${run_id}]}"
               return
             fi
 
@@ -197,12 +201,22 @@ jobs:
             )"
 
             actor="$(printf '%s' "${response}" | jq -r '.actor.login // empty' 2>/dev/null || true)"
+            launched="$(printf '%s' "${response}" | jq -r '.run_started_at // .created_at // empty' 2>/dev/null || true)"
+            if [[ -n "${launched}" ]]; then
+              launched="${launched/T/ }"
+              launched="${launched/Z/ UTC}"
+            fi
+
             if [[ -z "${actor}" ]]; then
               INITIATOR_CACHE["${run_id}"]="— (run [${run_id}](${link}) not found)"
+              LAUNCHED_CACHE["${run_id}"]="—"
             else
               INITIATOR_CACHE["${run_id}"]="[@${actor}](${link})"
+              LAUNCHED_CACHE["${run_id}"]="${launched:-—}"
             fi
-            echo "${INITIATOR_CACHE[${run_id}]}"
+
+            INITIATOR_CACHE["_current"]="${INITIATOR_CACHE[${run_id}]}"
+            LAUNCHED_CACHE["_current"]="${LAUNCHED_CACHE[${run_id}]}"
           }
 
           matched=0
@@ -215,8 +229,8 @@ jobs:
             echo "- Target filter: \`${IN_TARGET}\`"
             echo "- Mode: \`${IN_MODE}\`"
             echo ""
-            echo "| Instance name | Label | IP | Branch | Initiated by | Selected |"
-            echo "| --- | --- | --- | --- | --- | --- |"
+            echo "| Instance name | Label | IP | Branch | Workflow started | Initiated by | Selected |"
+            echo "| --- | --- | --- | --- | --- | --- | --- |"
           } >> "${GITHUB_STEP_SUMMARY}"
 
           while IFS= read -r line || [[ -n "${line}" ]]; do
@@ -247,7 +261,9 @@ jobs:
               branch="—"
             fi
 
-            initiator="$(lookup_initiator "${label}")"
+            resolve_run_meta "${label}"
+            initiator="${INITIATOR_CACHE[_current]}"
+            launched="${LAUNCHED_CACHE[_current]}"
 
             selected=no
             if [[ "${label}" != "(missing pullpreview_label)" ]] && label_matches_target "${label}"; then
@@ -259,8 +275,8 @@ jobs:
             fi
 
             {
-              printf '| `%s` | `%s` | %s | %s | %s | %s |\n' \
-                "${name}" "${label}" "${ip:-—}" "${branch}" "${initiator}" "${selected}"
+              printf '| `%s` | `%s` | %s | %s | %s | %s | %s |\n' \
+                "${name}" "${label}" "${ip:-—}" "${branch}" "${launched}" "${initiator}" "${selected}"
             } >> "${GITHUB_STEP_SUMMARY}"
           done < "${list_file}"
 
