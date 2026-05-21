@@ -1,4 +1,10 @@
 name: PullPreview Cleanup
+run-name: >-
+  ${{
+    github.event.inputs.mode == 'teardown'
+      && format('PullPreview teardown · {0}', github.event.inputs.target)
+      || format('PullPreview list · {0}', github.event.inputs.target)
+  }}
 
 on:
   workflow_dispatch:
