@@ -1,0 +1,247 @@
+name: PullPreview Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "What to cleanup"
+        required: true
+        default: e2e
+        type: choice
+        options:
+          - e2e
+          - setup
+          - pr
+          - all
+      mode:
+        description: "List matched previews in the job summary, or tear them down"
+        required: true
+        default: list
+        type: choice
+        options:
+          - list
+          - teardown
+      confirm_teardown:
+        description: "Must be true when mode=teardown (safety gate)"
+        required: false
+        default: false
+        type: boolean
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: pullpreview-cleanup-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PULLPREVIEW_ACTION_SHA: 65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+      PULLPREVIEW_PROVIDER: hetzner
+      IN_TARGET: ${{ github.event.inputs.target }}
+      IN_MODE: ${{ github.event.inputs.mode }}
+      IN_CONFIRM: ${{ github.event.inputs.confirm_teardown }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Validate required secrets
+        env:
+          SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
+          SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SECRET_HCLOUD:-}" ]]; then
+            echo "::error::Secret HCLOUD_TOKEN is not set or empty."
+            exit 1
+          fi
+          if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
+            echo "::error::Secret HETZNER_CA_KEY is not set or empty."
+            exit 1
+          fi
+
+      - name: Validate teardown confirmation
+        if: env.IN_MODE == 'teardown'
+        run: |
+          set -euo pipefail
+          if [[ "${IN_CONFIRM}" != "true" ]]; then
+            echo "::error::mode=teardown requires confirm_teardown=true."
+            exit 1
+          fi
+
+      - name: Install PullPreview CLI
+        id: cli
+        run: |
+          set -euo pipefail
+          binary="${RUNNER_TEMP}/pullpreview"
+          curl -fsSL \
+            -o "${binary}" \
+            "https://raw.githubusercontent.com/pullpreview/action/${PULLPREVIEW_ACTION_SHA}/dist/pullpreview-linux-amd64"
+          chmod +x "${binary}"
+          echo "binary=${binary}" >> "$GITHUB_OUTPUT"
+
+      - name: List and filter PullPreview instances
+        id: list
+        env:
+          PP_BINARY: ${{ steps.cli.outputs.binary }}
+        run: |
+          set -euo pipefail
+
+          # pullpreview list prints tab-separated rows:
+          # Name  IP  Size  Region  AZ  Created On  Tags
+          # Tags are Go map literals, e.g. map[pullpreview_label:e2e-123-1 repo_name:...]
+          list_file="${RUNNER_TEMP}/pullpreview-list.tsv"
+          matched_file="${RUNNER_TEMP}/pullpreview-matched.tsv"
+          : > "${matched_file}"
+
+          if ! "${PP_BINARY}" list "${GITHUB_REPOSITORY}" > "${list_file}"; then
+            echo "::error::pullpreview list failed. See logs above."
+            exit 1
+          fi
+
+          label_matches_target() {
+            local label="$1"
+            case "${IN_TARGET}" in
+              e2e)
+                [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]]
+                ;;
+              setup)
+                [[ "${label}" =~ ^setup-[0-9]+-[0-9]+$ ]]
+                ;;
+              pr)
+                [[ "${label}" == "pullpreview" ]]
+                ;;
+              all)
+                [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]] \
+                  || [[ "${label}" =~ ^setup-[0-9]+-[0-9]+$ ]] \
+                  || [[ "${label}" == "pullpreview" ]]
+                ;;
+              *)
+                echo "::error::Unknown target: ${IN_TARGET}"
+                return 1
+                ;;
+            esac
+          }
+
+          extract_pullpreview_label() {
+            local tags="$1"
+            if [[ "${tags}" =~ pullpreview_label:([^[:space:]]+) ]]; then
+              echo "${BASH_REMATCH[1]}"
+            fi
+          }
+
+          matched=0
+          skipped=0
+          {
+            echo "### PullPreview inventory"
+            echo ""
+            echo "- Repository: \`${GITHUB_REPOSITORY}\`"
+            echo "- Target filter: \`${IN_TARGET}\`"
+            echo "- Mode: \`${IN_MODE}\`"
+            echo ""
+            echo "| Instance name | Label | IP | Created | Selected |"
+            echo "| --- | --- | --- | --- | --- |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          while IFS=$'\t' read -r name ip size region az created tags; do
+            [[ "${name}" == "Name" ]] && continue
+            [[ -z "${name:-}" ]] && continue
+
+            label="$(extract_pullpreview_label "${tags:-}")"
+            if [[ -z "${label}" ]]; then
+              label="(missing pullpreview_label)"
+            fi
+
+            selected=no
+            if [[ -n "${label}" ]] && label_matches_target "${label}"; then
+              selected=yes
+              matched=$((matched + 1))
+              printf '%s\t%s\t%s\t%s\n' "${name}" "${label}" "${ip}" "${created}" >> "${matched_file}"
+            else
+              skipped=$((skipped + 1))
+            fi
+
+            {
+              printf '| `%s` | `%s` | %s | %s | %s |\n' \
+                "${name}" "${label}" "${ip:-—}" "${created:-—}" "${selected}"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          done < "${list_file}"
+
+          {
+            echo ""
+            echo "**Matched for \`${IN_TARGET}\`:** ${matched}"
+            echo "**Listed but not selected:** ${skipped}"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${matched}" -eq 0 ]]; then
+            echo "No PullPreview instances matched target=${IN_TARGET} for ${GITHUB_REPOSITORY}."
+          fi
+
+          echo "matched_count=${matched}" >> "$GITHUB_OUTPUT"
+          echo "matched_file=${matched_file}" >> "$GITHUB_OUTPUT"
+
+      - name: Tear down matched instances
+        if: env.IN_MODE == 'teardown' && steps.list.outputs.matched_count != '0'
+        env:
+          PP_BINARY: ${{ steps.cli.outputs.binary }}
+          MATCHED_FILE: ${{ steps.list.outputs.matched_file }}
+        run: |
+          set -euo pipefail
+          failures=0
+          successes=0
+
+          {
+            echo ""
+            echo "### Teardown results"
+            echo ""
+            echo "| Instance name | Label | Result |"
+            echo "| --- | --- | --- |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          while IFS=$'\t' read -r name label _rest; do
+            [[ -z "${name:-}" ]] && continue
+            echo "Tearing down instance=${name} (label=${label})..."
+            if PULLPREVIEW_PROVIDER=hetzner "${PP_BINARY}" down --name "${name}" --provider hetzner; then
+              result="success"
+              successes=$((successes + 1))
+            else
+              result="failure"
+              failures=$((failures + 1))
+              echo "::warning::Teardown failed for ${name} (label=${label})"
+            fi
+            printf '| `%s` | `%s` | %s |\n' "${name}" "${label}" "${result}" >> "${GITHUB_STEP_SUMMARY}"
+          done < "${MATCHED_FILE}"
+
+          {
+            echo ""
+            echo "**Teardown succeeded:** ${successes}"
+            echo "**Teardown failed:** ${failures}"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${failures}" -gt 0 ]]; then
+            echo "::error::${failures} instance(s) failed to tear down."
+            exit 1
+          fi
+
+      - name: Final status
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ "${IN_MODE}" == "teardown" ]] && [[ "${{ steps.list.outputs.matched_count }}" == "0" ]]; then
+            echo "::notice::No instances matched; nothing to tear down."
+          fi

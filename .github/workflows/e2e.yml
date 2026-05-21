@@ -1,8 +1,16 @@
 name: E2E Manual Run
 run-name: >-
   ${{
-    github.event.inputs.action == 'down'
-      && format('disable pullpreview: {0}', github.event.inputs.preview_name)
+    github.event.inputs.skip_tests == 'true'
+      && format(
+        'Setup: {0} - OP v.{1} - NC v.{2} - Xwiki v.{3} - int-op-nc v.{4} - xwiki ext v.{5}',
+        github.event.inputs.setupMethod,
+        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '16',
+        github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32',
+        github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.6',
+        github.event.inputs.integration_openproject_version != '' && github.event.inputs.integration_openproject_version || 'default',
+        github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.1.0'
+      )
       || format(
         'e2e - {0} - {1} - op {2} - nc {3}',
         github.event.inputs.suite,
@@ -17,24 +25,17 @@ defaults:
     shell: bash
 
 concurrency:
-  group: e2e-manual-${{ github.repository }}-${{ github.event.inputs.action }}-${{ github.event.inputs.preview_name || github.run_id }}
+  group: e2e-manual-${{ github.repository }}-${{ github.run_id }}
   cancel-in-progress: false
 
 on:
   workflow_dispatch:
     inputs:
-      action:
-        description: "PullPreview action"
-        required: true
-        default: up
-        type: choice
-        options:
-          - up
-          - down
-      preview_name:
-        description: "PullPreview label (for action=down only)"
+      skip_tests:
+        description: "Deploy only"
         required: false
-        type: string
+        default: false
+        type: boolean
       suite:
         description: "Test suite"
         required: true
@@ -51,16 +52,11 @@ on:
         required: false
         type: string
       squash_iteration_id:
-        description: "Optional Squash TM iteration ID for result import"
+        description: "Squash TM iteration ID for result import"
         required: false
         type: string
-      squash_dry_run:
-        description: "Write Squash TM payload but do not publish"
-        required: false
-        default: false
-        type: boolean
       squash_sync_test_plan:
-        description: "Add mapped Squash TM test cases to the iteration before publish"
+        description: "Fill iteration with test cases"
         required: false
         default: false
         type: boolean
@@ -73,16 +69,6 @@ on:
           - sso-external
           - sso-nextcloud
           - oauth2
-      keep_pullpreview:
-        description: "Keep preview after tests?"
-        required: true
-        # Quoted so YAML does not coerce yes/no to booleans in workflow_dispatch metadata.
-        default: "no"
-        type: choice
-        options:
-          - "no"
-          - "only_on_test_fail"
-          - "yes"
       openproject_version:
         description: "OpenProject image tag (empty = 16)"
         required: false
@@ -124,78 +110,7 @@ permissions:
   contents: read
 
 jobs:
-  teardown_manual:
-    if: github.event.inputs.action == 'down'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      CI: true
-      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-
-      - name: Validate required secrets
-        env:
-          SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
-          SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${SECRET_HCLOUD:-}" ]]; then
-            echo "::error::Secret HCLOUD_TOKEN is not set or empty."
-            exit 1
-          fi
-          if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
-            echo "::error::Secret HETZNER_CA_KEY is not set or empty."
-            exit 1
-          fi
-
-      - name: Resolve preview name
-        id: resolve
-        env:
-          IN_PREVIEW_NAME: ${{ github.event.inputs.preview_name }}
-        run: |
-          set -euo pipefail
-          preview_name="${IN_PREVIEW_NAME}"
-          if [[ -z "${preview_name}" ]]; then
-            echo "::error::For action=down, you must provide preview_name."
-            exit 1
-          fi
-          # Validate label to fail fast with a clear message (PullPreview/Hetzner label constraints).
-          if ! [[ "${preview_name}" =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]]; then
-            echo "::error::Invalid preview_name '${preview_name}'. Use lowercase letters/digits/hyphens, max 39 chars, must start with a letter/digit."
-            exit 1
-          fi
-          delim="EOF_$(openssl rand -hex 8)"
-          {
-            printf 'preview_name<<%s\n%s\n%s\n' "${delim}" "${preview_name}" "${delim}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Teardown PullPreview (action=down)
-        id: pullpreview_down
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
-        with:
-          provider: hetzner
-          label: ${{ steps.resolve.outputs.preview_name }}
-          force_action: down
-          deployment_target: helm
-
-      - name: Final status (teardown)
-        if: always()
-        env:
-          DOWN_OUTCOME: ${{ steps.pullpreview_down.outcome }}
-          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
-        run: |
-          set -euo pipefail
-          echo "PullPreview teardown for label: ${PREVIEW_NAME} (step outcome: ${DOWN_OUTCOME})"
-          if [[ "${DOWN_OUTCOME}" != "success" ]]; then
-            echo "::error::PullPreview teardown did not succeed (outcome=${DOWN_OUTCOME})."
-            exit 1
-          fi
-
   deploy:
-    if: github.event.inputs.action == 'up'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -234,10 +149,9 @@ jobs:
       - name: Resolve grep and preview name
         id: resolve
         env:
-          IN_ACTION: ${{ github.event.inputs.action }}
+          IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
           IN_SUITE: ${{ github.event.inputs.suite }}
           IN_CUSTOM_GREP: ${{ github.event.inputs.custom_grep }}
-          IN_PREVIEW_NAME: ${{ github.event.inputs.preview_name }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
@@ -260,25 +174,30 @@ jobs:
           fi
 
           grep=""
-          case "${IN_SUITE}" in
-            all) grep='' ;;
-            smoke) grep='@smoke' ;;
-            regression) grep='@regression' ;;
-            integration) grep='@integration' ;;
-            custom) grep="${IN_CUSTOM_GREP}" ;;
-            *)
-              echo "::error::Unknown suite: ${IN_SUITE}"
-              exit 1
-              ;;
-          esac
+          if [[ "${IN_SKIP_TESTS}" != "true" ]]; then
+            case "${IN_SUITE}" in
+              all) grep='' ;;
+              smoke) grep='@smoke' ;;
+              regression) grep='@regression' ;;
+              integration) grep='@integration' ;;
+              custom) grep="${IN_CUSTOM_GREP}" ;;
+              *)
+                echo "::error::Unknown suite: ${IN_SUITE}"
+                exit 1
+                ;;
+            esac
 
-          if [ "${IN_SUITE}" = "custom" ] && [ -z "${grep}" ]; then
-            echo "::error::Resolved grep is empty. For suite=custom, set custom_grep."
-            exit 1
+            if [ "${IN_SUITE}" = "custom" ] && [ -z "${grep}" ]; then
+              echo "::error::Resolved grep is empty. For suite=custom, set custom_grep."
+              exit 1
+            fi
           fi
 
-          preview_name=""
-          preview_name="e2e-${RUN_ID}-${RUN_ATTEMPT}"
+          preview_prefix="e2e"
+          if [[ "${IN_SKIP_TESTS}" == "true" ]]; then
+            preview_prefix="setup"
+          fi
+          preview_name="${preview_prefix}-${RUN_ID}-${RUN_ATTEMPT}"
 
           # Heredoc-delimited outputs guard against newlines/special chars in
           # user-provided inputs (e.g. custom_grep or preview_name).
@@ -307,7 +226,7 @@ jobs:
           pre_script: pullpreview/pre-script-helm-deps.sh
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }},xwiki.{{ pullpreview_public_dns }}
-          ttl: 72h
+          ttl: ${{ github.event.inputs.skip_tests == 'true' && '72h' || '24h' }}
         env:
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
           INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
@@ -470,10 +389,11 @@ jobs:
           PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
           GREP: ${{ steps.resolve.outputs.grep }}
           VALIDATE_OUTCOME: ${{ steps.validate_urls.outcome }}
+          IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
           set -euo pipefail
           tests_should_run=false
-          if [[ "${LIVE}" == "true" ]] && [[ "${VALIDATE_OUTCOME}" == "success" ]]; then
+          if [[ "${IN_SKIP_TESTS}" != "true" ]] && [[ "${LIVE}" == "true" ]] && [[ "${VALIDATE_OUTCOME}" == "success" ]]; then
             tests_should_run=true
           fi
           grep_b64="$(printf '%s' "${GREP}" | base64 -w0)"
@@ -491,7 +411,7 @@ jobs:
 
   test_and_finish:
     needs: deploy
-    if: always() && github.event.inputs.action == 'up'
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -563,19 +483,17 @@ jobs:
           "${args[@]}"
 
       - name: Publish Playwright results to Squash TM
-        if: always() && needs.deploy.outputs.tests_should_run == 'true'
+        if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
         working-directory: e2e
         env:
-          SQUASH_TM_URL: ${{ vars.SQUASH_TM_URL }}
           SQUASH_TM_API_TOKEN: ${{ secrets.SQUASH_TM_API_TOKEN }}
           SQUASH_TM_ITERATION_ID: ${{ github.event.inputs.squash_iteration_id != '' && github.event.inputs.squash_iteration_id || vars.SQUASH_TM_ITERATION_ID }}
-          SQUASH_TM_DRY_RUN: ${{ github.event.inputs.squash_dry_run }}
-          SQUASH_TM_SYNC_TEST_PLAN: ${{ github.event.inputs.squash_sync_test_plan == 'true' && 'true' || vars.SQUASH_TM_SYNC_TEST_PLAN }}
+          SQUASH_TM_SYNC_TEST_PLAN: ${{ github.event.inputs.squash_sync_test_plan == 'true' && 'true' || 'false' }}
           SQUASH_TM_SKIP_MISSING_AUTH: "true"
         run: npm run squash:publish
 
       - name: Upload Squash TM payload
-        if: always() && needs.deploy.outputs.tests_should_run == 'true'
+        if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: squash-results
@@ -679,15 +597,13 @@ jobs:
           PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
           TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
-          KEEP: '${{ github.event.inputs.keep_pullpreview }}'
+          SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
           set -euo pipefail
           outcome="${TESTS_OUTCOME:-skipped}"
           if [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
             outcome="skipped"
           fi
-          # YAML 1.1 can coerce unquoted `yes`/`no` in env to `true`/`false`; normalize for policy checks.
-          if [[ "${KEEP}" == "true" ]]; then KEEP=yes; elif [[ "${KEEP}" == "false" ]]; then KEEP=no; fi
           should_teardown=false
           if [[ -z "${PREVIEW_NAME:-}" ]]; then
             echo "should_teardown=false" >> "$GITHUB_OUTPUT"
@@ -695,19 +611,20 @@ jobs:
             echo "No preview label (deploy did not publish outputs); skip teardown."
             exit 0
           fi
-          # Live preview but tests never ran (e.g. URL validation failed): tear down to avoid leaks unless user chose keep=yes.
-          if [[ "${LIVE}" == "true" ]] && [[ "${TESTS_SHOULD_RUN}" != "true" ]] && [[ "${KEEP}" != "yes" ]]; then
-            should_teardown=true
+          if [[ "${SKIP_TESTS}" == "true" ]] && [[ "${LIVE}" == "true" ]]; then
+            should_teardown=false
           elif [[ "${LIVE}" != "true" ]]; then
             should_teardown=true
-          elif [[ "${outcome}" == "success" ]] && [[ "${KEEP}" != "yes" ]]; then
+          elif [[ "${TESTS_SHOULD_RUN}" == "true" ]] && [[ "${outcome}" == "success" ]]; then
             should_teardown=true
-          elif [[ "${outcome}" != "success" ]] && [[ "${KEEP}" == "no" ]]; then
+          elif [[ "${TESTS_SHOULD_RUN}" == "true" ]] && [[ "${outcome}" != "success" ]]; then
+            should_teardown=false
+          elif [[ "${LIVE}" == "true" ]] && [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
             should_teardown=true
           fi
           echo "should_teardown=${should_teardown}" >> "$GITHUB_OUTPUT"
           echo "tests_effective_outcome=${outcome}" >> "$GITHUB_OUTPUT"
-          echo "Computed: live=${LIVE} tests_should_run=${TESTS_SHOULD_RUN} effective_outcome=${outcome} keep=${KEEP} -> should_teardown=${should_teardown}"
+          echo "Computed: live=${LIVE} skip_tests=${SKIP_TESTS} tests_should_run=${TESTS_SHOULD_RUN} effective_outcome=${outcome} -> should_teardown=${should_teardown}"
 
       - name: Trigger PullPreview teardown
         if: >-
@@ -725,30 +642,40 @@ jobs:
         if: >-
           always() &&
           needs.deploy.outputs.live == 'true' &&
-          needs.deploy.outputs.tests_should_run == 'true' &&
           needs.deploy.outputs.preview_name != '' &&
-          steps.policy.outputs.should_teardown == 'false'
+          steps.policy.outputs.should_teardown == 'false' &&
+          (github.event.inputs.skip_tests == 'true' || (needs.deploy.outputs.tests_should_run == 'true' && steps.tests.outcome == 'failure'))
         env:
           PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
           OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
           NEXTCLOUD_HOST: ${{ needs.deploy.outputs.nextcloud_host }}
           KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
           XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
+          SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
+          set -euo pipefail
+          if [[ "${SKIP_TESTS}" == "true" ]]; then
+            cleanup_target="setup"
+            reason="Setup-only deploy (skip_tests)."
+          else
+            cleanup_target="e2e"
+            reason="Playwright tests failed; preview kept for 24h (TTL), then auto-expires."
+          fi
           {
-            echo "### PullPreview environment kept for debugging"
+            echo "### PullPreview environment kept"
             echo ""
-            echo "- Preview name: \`${PREVIEW_NAME}\`"
+            echo "${reason}"
+            echo ""
+            echo "- Preview label: \`${PREVIEW_NAME}\`"
             echo "- OpenProject: ${OPENPROJECT_URL}"
             echo "- Nextcloud: https://${NEXTCLOUD_HOST}"
             echo "- Keycloak: https://${KEYCLOAK_HOST}"
             echo "- XWiki: https://${XWIKI_HOST}"
             echo ""
-            echo "Note: if URL validation failed and tests were skipped, the preview is still torn down unless **keep_pullpreview=yes**."
-            echo ""
-            echo "To tear down later:"
-            echo "- Run workflow: **E2E Manual Run** with \`action=down\`"
-            echo "- Input: \`preview_name=${PREVIEW_NAME}\`"
+            echo "To tear down later, run workflow **PullPreview Cleanup**:"
+            echo "- \`target=${cleanup_target}\`"
+            echo "- \`mode=teardown\`"
+            echo "- \`confirm_teardown=true\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright report
@@ -776,15 +703,24 @@ jobs:
           PREVIEW_LIVE: ${{ needs.deploy.outputs.live }}
           TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
           set -euo pipefail
           if [[ "${PREVIEW_LIVE}" != "true" ]]; then
             if [[ "${DEPLOY_RESULT}" == "failure" ]]; then
               echo "::error::Deploy job failed before the preview was ready; see the **deploy** job logs."
             else
-              echo "::error::PullPreview did not become live; tests were not run."
+              echo "::error::PullPreview did not become live."
             fi
             exit 1
+          fi
+          if [[ "${SKIP_TESTS}" == "true" ]]; then
+            if [[ "${DEPLOY_RESULT}" != "success" ]]; then
+              echo "::error::Setup-only deploy did not complete successfully; see the **deploy** job logs."
+              exit 1
+            fi
+            echo "::notice::Setup-only deploy is live. Tear down via **PullPreview Cleanup** (target=setup)."
+            exit 0
           fi
           if [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
             echo "::error::Preview was live but URL validation or host export did not complete; tests were not run."
@@ -793,7 +729,7 @@ jobs:
           case "${TESTS_OUTCOME}" in
             success) exit 0 ;;
             failure)
-              echo "::error::Playwright tests failed."
+              echo "::error::Playwright tests failed. Preview kept for debugging; tear down via **PullPreview Cleanup** (target=e2e)."
               exit 1
               ;;
             skipped)
