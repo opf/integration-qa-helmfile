@@ -2,14 +2,16 @@
 
 set -e
 
-BASE_URL="http://localhost:8080"
-DIST_URL="$BASE_URL/bin/distribution/XWiki/Distribution"
-EXT_URL="$BASE_URL/bin/get/XWiki/Extensions"
+BASE_URL="http://localhost:8080/rest"
 WEBAPPS_DIR=/usr/local/tomcat/webapps/ROOT/WEB-INF
 XWIKI_VERSION=$(sed -n 's/^version=//p' $WEBAPPS_DIR/version.properties)
 EXTENSION_REPO="/usr/local/xwiki/data/extension/repository"
 FLAVOR_NAME="xwiki-platform-distribution-flavor-xip"
 XWIKI_DOWNLOAD_URL="https://nexus.xwiki.org/nexus/content/repositories/releases/org/xwiki"
+
+# extensions
+XWIKI_STANDARD_FLAVOR_ID="org.xwiki.platform:xwiki-platform-distribution-flavor-mainwiki"
+OPENPROJECT_EXTENSION_ID="com.xwiki.projectmanagement:project-management-openproject-ui"
 
 if [ -z "$OPENPROJECT_HOST" ]; then
     echo "[ERROR] OPENPROJECT_HOST is not set."
@@ -19,6 +21,10 @@ fi
 if [ -z "$OPENPROJECT_CLIENT_ID" ] || [ -z "$OPENPROJECT_CLIENT_SECRET" ]; then
     echo "[ERROR] OPENPROJECT_CLIENT_ID and OPENPROJECT_CLIENT_SECRET are not set."
     exit 1
+fi
+
+if [ -z "$EXTENSION_OPENPROJECT_VERSION" ]; then
+    EXTENSION_OPENPROJECT_VERSION="1.1.0"
 fi
 
 echo "############################################"
@@ -37,200 +43,92 @@ echo "############################################"
 /entrypoint/start.sh &
 
 echo "[INFO] Waiting for XWiki to start..."
-until curl -sL "$DIST_URL" > /dev/null; do
+until curl -sL "$BASE_URL" > /dev/null; do
     sleep 5
 done
 
 ADMIN_PASS=$(sed -n 's/^xwiki.superadminpassword=//p' $WEBAPPS_DIR/xwiki.cfg)
 SUPER_ADMIN_AUTH="superadmin:$ADMIN_PASS"
 
-XWIKI_STANDARD_FLAVOR_ID="org.xwiki.platform:xwiki-platform-distribution-flavor-mainwiki"
-
-COMMON_CURL_OPTIONS=(
-    -d "extensionId=${XWIKI_STANDARD_FLAVOR_ID//:/%3A}"
-    -d "extensionNamespace=wiki%3Axwiki"
-    -d "extensionVersion=$XWIKI_VERSION"
-)
-EXT_COMMON_CURL_OPTIONS=(
-    -d "extensionNamespace=wiki%3Axwiki"
-    -d "section=XWiki.Extensions"
-)
-
-FORM_TOKEN=""
-EXTENSION_INSTALLED=false
-
-function check_ext_install_progress() {
-    local extension_id="$1"
-    local extension_version="$2"
-    local action="$3"
-
-    EXTENSION_INSTALLED=false
-
-    while true; do
-        local check_response percentage already_installed
-        check_response=$(curl -sSL "$EXT_URL" \
-            "${EXT_COMMON_CURL_OPTIONS[@]}" \
-            -d "extensionId=$extension_id" \
-            -d "extensionVersion=$extension_version" -u "$SUPER_ADMIN_AUTH")
-
-        if [ "$action" == "install" ]; then
-            local continue
-            continue=$(echo "$check_response" | grep -oP 'extensionAction[^>]*value="continue"' || echo "")
-            if [ -n "$continue" ]; then
-                break
-            fi
-        else
-            local installed
-            installed=$(echo "$check_response" | grep -oP 'extension-status[^>]*>Installed<' || echo "")
-            if [ -n "$installed" ]; then
-                echo "[INFO] Extension successfully installed: $raw_extension_id ($extension_version)"
-                break
-            fi
-        fi
-
-        percentage=$(echo "$check_response" | grep -oP 'ui-progress-bar[^>]*width:\K[0-9]+' || echo "")
-        already_installed=$(echo "$status_response" | grep -oP 'extension-status[^>]*>Installed<' || echo "")
-        if [ -n "$already_installed" ]; then
-            echo "[INFO] Extension already installed."
-            EXTENSION_INSTALLED=true
-            break
-        fi
-        if [ -z "$percentage" ]; then
-            echo "[ERROR] Failed to retrieve installation progress."
-        fi
-        if [ -n "$percentage" ] && [ "$percentage" -ne "$install_progress" ]; then
-            install_progress="$percentage"
-            echo "  Progress: $install_progress%"
-        fi
-        sleep 5
-    done
-}
+EXT_REQ_BODY='
+<jobRequest xmlns="http://www.xwiki.org">
+  <id>
+    <element>extension</element>
+    <element>install</element>
+    <element>%job_id%</element>
+  </id>
+  <interactive>false</interactive>
+  <property>
+    <key>extensions</key>
+    <value>
+      <list xmlns="">
+        <org.xwiki.extension.ExtensionId>
+          <id>%extension_id%</id>
+          <version
+            class="org.xwiki.extension.version.internal.DefaultVersion"
+            serialization="custom">
+            <org.xwiki.extension.version.internal.DefaultVersion>
+              <string>%extension_version%</string>
+            </org.xwiki.extension.version.internal.DefaultVersion>
+          </version>
+        </org.xwiki.extension.ExtensionId>
+      </list>
+    </value>
+  </property>
+  <property>
+    <key>namespaces</key>
+    <value>
+      <list xmlns="">
+        <string>wiki:xwiki</string>
+      </list>
+    </value>
+  </property>
+</jobRequest>'
 
 function install_extension() {
-    local install_status continue_status
-    local install_progress=0
-    local raw_extension_id="$1"
-    local extension_id="${raw_extension_id//:/%3A}"
-    local extension_version="$2"
+    local req_body install_status
+    local ext_id="$1"
+    local ext_version="$2"
+    local job_id="install-$3"
 
-    echo "[INFO] Installing extension: $raw_extension_id ($extension_version)"
+    req_body="${EXT_REQ_BODY//%job_id%/$job_id}"
+    req_body="${req_body//%extension_id%/$ext_id}"
+    req_body="${req_body//%extension_version%/$ext_version}"
 
-    install_status=$(curl -sSL -XPOST "$EXT_URL" \
-        "${EXT_COMMON_CURL_OPTIONS[@]}" \
-        -d "extensionAction=install" \
-        -d "extensionId=$extension_id" \
-        -d "extensionVersion=$extension_version" \
-        -u "$SUPER_ADMIN_AUTH" -w "%{http_code}" -o /dev/null)
+    install_status=$(curl -sS -XPUT "$BASE_URL/jobs?jobType=install" -u "$SUPER_ADMIN_AUTH" \
+    -H"Xwiki-Form-Token: $FORM_TOKEN" \
+    -H"Content-Type: text/xml" \
+    -d "$req_body" \
+    -w "%{http_code}" -o /dev/null)
 
-    if [ "$install_status" -ne 200 ]; then 
-        echo "[ERROR] Failed to install extension. Code: $install_status"
+    if [ "$install_status" -ne 200 ]; then
+        echo "[ERROR] Failed to start extension installation. Code: $install_status"
         exit 1
     fi
 
-    echo "[INFO] Downloading..."
-    check_ext_install_progress "$extension_id" "$extension_version" "install"
-    if [ "$EXTENSION_INSTALLED" = true ]; then
-        return
-    fi
-
-    continue_status=$(curl -sSL -XPOST "$EXT_URL" \
-        "${EXT_COMMON_CURL_OPTIONS[@]}" \
-        -d "extensionAction=continue" \
-        -d "form_token=$FORM_TOKEN" \
-        -d "extensionId=$extension_id" \
-        -d "extensionVersion=$extension_version" \
-        -u "$SUPER_ADMIN_AUTH" -w "%{http_code}" -o /dev/null)
-
-    if [ "$continue_status" -ne 200 ]; then 
-        echo "[ERROR] Failed to continue extension installation. Code: $continue_status"
-        exit 1
-    fi
-
-    # reset progress
-    install_progress=0
-    echo "[INFO] Installing..."
-    check_ext_install_progress "$extension_id" "$extension_version" "continue"
-}
-
-function install_flavor() {
-    local install_response server_error
-    local flavor_loaded job_finished
-
+    local install_percentage=0
     while true; do
-        install_response=$(curl -sSL -XPOST "$DIST_URL" \
-            "${COMMON_CURL_OPTIONS[@]}" \
-            -d "extensionSection=progress" \
-            -d "extensionAction=install" \
-            -u "$SUPER_ADMIN_AUTH")
+        local status_response job_state offset current_offset percentage
 
-        server_error=$(echo "$install_response" | grep -oP 'Internal Server Error' || echo "")
-        if [ -n "$server_error" ]; then
-            echo "[ERROR] Internal Server Error."
-            exit 1
-        fi
+        status_response=$(curl -sS "$BASE_URL/jobstatus/extension/install/install-$3?media=json" -u "$SUPER_ADMIN_AUTH")
 
-        FORM_TOKEN=$(echo "$install_response" | grep -oP 'data-xwiki-form-token="\K[^"]+' || echo "")
-        if [ -z "$FORM_TOKEN" ]; then
-            echo "[ERROR] Failed to retrieve form token for continuing the installation."
-            exit 1
-        fi
+        job_state=$(echo "$status_response" | grep -oP 'state": "\K[A-Z]+')
+        if [ "$job_state" == "RUNNING" ]; then
+            offset=$(echo "$status_response" | grep -oP 'offset": \K[0-9.]+')
+            current_offset=$(echo "$status_response" | grep -oP 'currentLevelOffset": \K[0-9.]+')
+            percentage=$((current_offset * 100 / offset))
+            percentage=${percentage%.*} # remove decimal part
 
-        flavor_loaded=$(echo "$install_response" | grep -oP 'extension-title' || echo "")
-        if [ -z "$flavor_loaded" ]; then
-            echo "[INFO] Standard flavor not loaded yet..."
-        fi
-
-        local installplan_job="Finished job of type \[installplan\]"
-        job_finished=$(echo "$install_response" | grep -oP "$installplan_job" || echo "")
-        if [ -n "$job_finished" ]; then
+            if [ "$percentage" -ne "$install_percentage" ]; then
+                install_percentage="$percentage"
+                echo "  Progress: $install_percentage%"
+            fi
+        elif [ "$job_state" == "FINISHED" ]; then
+            echo "[INFO] Successfully installed: $ext_id ($ext_version)"
             break
         else
-            echo "[INFO] Standard flavor installation not ready yet..."
-        fi
-
-        sleep 5
-    done
-
-    local continue_status
-    continue_status=$(curl -sSL -XPOST "$DIST_URL" \
-        "${COMMON_CURL_OPTIONS[@]}" \
-        -d "readOnly=false" \
-        -d "form_token=$FORM_TOKEN" \
-        -d "extensionAction=continue" \
-        -u "$SUPER_ADMIN_AUTH" -w "%{http_code}" -o /dev/null)
-
-    if [ "$continue_status" -ne 200 ]; then
-        echo "[ERROR] Failed to continue the installation of the standard flavor. Code: $continue_status"
-        exit 1
-    fi
-
-    ############################################
-    # Wait for flavor installation to complete #
-    ############################################
-    local progress_percentage=0
-    local already_installed
-    local PATTERN="Finished job of type [install] with identifier [extension/action/$XWIKI_STANDARD_FLAVOR_ID/wiki:xwiki]"
-
-    while true; do
-        status_response=$(curl -sSL "$DIST_URL" -d "extensionSection=progress" "${COMMON_CURL_OPTIONS[@]}")
-
-        if echo "$status_response" | grep -Fq "$PATTERN"; then
-            echo "[INFO] Standard flavor installed."
-            break
-        fi
-
-        percentage=$(echo "$status_response" | grep -oP 'ui-progress-bar[^>]*width:\K[0-9]+' || echo "")
-        already_installed=$(echo "$status_response" | grep -oP 'extension-status[^>]*>Installed<' || echo "")
-        if [ -n "$already_installed" ]; then
-            echo "[INFO] Standard flavor already installed."
-            break
-        fi
-        if [ -z "$percentage" ]; then
-            echo "[ERROR] Failed to retrieve installation progress."
-        fi
-        if [ -n "$percentage" ] && [ "$percentage" -ne "$progress_percentage" ]; then
-            progress_percentage="$percentage"
-            echo "  Progress: $progress_percentage%"
+            echo "[ERROR] Extension installation failed: $status_response"
+            exit 1
         fi
         sleep 5
     done
@@ -240,7 +138,7 @@ function setup_openproject_connection() {
     local timestamp op_conn_id conn_status
     timestamp=$(date +%s%3N)
     op_conn_id="Connection$timestamp"
-    conn_status=$(curl -sS -XPOST "$BASE_URL/rest/wikis/xwiki/spaces/OpenProject/spaces/Code/spaces/OpenProjectConfigurations/pages/$op_conn_id/openproject/configurations" \
+    conn_status=$(curl -sS -XPOST "$BASE_URL/wikis/xwiki/spaces/OpenProject/spaces/Code/spaces/OpenProjectConfigurations/pages/$op_conn_id/openproject/configurations" \
         -H "Xwiki-Form-Token: $FORM_TOKEN" \
         -H "Content-Type: application/json" \
         -d "{
@@ -260,16 +158,24 @@ function setup_openproject_connection() {
     fi
 }
 
+# Get the form token for the superadmin user
+FORM_TOKEN=$(curl -sSI "$BASE_URL" -u "$SUPER_ADMIN_AUTH" | grep -oP 'Xwiki-Form-Token: \K[a-zA-Z0-9_-]+' || echo "")
+if [ -z "$FORM_TOKEN" ]; then
+    echo "[ERROR] Failed to retrieve form token."
+    exit 1
+fi
+
 echo "############################################"
 echo "# Install XWiki Standard Flavor            #"
 echo "############################################"
 echo "[INFO] Installing the standard flavor..."
-install_flavor
+install_extension "$XWIKI_STANDARD_FLAVOR_ID" "$XWIKI_VERSION" "flavor"
 
 echo "############################################"
 echo "# Install OpenProject Extension            #"
 echo "############################################"
-install_extension "com.xwiki.projectmanagement:project-management-openproject-ui" "$EXTENSION_OPENPROJECT_VERSION"
+echo "[INFO] Installing extension: $OPENPROJECT_EXTENSION_ID ($EXTENSION_OPENPROJECT_VERSION)"
+install_extension "$OPENPROJECT_EXTENSION_ID" "$EXTENSION_OPENPROJECT_VERSION" "openproject"
 
 echo "############################################"
 echo "# Setup OpenProject Connection             #"
