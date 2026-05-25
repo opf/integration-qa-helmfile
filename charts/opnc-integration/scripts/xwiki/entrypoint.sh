@@ -96,7 +96,7 @@ function install_extension() {
     req_body="${req_body//%extension_version%/$ext_version}"
 
     install_status=$(curl -sS -XPUT "$BASE_URL/jobs?jobType=install" -u "$SUPER_ADMIN_AUTH" \
-    -H"Xwiki-Form-Token: $FORM_TOKEN" \
+    -H"XWiki-Form-Token: $FORM_TOKEN" \
     -H"Content-Type: text/xml" \
     -d "$req_body" \
     -w "%{http_code}" -o /dev/null)
@@ -108,16 +108,14 @@ function install_extension() {
 
     local install_percentage=0
     while true; do
-        local status_response job_state offset current_offset percentage
+        local status_response job_state current_offset percentage
 
         status_response=$(curl -sS "$BASE_URL/jobstatus/extension/install/install-$3?media=json" -u "$SUPER_ADMIN_AUTH")
 
-        job_state=$(echo "$status_response" | grep -oP 'state": "\K[A-Z]+')
+        job_state=$(echo "$status_response" | grep -oP 'state":"\K[A-Z]+' || echo "")
         if [ "$job_state" == "RUNNING" ]; then
-            offset=$(echo "$status_response" | grep -oP 'offset": \K[0-9.]+')
-            current_offset=$(echo "$status_response" | grep -oP 'currentLevelOffset": \K[0-9.]+')
-            percentage=$((current_offset * 100 / offset))
-            percentage=${percentage%.*} # remove decimal part
+            current_offset=$(echo "$status_response" | grep -oP 'currentLevelOffset":\K[0-9.]+' || echo 0)
+            percentage=$(awk "BEGIN{printf \"%d\n\", $current_offset * 100}")
 
             if [ "$percentage" -ne "$install_percentage" ]; then
                 install_percentage="$percentage"
@@ -126,7 +124,7 @@ function install_extension() {
         elif [ "$job_state" == "FINISHED" ]; then
             echo "[INFO] Successfully installed: $ext_id ($ext_version)"
             break
-        else
+        elif [ "$job_state" != "NONE" ]; then
             echo "[ERROR] Extension installation failed: $status_response"
             exit 1
         fi
@@ -139,7 +137,7 @@ function setup_openproject_connection() {
     timestamp=$(date +%s%3N)
     op_conn_id="Connection$timestamp"
     conn_status=$(curl -sS -XPOST "$BASE_URL/wikis/xwiki/spaces/OpenProject/spaces/Code/spaces/OpenProjectConfigurations/pages/$op_conn_id/openproject/configurations" \
-        -H "Xwiki-Form-Token: $FORM_TOKEN" \
+        -H "XWiki-Form-Token: $FORM_TOKEN" \
         -H "Content-Type: application/json" \
         -d "{
             \"connectionName\": \"openproject\",
@@ -159,7 +157,7 @@ function setup_openproject_connection() {
 }
 
 # Get the form token for the superadmin user
-FORM_TOKEN=$(curl -sSI "$BASE_URL" -u "$SUPER_ADMIN_AUTH" | grep -oP 'Xwiki-Form-Token: \K[a-zA-Z0-9_-]+' || echo "")
+FORM_TOKEN=$(curl -sSI "$BASE_URL" -u "$SUPER_ADMIN_AUTH" | grep -oP 'XWiki-Form-Token: \K[a-zA-Z0-9_-]+' || echo "")
 if [ -z "$FORM_TOKEN" ]; then
     echo "[ERROR] Failed to retrieve form token."
     exit 1
