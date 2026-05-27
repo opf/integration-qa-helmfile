@@ -5,7 +5,7 @@ run-name: >-
       && format(
         'Setup: {0} - OP v.{1} - NC v.{2} - Xwiki v.{3} - int-op-nc v.{4} - xwiki ext v.{5}',
         github.event.inputs.setupMethod,
-        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '16',
+        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
         github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32',
         github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.6',
         github.event.inputs.integration_openproject_version != '' && github.event.inputs.integration_openproject_version || 'default',
@@ -15,7 +15,7 @@ run-name: >-
         'e2e - {0} - {1} - op {2} - nc {3}',
         github.event.inputs.suite,
         github.event.inputs.setupMethod,
-        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '16',
+        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
         github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32'
       )
   }}
@@ -70,7 +70,7 @@ on:
           - sso-nextcloud
           - oauth2
       openproject_version:
-        description: "OpenProject image tag (empty = 16)"
+        description: "OpenProject image tag (empty = 17)"
         required: false
         type: string
       openproject_branch:
@@ -207,6 +207,70 @@ jobs:
             printf 'preview_name<<%s\n%s\n%s\n' "${delim}" "${preview_name}" "${delim}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Validate deployment inputs
+        env:
+          IN_OP_VER: ${{ github.event.inputs.openproject_version }}
+          IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
+          IN_KC_VER: ${{ github.event.inputs.keycloak_version }}
+          IN_XWIKI_VER: ${{ github.event.inputs.xwiki_version }}
+          IN_IO_VER: ${{ github.event.inputs.integration_openproject_version }}
+          IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_openproject_version }}
+          IN_OP_BRANCH: ${{ github.event.inputs.openproject_branch }}
+          IN_NC_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
+          IN_IO_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
+        run: |
+          set -euo pipefail
+
+          image_tag_re='^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'
+          version_token_re='^[A-Za-z0-9][A-Za-z0-9_.+~-]{0,127}$'
+
+          validate_image_tag() {
+            local input_name="$1"
+            local value="$2"
+
+            [[ -z "${value}" ]] && return 0
+            if [[ ! "${value}" =~ ${image_tag_re} ]]; then
+              echo "::error::Invalid ${input_name}. Use a Docker tag-safe value."
+              exit 1
+            fi
+          }
+
+          validate_branch() {
+            local input_name="$1"
+            local value="$2"
+
+            [[ -z "${value}" ]] && return 0
+            if [[ "${value}" == -* ]] || [[ "${value}" =~ [[:space:][:cntrl:]] ]]; then
+              echo "::error::Invalid ${input_name}. Branch names must not start with '-' or contain whitespace/control characters."
+              exit 1
+            fi
+            if ! git check-ref-format --branch "${value}" >/dev/null 2>&1; then
+              echo "::error::Invalid ${input_name}. Use a valid Git branch name."
+              exit 1
+            fi
+          }
+
+          validate_version_token() {
+            local input_name="$1"
+            local value="$2"
+
+            [[ -z "${value}" ]] && return 0
+            if [[ ! "${value}" =~ ${version_token_re} ]]; then
+              echo "::error::Invalid ${input_name}. Use a simple release/version token."
+              exit 1
+            fi
+          }
+
+          validate_image_tag "openproject_version" "${IN_OP_VER}"
+          validate_image_tag "nextcloud_version" "${IN_NC_VER}"
+          validate_image_tag "keycloak_version" "${IN_KC_VER}"
+          validate_image_tag "xwiki_version" "${IN_XWIKI_VER}"
+          validate_version_token "integration_openproject_version" "${IN_IO_VER}"
+          validate_version_token "xwiki_extension_openproject_version" "${IN_XWIKI_EXT}"
+          validate_branch "openproject_branch" "${IN_OP_BRANCH}"
+          validate_branch "nextcloud_branch" "${IN_NC_BRANCH}"
+          validate_branch "integration_openproject_branch" "${IN_IO_BRANCH}"
+
       - name: PullPreview up
         id: pullpreview_up
         if: success()
@@ -228,6 +292,7 @@ jobs:
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }},xwiki.{{ pullpreview_public_dns }}
           ttl: ${{ github.event.inputs.skip_tests == 'true' && '72h' || '24h' }}
         env:
+          PULLPREVIEW_LOGGER_LEVEL: WARN
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
           INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           OPENPROJECT_VERSION: ${{ github.event.inputs.openproject_version }}
@@ -305,8 +370,21 @@ jobs:
               sleep "${sleep_seconds}"
             done
 
-            echo "::group::Debug: response headers for ${name}"
-            /usr/bin/curl -skS -D- -o /dev/null "$url" 2>&1 | head -n 50 || true
+            echo "::group::Debug: status check for ${name}"
+            set +e
+            status="$(
+              /usr/bin/curl -skS -o /dev/null \
+                --connect-timeout 10 \
+                --write-out '%{http_code}' \
+                "$url" 2>/dev/null
+            )"
+            curl_exit=$?
+            set -e
+            if [[ "${curl_exit}" -eq 0 ]]; then
+              echo "${name}: ${status}"
+            else
+              echo "${name}: curl-exit-${curl_exit}"
+            fi
             echo "::endgroup::"
             echo "::error::${name} endpoint was not ready: ${url} expected HTTP ${expected_status}, last result ${status}"
             return 1
@@ -334,8 +412,23 @@ jobs:
 
           dump() {
             local url="$1"
+            local status=""
+            local curl_exit=0
             echo "::group::Diagnostics: ${url}"
-            /usr/bin/curl -skS -D- -o /dev/null --connect-timeout 10 "${url}" 2>&1 | head -n 80 || true
+            set +e
+            status="$(
+              /usr/bin/curl -skS -o /dev/null \
+                --connect-timeout 10 \
+                --write-out '%{http_code}' \
+                "${url}" 2>/dev/null
+            )"
+            curl_exit=$?
+            set -e
+            if [[ "${curl_exit}" -eq 0 ]]; then
+              echo "HTTP status: ${status}"
+            else
+              echo "curl exit: ${curl_exit}"
+            fi
             echo "::endgroup::"
           }
 
@@ -639,6 +732,8 @@ jobs:
           label: ${{ needs.deploy.outputs.preview_name }}
           force_action: down
           deployment_target: helm
+        env:
+          PULLPREVIEW_LOGGER_LEVEL: WARN
 
       - name: Keep environment notice
         if: >-

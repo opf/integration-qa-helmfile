@@ -10,6 +10,8 @@
 {{- $xwikiVersion := trim (env "XWIKI_VERSION") -}}
 {{- $xwikiExtensionOpenProjectVersion := trim (env "XWIKI_EXTENSION_OPENPROJECT_VERSION") -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
+{{- $openprojectImageTag := $openprojectVersion | default "17" -}}
+{{- $openprojectSourcePath := "/home/app/openproject" -}}
 opnc-integration:
   integrationSetupMethod: {{ $setupMethod | quote }}
   openprojectHost: "{{ pullpreview_public_dns }}"
@@ -19,14 +21,38 @@ opnc-integration:
   xwikiHost: "xwiki.{{ pullpreview_public_dns }}"
   xwiki:
     enabled: true
-{{- if or $openprojectVersion $openprojectBranch }}
   openproject:
-{{- if $openprojectVersion }}
-    dockerTag: {{ $openprojectVersion | quote }}
-{{- end }}
+    dockerTag: {{ $openprojectImageTag | quote }}
 {{- if $openprojectBranch }}
     gitSourceBranch: {{ $openprojectBranch | quote }}
+    customSourceMountPath: {{ $openprojectSourcePath | quote }}
 {{- end }}
+{{- if $openprojectBranch }}
+  environment:
+    RAILS_ENV: production
+    OPENPROJECT_LOG__LEVEL: info
+    OPENPROJECT_EDITION: standard
+    OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"
+    OPENPROJECT_APIV3__ENABLE__BASIC__AUTH: "true"
+    OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_USER: admin
+    OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: admin
+    OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK: "true"
+    OPENPROJECT_DISABLE__MIGRATIONS__CHECK: "true"
+    DATABASE_HOST: op-postgresql
+    DATABASE_URL: postgresql://openproject:openproject@op-postgresql/openproject
+    OPENPROJECT_SEED__ENTERPRISE__TOKEN: |
+{{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | indent 6 }}
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_GRANT__TYPES__SUPPORTED: "authorization_code implicit urn:ietf:params:oauth:grant-type:token-exchange"
+    APP_PATH: {{ $openprojectSourcePath | quote }}
+    BUNDLE_APP_CONFIG: ./.bundle
+    BUNDLE_WITHOUT: ""
+    BUNDLE_WITH: ""
+    OP_GIT_SOURCE_BRANCH: {{ $openprojectBranch | quote }}
+    OPENPROJECT_ENABLE__INTERNAL__ASSETS__SERVER: "true"
+    OPENPROJECT_DISABLE_DEV_ASSET_PROXY: "true"
 {{- end }}
 {{- if or $nextcloudBranch $appVersion $integrationOpenProjectGitBranch }}
   nextcloud:
@@ -46,10 +72,8 @@ opnc-integration:
 {{- end }}
 
 openproject:
-{{- if $openprojectVersion }}
   image:
-    tag: {{ $openprojectVersion | quote }}
-{{- end }}
+    tag: {{ $openprojectImageTag | quote }}
   openproject:
     host: "{{ pullpreview_public_dns }}"
     oidc:
@@ -59,9 +83,50 @@ openproject:
     OPENPROJECT_SEED__ENTERPRISE__TOKEN: |
 {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | indent 6 }}
     OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"
+    DATABASE_HOST: op-postgresql
+    DATABASE_URL: postgresql://openproject:openproject@op-postgresql/openproject
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"
+    OPENPROJECT_OPENID__CONNECT_KEYCLOAK_GRANT__TYPES__SUPPORTED: "authorization_code implicit urn:ietf:params:oauth:grant-type:token-exchange"
+{{- if $openprojectBranch }}
+    APP_PATH: {{ $openprojectSourcePath | quote }}
+    BUNDLE_APP_CONFIG: ./.bundle
+    BUNDLE_WITHOUT: ""
+    BUNDLE_WITH: ""
+    OP_GIT_SOURCE_BRANCH: {{ $openprojectBranch | quote }}
+    OPENPROJECT_ENABLE__INTERNAL__ASSETS__SERVER: "true"
+    OPENPROJECT_DISABLE_DEV_ASSET_PROXY: "true"
+{{- end }}
+
+{{- if $openprojectBranch }}
+  seederJob:
+    enabled: false
+{{- end }}
+
+  extraVolumes:
+    - name: entrypoint
+      configMap:
+        name: op-entry-configmap
+        defaultMode: 0755
+{{- if $openprojectBranch }}
+    - name: empty-app-dir
+      emptyDir: {}
+    - name: op-source-data
+      persistentVolumeClaim:
+        claimName: op-source-pvc
+{{- end }}
+
+  extraVolumeMounts:
+    - name: entrypoint
+      mountPath: /app/docker/prod/entrypoint.sh
+      subPath: entrypoint.sh
+{{- if $openprojectBranch }}
+    - name: op-source-data
+      mountPath: {{ $openprojectSourcePath | quote }}
+    - name: empty-app-dir
+      mountPath: /app
+{{- end }}
 
 nextcloud:
 {{- if $nextcloudVersion }}
@@ -126,6 +191,11 @@ xwiki:
     xwiki.properties:
       distribution.job.interactive: false
       distribution.job.interactive.wiki: false
+  probes:
+    readiness:
+      httpGet:
+        enabled: true
+        path: /
   customConfigsSecrets:
     xwiki.cfg:
       xwiki.superadminpassword:

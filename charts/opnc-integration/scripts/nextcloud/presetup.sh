@@ -51,8 +51,7 @@ fi
 # clone nextcloud branch and build it if specified #
 ####################################################
 if [[ -n "$NC_GIT_SOURCE_BRANCH" ]]; then
-    set -x
-    echo "[INFO] Cloning Nextcloud from branch: $NC_GIT_SOURCE_BRANCH"
+    echo "[INFO] Cloning Nextcloud source branch."
     # get nextcloud server
     git clone --single-branch -b "${NC_GIT_SOURCE_BRANCH}" --depth 1 https://github.com/nextcloud/server.git $SRC_DIR
     cd "$SRC_DIR"
@@ -62,7 +61,6 @@ if [[ -n "$NC_GIT_SOURCE_BRANCH" ]]; then
     mkdir -p data
     # Add activity app. Required for integration_openproject app
     git clone --single-branch -b "${NC_GIT_SOURCE_BRANCH}" --depth 1 https://github.com/nextcloud/activity.git $SRC_DIR/apps/activity
-    set +x
 fi
 
 ####################################################
@@ -83,16 +81,14 @@ for app in $BUILD_GIT_APPS; do
         mkdir -p "$APP_DIR"
         # extract the branch name
         app_branch=${app_version#git=}
-        echo "[INFO] Building app '$app_name' from '$app_branch' branch."
+        echo "[INFO] Building Nextcloud app '$app_name' from git branch."
 
-        set -x
         curl -sL "${GIT_REPO_URL}/archive/refs/heads/${app_branch}.tar.gz" | tar -xz -C "$APP_DIR" --strip-components=1
 
         cd "$APP_DIR"
         composer install --no-dev
         npm ci && npm run build
 
-        set +x
         cd "$SRC_DIR"
     fi
 done

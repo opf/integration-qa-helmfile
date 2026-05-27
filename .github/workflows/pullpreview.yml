@@ -63,6 +63,7 @@ jobs:
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+          PULLPREVIEW_LOGGER_LEVEL: WARN
 
       - id: pullpreview
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
@@ -86,6 +87,16 @@ jobs:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+          PULLPREVIEW_LOGGER_LEVEL: WARN
+
+      - name: Strip SSH lines from PullPreview summary
+        if: always() && steps.pullpreview.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || exit 0
+          [[ -f "${GITHUB_STEP_SUMMARY}" ]] || exit 0
+          sed -i -E '/^- SSH (Username|IP|Command):/d' "${GITHUB_STEP_SUMMARY}"
 
       - name: Add secondary URLs to job summary
         if: steps.pullpreview.outputs.live == 'true'
@@ -105,6 +116,7 @@ jobs:
             echo "- Main FQDN: https://${preview_host}"
             echo "- Nextcloud: https://nextcloud.${preview_host}"
             echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
+            echo "- XWiki: https://xwiki.${preview_host}"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Validate preview URLs
@@ -122,8 +134,9 @@ jobs:
             local name="$1"
             local url="$2"
             local expected_status="$3"
+            local attempts="${4:-3}"
+            local sleep_seconds="${5:-5}"
             local attempt
-            local attempts=3
             local status=""
             local curl_exit=0
 
@@ -149,7 +162,7 @@ jobs:
               fi
 
               if [[ "${attempt}" -lt "${attempts}" ]]; then
-                sleep 5
+                sleep "${sleep_seconds}"
               fi
             done
 
@@ -161,3 +174,4 @@ jobs:
           check_url "Main login" "https://${preview_host}/login" "200"
           check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200"
           check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
+          check_url "XWiki" "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution" "200" 120 10

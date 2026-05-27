@@ -33,7 +33,7 @@ opnc-integration:
         gitBranch: ""
 
   openproject:
-    dockerTag: "16"
+    dockerTag: "17"
     gitSourceBranch: ""
     localSourcePath: ""
     customSourceMountPath: /home/app/openproject
@@ -51,6 +51,11 @@ opnc-integration:
 
 xwiki:
   fullnameOverride: xwiki
+  probes:
+    readiness:
+      httpGet:
+        enabled: true
+        path: /
 
 openproject:
   fullnameOverride: openproject
@@ -59,7 +64,7 @@ openproject:
     readOnlyRootFilesystem: false
 
   image:
-    tag: "16"
+    tag: "17"
 
   persistence:
     storageClassName: local-path
