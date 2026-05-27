@@ -135,9 +135,30 @@ nextcloud:
 {{- end }}
   nextcloud:
     host: "nextcloud.{{ pullpreview_public_dns }}"
+{{- if $nextcloudBranch }}
+    extraInitContainers:
+      - name: presetup
+        image: node:22
+        command:
+          - /docker-entrypoint-hooks.d/presetup.sh
+        env:
+          - name: NC_GIT_SOURCE_BRANCH
+            value: {{ $nextcloudBranch | quote }}
+          - name: NEXTCLOUD_ENABLE_APPS
+            valueFrom:
+              configMapKeyRef:
+                name: nextcloud-enable-apps
+                key: enable-apps
+        volumeMounts:
+          - name: presetup
+            mountPath: /docker-entrypoint-hooks.d/presetup.sh
+            subPath: presetup.sh
+          - name: nc-git-source
+            mountPath: /usr/src/nc
+{{- end }}
     extraEnv:
       - name: NC_GIT_SOURCE_BRANCH
-        value: ""
+        value: {{ $nextcloudBranch | quote }}
       - name: OVERWRITEPROTOCOL
         value: https
       - name: OVERWRITECLIURL
