@@ -271,6 +271,41 @@ jobs:
           validate_branch "nextcloud_branch" "${IN_NC_BRANCH}"
           validate_branch "integration_openproject_branch" "${IN_IO_BRANCH}"
 
+          check_branch_exists() {
+            local input_name="$1"
+            local repo_url="$2"
+            local value="$3"
+
+            [[ -z "${value}" ]] && return 0
+            if ! git ls-remote --exit-code --heads "${repo_url}" "${value}" >/dev/null 2>&1; then
+              echo "::error::${input_name} was not found in the expected upstream repository."
+              exit 1
+            fi
+          }
+
+          check_image_exists() {
+            local input_name="$1"
+            local image_ref="$2"
+
+            if ! docker manifest inspect "${image_ref}" >/dev/null 2>&1; then
+              echo "::error::${input_name} image tag was not found or is not accessible."
+              exit 1
+            fi
+          }
+
+          effective_op_ver="${IN_OP_VER:-17}"
+          effective_nc_ver="${IN_NC_VER:-32}"
+          effective_kc_ver="${IN_KC_VER:-26.2.5}"
+          effective_xwiki_ver="${IN_XWIKI_VER:-17.10.6}"
+
+          check_branch_exists "openproject_branch" "https://github.com/opf/openproject.git" "${IN_OP_BRANCH}"
+          check_branch_exists "nextcloud_branch" "https://github.com/nextcloud/server.git" "${IN_NC_BRANCH}"
+          check_branch_exists "integration_openproject_branch" "https://github.com/nextcloud/integration_openproject.git" "${IN_IO_BRANCH}"
+          check_image_exists "openproject_version" "docker.io/openproject/openproject:${effective_op_ver}"
+          check_image_exists "nextcloud_version" "docker.io/library/nextcloud:${effective_nc_ver}"
+          check_image_exists "keycloak_version" "docker.io/bitnamilegacy/keycloak:${effective_kc_ver}"
+          check_image_exists "xwiki_version" "docker.io/library/xwiki:${effective_xwiki_ver}"
+
       - name: PullPreview up
         id: pullpreview_up
         if: success()
@@ -287,12 +322,12 @@ jobs:
           deployment_target: helm
           chart: ./charts/pullpreview-stack
           chart_values: pullpreview/stack-values.yaml.gotmpl
-          pre_script: pullpreview/pre-script-helm-deps.sh
+          pre_script: pullpreview/pre-script-helm-deps-e2e.sh
           proxy_tls: traefik:80
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }},xwiki.{{ pullpreview_public_dns }}
           ttl: ${{ github.event.inputs.skip_tests == 'true' && '72h' || '24h' }}
         env:
-          PULLPREVIEW_LOGGER_LEVEL: WARN
+          PULLPREVIEW_LOGGER_LEVEL: ERROR
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
           INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           OPENPROJECT_VERSION: ${{ github.event.inputs.openproject_version }}
@@ -733,7 +768,7 @@ jobs:
           force_action: down
           deployment_target: helm
         env:
-          PULLPREVIEW_LOGGER_LEVEL: WARN
+          PULLPREVIEW_LOGGER_LEVEL: ERROR
 
       - name: Keep environment notice
         if: >-

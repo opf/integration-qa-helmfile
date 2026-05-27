@@ -51,6 +51,8 @@ opnc-integration:
 
 xwiki:
   fullnameOverride: xwiki
+  image:
+    tag: "17.10.6"
   probes:
     readiness:
       httpGet:

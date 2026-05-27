@@ -63,7 +63,7 @@ jobs:
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
-          PULLPREVIEW_LOGGER_LEVEL: WARN
+          PULLPREVIEW_LOGGER_LEVEL: ERROR
 
       - id: pullpreview
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
@@ -87,7 +87,7 @@ jobs:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
-          PULLPREVIEW_LOGGER_LEVEL: WARN
+          PULLPREVIEW_LOGGER_LEVEL: ERROR
 
       - name: Strip SSH lines from PullPreview summary
         if: always() && steps.pullpreview.outcome != 'skipped'

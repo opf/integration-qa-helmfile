@@ -11,6 +11,7 @@
 {{- $xwikiExtensionOpenProjectVersion := trim (env "XWIKI_EXTENSION_OPENPROJECT_VERSION") -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
+{{- $xwikiImageTag := $xwikiVersion | default "17.10.6" -}}
 {{- $openprojectSourcePath := "/home/app/openproject" -}}
 opnc-integration:
   integrationSetupMethod: {{ $setupMethod | quote }}
@@ -201,10 +202,8 @@ keycloak:
       value: "{{ pullpreview_public_dns }}"
 
 xwiki:
-{{- if $xwikiVersion }}
   image:
-    tag: {{ $xwikiVersion | quote }}
-{{- end }}
+    tag: {{ $xwikiImageTag | quote }}
   command:
     - /bin/bash
     - /entrypoint.sh
