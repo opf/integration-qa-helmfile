@@ -48,6 +48,7 @@ openproject:
   # NOTE: this will serve as APP_PATH                #
   ####################################################
   customSourceMountPath: '/home/app/openproject'
+  sourcePvcStorage: 12Gi
   #####################################################
   # Starts pods necessary for testing                 #
   #####################################################

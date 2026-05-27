@@ -37,6 +37,7 @@ opnc-integration:
     gitSourceBranch: ""
     localSourcePath: ""
     customSourceMountPath: /home/app/openproject
+    sourcePvcStorage: 12Gi
     standalone: false
 
   ingress:

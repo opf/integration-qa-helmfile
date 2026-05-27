@@ -68,6 +68,6 @@ spec:
   accessModes: {{ .Values.persistence.accessModes | default (list "ReadWriteOnce") }}
   resources:
     requests:
-      storage: 5Gi
+      storage: {{ .Values.openproject.sourcePvcStorage | default "12Gi" | quote }}
 {{ end }}
 {{ end }}

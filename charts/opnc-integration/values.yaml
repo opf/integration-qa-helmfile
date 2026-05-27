@@ -44,6 +44,7 @@ openproject:
   # Local host path to OpenProject source code
   localSourcePath: ''
   customSourceMountPath: /home/app/openproject
+  sourcePvcStorage: 12Gi
   standalone: false
   enableTestSetup: false
   railsEnv: 'production'
