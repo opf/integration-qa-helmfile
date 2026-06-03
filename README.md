@@ -134,7 +134,7 @@ pullpreview up /Users/crohr/dev/opf/integration-qa-helmfile \
   --region fsn1 \
   --image ubuntu-24.04 \
   --instance-type cpx42 \
-  --dns my.preview.run
+  --dns my.opf.run
 ```
 
 Destroy the smoke deployment with:
