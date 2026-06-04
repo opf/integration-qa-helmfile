@@ -7,7 +7,7 @@ cd /app
 namespace="${PULLPREVIEW_NAMESPACE:?PULLPREVIEW_NAMESPACE is required}"
 values_file="${PULLPREVIEW_VALUES_FILE:-}"
 
-source pullpreview/resolve-public-dns.sh "${values_file}"
+source pullpreview/resolve-pullpreview-env.sh "${values_file}"
 
 echo "[pullpreview helmfile] namespace=${namespace} values_file=${values_file:-<none>} public_dns=${PULLPREVIEW_PUBLIC_DNS:-<unset>}"
 
