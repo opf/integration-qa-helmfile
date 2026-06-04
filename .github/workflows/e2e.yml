@@ -3,20 +3,45 @@ run-name: >-
   ${{
     github.event.inputs.skip_tests == 'true'
       && format(
-        'Setup: {0} - OP v.{1} - NC v.{2} - Xwiki v.{3} - int-op-nc v.{4} - xwiki ext v.{5}',
+        'Setup: {0} - {1} - {2} - {3} - {4} - {5}{6}',
         github.event.inputs.setupMethod,
-        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
-        github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32',
-        github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.6',
-        github.event.inputs.integration_openproject_version != '' && github.event.inputs.integration_openproject_version || 'default',
-        github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.1.0'
+        format(
+          'OP v.{0}{1}',
+          github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
+          github.event.inputs.openproject_branch != '' && format(' ({0})', github.event.inputs.openproject_branch) || ''
+        ),
+        format(
+          'NC v.{0}{1}',
+          github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32',
+          github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
+        ),
+        format(
+          'Xwiki v.{0}',
+          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.6'
+        ),
+        github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
+        format(
+          'xwiki ext v.{0}',
+          github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.1.0'
+        ),
+        github.event.inputs.keycloak_version != '' && format(' - KC v.{0}', github.event.inputs.keycloak_version) || ''
       )
       || format(
-        'e2e - {0} - {1} - op {2} - nc {3}',
+        'e2e - {0} - {1} - {2} - {3} - {4}{5}',
         github.event.inputs.suite,
         github.event.inputs.setupMethod,
-        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
-        github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32'
+        format(
+          'op {0}{1}',
+          github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
+          github.event.inputs.openproject_branch != '' && format(' ({0})', github.event.inputs.openproject_branch) || ''
+        ),
+        format(
+          'nc {0}{1}',
+          github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32',
+          github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
+        ),
+        github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
+        github.event.inputs.keycloak_version != '' && format(' - kc {0}', github.event.inputs.keycloak_version) || ''
       )
   }}
 
