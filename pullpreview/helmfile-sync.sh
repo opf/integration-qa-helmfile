@@ -47,7 +47,7 @@ sync_release() {
 
 echo "[pullpreview helmfile] Phased deploy starting (namespace=${namespace}, host=${PULLPREVIEW_PUBLIC_DNS})"
 
-releases=(traefik opnc-integration openproject keycloak nextcloud opnc-setup-job xwiki)
+releases=(traefik opnc-integration openproject keycloak nextcloud-pvc nextcloud opnc-setup-job xwiki)
 for release in "${releases[@]}"; do
   sync_release "${release}" || exit 1
 done

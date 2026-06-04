@@ -1,13 +1,12 @@
-{{- if include "opnc.renderBootstrapResources" . }}
----
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: nc-gitsource-pvc
 spec:
   accessModes: {{ .Values.persistence.accessModes | default (list "ReadWriteOnce") }}
+  {{- if .Values.persistence.storageClassName }}
+  storageClassName: {{ .Values.persistence.storageClassName | quote }}
+  {{- end }}
   resources:
     requests:
-      storage: 8Gi
-
-{{- end }}
+      storage: {{ .Values.persistence.size | default "8Gi" }}

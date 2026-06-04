@@ -22,6 +22,14 @@ if ! command -v helmfile >/dev/null 2>&1; then
   chmod +x /usr/local/bin/helmfile
 fi
 
+if ! command -v kustomize >/dev/null 2>&1; then
+  echo "[pullpreview pre_script] Installing kustomize..."
+  KUSTOMIZE_VERSION="5.6.0"
+  curl -fsSL -o /tmp/kustomize.tgz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+  tar -xzf /tmp/kustomize.tgz -C /usr/local/bin kustomize
+  chmod +x /usr/local/bin/kustomize
+fi
+
 chmod +x pullpreview/*.sh 2>/dev/null || true
 
 # Upstream pullpreview/action currently hardcodes Helm --timeout 15m.

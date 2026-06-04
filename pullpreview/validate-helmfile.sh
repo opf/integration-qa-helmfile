@@ -23,10 +23,23 @@ helm repo add --force-update traefik https://traefik.github.io/charts >/dev/null
 helm repo add --force-update xwiki-helm https://xwiki-contrib.github.io/xwiki-helm >/dev/null 2>&1 || true
 helm repo update >/dev/null 2>&1 || true
 
-critical_releases=(opnc-integration openproject keycloak nextcloud opnc-setup-job)
+critical_releases=(opnc-integration openproject keycloak nextcloud-pvc nextcloud opnc-setup-job)
 for release in "${critical_releases[@]}"; do
   echo "[validate-pullpreview] helmfile template release=${release}"
   "${helmfile_common[@]}" -l "name=${release}" template --skip-deps >/dev/null
 done
+
+echo "[validate-pullpreview] helm template opnc-nextcloud-pvc chart (git-source PVC)"
+helm template validate-nc-pvc charts/opnc-nextcloud-pvc \
+  --set persistence.storageClassName=local-path \
+  --set 'persistence.accessModes={ReadWriteOnce}' \
+  --set persistence.size=8Gi >/dev/null
+
+if command -v kustomize >/dev/null 2>&1; then
+  echo "[validate-pullpreview] helmfile template release=xwiki (requires kustomize)"
+  "${helmfile_common[@]}" -l "name=xwiki" template --skip-deps >/dev/null
+else
+  echo "[validate-pullpreview] skip xwiki template (install kustomize for strategicMergePatches)"
+fi
 
 echo "[validate-pullpreview] OK"

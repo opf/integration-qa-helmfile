@@ -40,7 +40,7 @@ PullPreview still uses [`charts/pullpreview-stack`](../../charts/pullpreview-sta
 
 | | Local (`make deploy`) | PullPreview / E2E CI |
 |---|---|---|
-| Orchestration | [`helmfile.yaml.gotmpl`](../../helmfile.yaml.gotmpl) — cert-manager → opnc-integration (incl. `setup-job`) → openproject → nextcloud / keycloak / xwiki | [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) — traefik → opnc-integration (bootstrap only) → openproject → keycloak → nextcloud → **opnc-setup-job** → xwiki |
+| Orchestration | [`helmfile.yaml.gotmpl`](../../helmfile.yaml.gotmpl) — cert-manager → opnc-integration (incl. `setup-job`) → openproject → **nextcloud-pvc** (if `nextcloud.gitSourceBranch`) → nextcloud / keycloak / xwiki | [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) — traefik → opnc-integration (bootstrap only) → openproject → keycloak → **nextcloud-pvc** (if NC git branch) → nextcloud → **opnc-setup-job** → xwiki |
 | Namespace | `opnc-integration` (k3d) | Dynamic `pp-gh-…` (PullPreview) |
 | Hosts | `/etc/hosts` (`*.test`) | `*.my.opf.run` (generated FQDN) |
 | Integration wiring | Wait for `setup-job` **Completed** (root README) | `opnc-setup-job` release after OpenProject/Keycloak/Nextcloud, then [`wait-setup-job.sh`](../wait-setup-job.sh) |
@@ -48,13 +48,17 @@ PullPreview still uses [`charts/pullpreview-stack`](../../charts/pullpreview-sta
 
 Phased sync runs on the preview VM via [`helmfile-sync.sh`](../helmfile-sync.sh) (triggered from [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) when the action installs `pullpreview-stack`). Values come from [`environments/pullpreview/config.yaml.gotmpl`](../../environments/pullpreview/config.yaml.gotmpl) and the same [`values/*.gotmpl`](../../values/) templates as local, with `previewMode: true` (no in-cluster CA / cert-manager path).
 
+**Nextcloud git source:** `nc-gitsource-pvc` is not created in the bootstrap `opnc-integration` release (Helm `--wait` would block on `WaitForFirstConsumer` until the Nextcloud pod exists). It is installed via [`charts/opnc-nextcloud-pvc`](../../charts/opnc-nextcloud-pvc) in the `nextcloud-pvc` release immediately before `nextcloud`, only when `nextcloud.gitSourceBranch` / `NEXTCLOUD_BRANCH` is set.
+
+The preview VM pre-script installs **helmfile** and **kustomize** (required for XWiki `strategicMergePatches` and reliable `helmfile destroy` on failure).
+
 Before pushing PullPreview changes, run from the repository root:
 
 ```bash
 make validate-pullpreview-helmfile
 ```
 
-That runs [`validate-helmfile.sh`](../validate-helmfile.sh) (helmfile build + template for opnc-integration, openproject, keycloak, nextcloud, and opnc-setup-job).
+That runs [`validate-helmfile.sh`](../validate-helmfile.sh) (helmfile build + template for critical releases including `nextcloud-pvc`; XWiki when `kustomize` is on `PATH`).
 
 ## CI workflows
 
@@ -76,7 +80,8 @@ Published URLs follow the generated FQDN, for example `https://<fqdn>`, `https:/
 |---|---|
 | [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) | Phased PullPreview releases |
 | [`stack-values.yaml.gotmpl`](../stack-values.yaml.gotmpl) | Values passed to `pullpreview/action` (DNS, versions) |
-| [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) | Helm/helmfile bootstrap on the preview VM |
+| [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) | Helm/helmfile/kustomize bootstrap on the preview VM |
+| [`charts/opnc-nextcloud-pvc`](../../charts/opnc-nextcloud-pvc) | Git-source PVC (phased release before Nextcloud) |
 | [`helmfile-sync.sh`](../helmfile-sync.sh) | Sequential release sync |
 | [`environments/pullpreview/`](../../environments/pullpreview/) | PullPreview-specific helmfile environment |
 

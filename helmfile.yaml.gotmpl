@@ -74,6 +74,13 @@ releases:
   #     - values/op-values.gotmpl
   #   needs:
   #     - opnc-integration
+  - name: nextcloud-pvc
+    chart: ./charts/opnc-nextcloud-pvc
+    installed: {{ and (not .Values.openproject.standalone) (ne (.Values.nextcloud.gitSourceBranch | default "") "") }}
+    values:
+      - values/nc-pvc-values.gotmpl
+    needs:
+      - opnc-integration
   - name: nextcloud
     chart: nextcloud/nextcloud
     version: ~9.0.0
@@ -82,6 +89,9 @@ releases:
       - values/nc-values.gotmpl
     needs:
       - opnc-integration
+      {{- if ne (.Values.nextcloud.gitSourceBranch | default "") "" }}
+      - nextcloud-pvc
+      {{- end }}
   - name: keycloak
     chart: bitnami/keycloak
     version: ~24.7.5

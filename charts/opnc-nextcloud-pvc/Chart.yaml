@@ -1,0 +1,5 @@
+apiVersion: v2
+name: opnc-nextcloud-pvc
+description: Nextcloud git-source PVC for phased helmfile deploy
+version: 0.1.0
+type: application

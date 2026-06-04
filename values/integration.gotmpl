@@ -12,6 +12,7 @@ keycloakHost: {{ .Values.keycloak.host }}
 xwikiHost: {{ .Values.xwiki.host }}
 
 nextcloud:
+  gitSourceBranch: {{ .Values.nextcloud.gitSourceBranch | quote }}
   enableApps:
   {{ toYaml .Values.nextcloud.enableApps | nindent 4 }}
 

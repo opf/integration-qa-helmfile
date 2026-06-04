@@ -129,6 +129,8 @@ nextcloud:
   gitSourceBranch: '<git-branch-name>'
 ```
 
+Helmfile installs [`charts/opnc-nextcloud-pvc`](charts/opnc-nextcloud-pvc) in a `nextcloud-pvc` release immediately before Nextcloud when `gitSourceBranch` is set (avoids Helm wait blocking on the PVC during bootstrap).
+
 Similarly, you can enable Nextcloud apps using a specific git branch:
 
 ```yaml
