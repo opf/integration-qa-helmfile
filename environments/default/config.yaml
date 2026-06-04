@@ -1,3 +1,5 @@
+previewMode: false
+
 integration:
   ############################################
   # Integration setup                        #

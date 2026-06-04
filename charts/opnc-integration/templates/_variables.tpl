@@ -93,3 +93,23 @@ Environment variables
 {{ toYaml .Values.extraEnv }}
 {{- end }}
 {{- end -}}
+
+{{/*
+---------------------------------------------
+Render scope (bootstrap vs deferred setup-job)
+---------------------------------------------
+*/}}
+
+{{- define "opnc.renderBootstrapResources" -}}
+{{- if ne (.Values.renderScope | default "bootstrap") "setupJob" -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "opnc.renderSetupJob" -}}
+{{- if and (not .Values.openproject.standalone) (.Values.setupJob.enabled | default true) -}}
+{{- if or (eq .Values.renderScope "setupJob") (not (.Values.setupJob.defer | default false)) -}}
+true
+{{- end -}}
+{{- end -}}
+{{- end -}}

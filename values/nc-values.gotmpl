@@ -51,10 +51,12 @@ nextcloud:
         configMapKeyRef:
           name: nextcloud-enable-apps
           key: enable-apps
+    {{- if not (.Values.previewMode | default false) }}
     - name: CURL_CA_BUNDLE
       value: {{ .Values.ingress.caCertFileMountPath }}
     - name: SSL_CERT_FILE
       value: {{ .Values.ingress.caCertFileMountPath }}
+    {{- end }}
   extraVolumes:
     - name: presetup
       configMap:
@@ -64,9 +66,11 @@ nextcloud:
       configMap:
         name: nc-beforestart-configmap
         defaultMode: 0755
+    {{- if not (.Values.previewMode | default false) }}
     - name: ca-cert
       secret:
         secretName: {{ or .Values.ingress.tlsSecretName .Values.ingress.existingTlsSecretName }}
+    {{- end }}
     - name: entrypoint
       configMap:
         name: nc-entrypoint-configmap
@@ -81,9 +85,11 @@ nextcloud:
     - name: beforestart
       mountPath: /docker-entrypoint-hooks.d/before-starting/beforestart.sh
       subPath: beforestart.sh
+    {{- if not (.Values.previewMode | default false) }}
     - name: ca-cert
       mountPath: {{ .Values.ingress.caCertFileMountPath }}
       subPath: ca.crt
+    {{- end }}
     - name: entrypoint
       mountPath: /entrypoint.sh
       subPath: entrypoint.sh

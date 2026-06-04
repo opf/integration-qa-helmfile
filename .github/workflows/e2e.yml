@@ -341,7 +341,10 @@ jobs:
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ github.event.inputs.xwiki_extension_openproject_version }}
 
       - name: Strip SSH lines from PullPreview summary
-        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        if: >-
+          always() &&
+          steps.pullpreview_up.outcome != 'skipped' &&
+          github.event.inputs.skip_tests != 'true'
         run: |
           set -euo pipefail
           [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || exit 0
@@ -349,89 +352,101 @@ jobs:
           # Do not use `grep -v`: GNU grep exits 1 when no lines are emitted (empty file / no matches), which breaks `set -e`.
           sed -i -E '/^- SSH (Username|IP|Command):/d' "${GITHUB_STEP_SUMMARY}"
 
-      - name: Validate preview URLs
-        id: validate_urls
+      - name: Deploy preview summary
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        env:
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          PULLPREVIEW_OUTCOME: ${{ steps.pullpreview_up.outcome }}
+          PULLPREVIEW_LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+          IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
+        run: .github/scripts/deploy-preview-summary.sh
+
+      - name: Resolve preview host for checks
+        id: preview_host
         if: success() && steps.pullpreview_up.outputs.live == 'true'
         env:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
         run: |
           set -euo pipefail
-          preview_url="${PREVIEW_URL}"
-          preview_host="${preview_url#https://}"
-          preview_host="${preview_host#http://}"
-          preview_host="${preview_host%%/*}"
-          preview_host="${preview_host%%:*}"
+          host="$(.github/scripts/preview-parse-host.sh)"
+          echo "host=${host}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Endpoint checks"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
 
-          check_url() {
-            local name="$1"
-            local url="$2"
-            local expected_status="$3"
-            local attempts="${4:-12}"
-            local sleep_seconds="${5:-10}"
-            local follow_redirects="${6:-false}"
-            local attempt
-            local status=""
-            local curl_exit=0
+      - name: Check OpenProject
+        id: check_openproject
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          failed=false
+          set +e
+          .github/scripts/preview-check-url.sh "OpenProject (root)" "https://${PREVIEW_HOST}/" "302" || failed=true
+          .github/scripts/preview-check-url.sh "OpenProject (login)" "https://${PREVIEW_HOST}/login" "200" || failed=true
+          set -e
+          [[ "${failed}" != "true" ]]
 
-            for attempt in $(seq 1 "${attempts}"); do
-              set +e
-              status="$(
-                /usr/bin/curl -skS -o /dev/null \
-                  --connect-timeout 10 \
-                  --write-out '%{http_code}' \
-                  $([[ "${follow_redirects}" == "true" ]] && echo -n "-L") \
-                  "$url" 2>/dev/null
-              )"
-              curl_exit=$?
-              set -e
+      - name: Check Nextcloud
+        id: check_nextcloud
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          .github/scripts/preview-check-url.sh "Nextcloud" "https://nextcloud.${PREVIEW_HOST}/status.php" "200" 60 10
 
-              if [[ "${curl_exit}" -eq 0 ]]; then
-                if [[ "${attempt}" -eq 1 ]]; then
-                  echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
-                else
-                  echo "${name}: ${status} (attempt ${attempt}/${attempts})"
-                fi
-                if [[ "${status}" == "${expected_status}" ]]; then
-                  return 0
-                fi
-              else
-                if [[ "${attempt}" -eq 1 ]]; then
-                  echo "${name}: ${url} -> curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
-                else
-                  echo "${name}: curl-exit-${curl_exit} (attempt ${attempt}/${attempts})"
-                fi
-              fi
+      - name: Check Keycloak
+        id: check_keycloak
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          .github/scripts/preview-check-url.sh "Keycloak" "https://keycloak.${PREVIEW_HOST}/realms/opnc" "200"
 
-              sleep "${sleep_seconds}"
-            done
+      - name: Check XWiki
+        id: check_xwiki
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          # XWiki does first-time setup and extension installs; follow redirects once setup completes.
+          .github/scripts/preview-check-url.sh "XWiki" "https://xwiki.${PREVIEW_HOST}/bin/distribution/XWiki/Distribution" "200" 120 10 true
 
-            echo "::group::Debug: status check for ${name}"
-            set +e
-            status="$(
-              /usr/bin/curl -skS -o /dev/null \
-                --connect-timeout 10 \
-                --write-out '%{http_code}' \
-                "$url" 2>/dev/null
-            )"
-            curl_exit=$?
-            set -e
-            if [[ "${curl_exit}" -eq 0 ]]; then
-              echo "${name}: ${status}"
-            else
-              echo "${name}: curl-exit-${curl_exit}"
+      - name: Require all endpoint checks
+        id: validate_urls
+        if: always() && steps.pullpreview_up.outputs.live == 'true'
+        env:
+          CHECK_OP: ${{ steps.check_openproject.outcome }}
+          CHECK_NC: ${{ steps.check_nextcloud.outcome }}
+          CHECK_KC: ${{ steps.check_keycloak.outcome }}
+          CHECK_XW: ${{ steps.check_xwiki.outcome }}
+        run: |
+          set -euo pipefail
+          failed=false
+          for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}"; do
+            name="${entry%%:*}"
+            outcome="${entry#*:}"
+            if [[ "${outcome}" == "failure" ]]; then
+              echo "::error::${name} endpoint check failed"
+              failed=true
+            elif [[ "${outcome}" == "skipped" ]]; then
+              echo "::error::${name} endpoint check was skipped"
+              failed=true
             fi
-            echo "::endgroup::"
-            echo "::error::${name} endpoint was not ready: ${url} expected HTTP ${expected_status}, last result ${status}"
-            return 1
-          }
-
-          check_url "Main root" "https://${preview_host}/" "302"
-          check_url "Main login" "https://${preview_host}/login" "200"
-          check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200" 60 10
-          check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
-          # XWiki does first-time setup and extension installs. Validate the distribution page,
-          # but note it can redirect (302) once setup is complete. Follow redirects and accept final 200.
-          check_url "XWiki" "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution" "200" 120 10 true
+          done
+          if [[ "${failed}" == "true" ]]; then
+            exit 1
+          fi
 
       - name: Diagnostics (on URL validation failure)
         if: always() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome != 'success'

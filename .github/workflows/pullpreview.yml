@@ -98,80 +98,90 @@ jobs:
           [[ -f "${GITHUB_STEP_SUMMARY}" ]] || exit 0
           sed -i -E '/^- SSH (Username|IP|Command):/d' "${GITHUB_STEP_SUMMARY}"
 
-      - name: Add secondary URLs to job summary
+      - name: Deploy preview summary
+        if: always() && steps.pullpreview.outcome != 'skipped'
+        env:
+          PREVIEW_NAME: pullpreview
+          PULLPREVIEW_OUTCOME: ${{ steps.pullpreview.outcome }}
+          PULLPREVIEW_LIVE: ${{ steps.pullpreview.outputs.live }}
+          PREVIEW_URL: ${{ steps.pullpreview.outputs.url }}
+        run: .github/scripts/deploy-preview-summary.sh
+
+      - name: Resolve preview host for checks
+        id: preview_host
         if: steps.pullpreview.outputs.live == 'true'
-        shell: bash
+        env:
+          PREVIEW_URL: ${{ steps.pullpreview.outputs.url }}
         run: |
           set -euo pipefail
-          preview_url="${{ steps.pullpreview.outputs.url }}"
-          preview_host="${preview_url#https://}"
-          preview_host="${preview_host#http://}"
-          preview_host="${preview_host%%/*}"
-          preview_host="${preview_host%%:*}"
-
+          host="$(.github/scripts/preview-parse-host.sh)"
+          echo "host=${host}" >> "$GITHUB_OUTPUT"
           {
+            echo "### Endpoint checks"
             echo ""
-            echo "### Preview endpoints"
-            echo ""
-            echo "- Main FQDN: https://${preview_host}"
-            echo "- Nextcloud: https://nextcloud.${preview_host}"
-            echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
-            echo "- XWiki: https://xwiki.${preview_host}"
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Validate preview URLs
+      - name: Check OpenProject
+        id: check_openproject
         if: steps.pullpreview.outputs.live == 'true'
-        shell: bash
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
         run: |
           set -euo pipefail
-          preview_url="${{ steps.pullpreview.outputs.url }}"
-          preview_host="${preview_url#https://}"
-          preview_host="${preview_host#http://}"
-          preview_host="${preview_host%%/*}"
-          preview_host="${preview_host%%:*}"
+          failed=false
+          set +e
+          .github/scripts/preview-check-url.sh "OpenProject (root)" "https://${PREVIEW_HOST}/" "302" || failed=true
+          .github/scripts/preview-check-url.sh "OpenProject (login)" "https://${PREVIEW_HOST}/login" "200" || failed=true
+          set -e
+          [[ "${failed}" != "true" ]]
 
-          check_url() {
-            local name="$1"
-            local url="$2"
-            local expected_status="$3"
-            local attempts="${4:-3}"
-            local sleep_seconds="${5:-5}"
-            local attempt
-            local status=""
-            local curl_exit=0
+      - name: Check Nextcloud
+        id: check_nextcloud
+        if: steps.pullpreview.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          .github/scripts/preview-check-url.sh "Nextcloud" "https://nextcloud.${PREVIEW_HOST}/status.php" "200" 60 10
 
-            for attempt in $(seq 1 "${attempts}"); do
-              set +e
-              status="$(
-                /usr/bin/curl -skS -o /dev/null \
-                  --connect-timeout 10 \
-                  --write-out '%{http_code}' \
-                  "$url" 2>/dev/null
-              )"
-              curl_exit=$?
-              set -e
+      - name: Check Keycloak
+        id: check_keycloak
+        if: steps.pullpreview.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          .github/scripts/preview-check-url.sh "Keycloak" "https://keycloak.${PREVIEW_HOST}/realms/opnc" "200"
 
-              if [[ "${curl_exit}" -eq 0 ]]; then
-                echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
-                if [[ "${status}" == "${expected_status}" ]]; then
-                  return 0
-                fi
-              else
-                status="curl-exit-${curl_exit}"
-                echo "${name}: ${url} -> ${status} (attempt ${attempt}/${attempts})"
-              fi
+      - name: Check XWiki
+        id: check_xwiki
+        if: steps.pullpreview.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          .github/scripts/preview-check-url.sh "XWiki" "https://xwiki.${PREVIEW_HOST}/bin/distribution/XWiki/Distribution" "200" 120 10 true
 
-              if [[ "${attempt}" -lt "${attempts}" ]]; then
-                sleep "${sleep_seconds}"
-              fi
-            done
-
-            echo "::error::${name} endpoint was not ready: ${url} expected HTTP ${expected_status}, last result ${status}"
-            return 1
-          }
-
-          check_url "Main root" "https://${preview_host}/" "302"
-          check_url "Main login" "https://${preview_host}/login" "200"
-          check_url "Nextcloud" "https://nextcloud.${preview_host}/status.php" "200"
-          check_url "Keycloak" "https://keycloak.${preview_host}/realms/opnc" "200"
-          check_url "XWiki" "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution" "200" 120 10
+      - name: Require all endpoint checks
+        if: always() && steps.pullpreview.outputs.live == 'true'
+        env:
+          CHECK_OP: ${{ steps.check_openproject.outcome }}
+          CHECK_NC: ${{ steps.check_nextcloud.outcome }}
+          CHECK_KC: ${{ steps.check_keycloak.outcome }}
+          CHECK_XW: ${{ steps.check_xwiki.outcome }}
+        run: |
+          set -euo pipefail
+          failed=false
+          for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}"; do
+            name="${entry%%:*}"
+            outcome="${entry#*:}"
+            if [[ "${outcome}" == "failure" || "${outcome}" == "skipped" ]]; then
+              echo "::error::${name} endpoint check failed"
+              failed=true
+            fi
+          done
+          [[ "${failed}" != "true" ]]

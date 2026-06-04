@@ -1,6 +1,8 @@
 apiVersion: v2
 name: pullpreview-stack
-description: PullPreview umbrella chart for the OpenProject integration stack
+description: >-
+  PullPreview chart path for the integration stack. CI deploys via phased
+  helmfile (pullpreview/helmfile-sync.sh); subcharts here remain for values parity.
 type: application
 version: 0.1.0
 dependencies:

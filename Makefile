@@ -14,6 +14,7 @@ help:
 	@echo "                            Usage: make run-rake-task db:seed db:migrate"
 	@echo "  teardown              - Delete the integration deployment from the K8s cluster"
 	@echo "  teardown-all          - Delete the K8s cluster"
+	@echo "  validate-pullpreview-helmfile - Render PullPreview helmfile (path/env guard)"
 
 PLATFORM := $(shell uname)
 ifeq ($(PLATFORM),Darwin)
@@ -61,6 +62,10 @@ run-rspec-test:
 run-rake-task: TASK_ARGS = $(filter-out $@,$(MAKECMDGOALS))
 run-rake-task:
 	@kubectl exec -n opnc-integration deploy/openproject-web -- bash -c 'cd $$APP_PATH && bundle exec rake $(TASK_ARGS)'
+
+.PHONY: validate-pullpreview-helmfile
+validate-pullpreview-helmfile:
+	@./pullpreview/validate-helmfile.sh
 
 .PHONY: teardown
 teardown:

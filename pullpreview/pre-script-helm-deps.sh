@@ -8,10 +8,21 @@ echo "[pullpreview pre_script] Ensuring Helm repos are configured..."
 helm repo add --force-update nextcloud https://nextcloud.github.io/helm
 helm repo add --force-update bitnami https://charts.bitnami.com/bitnami
 helm repo add --force-update traefik https://traefik.github.io/charts
+helm repo add --force-update xwiki-helm https://xwiki-contrib.github.io/xwiki-helm
 
 helm repo update
 
 helm dependency build charts/pullpreview-stack
+
+if ! command -v helmfile >/dev/null 2>&1; then
+  echo "[pullpreview pre_script] Installing helmfile..."
+  HF_VERSION="0.170.1"
+  curl -fsSL -o /tmp/helmfile.tgz "https://github.com/helmfile/helmfile/releases/download/v${HF_VERSION}/helmfile_${HF_VERSION}_linux_amd64.tar.gz"
+  tar -xzf /tmp/helmfile.tgz -C /usr/local/bin helmfile
+  chmod +x /usr/local/bin/helmfile
+fi
+
+chmod +x pullpreview/*.sh 2>/dev/null || true
 
 # Upstream pullpreview/action currently hardcodes Helm --timeout 15m.
 # Keep this local to the preview instance until the org-owned fork is available.
@@ -64,6 +75,30 @@ flag_value() {
       return 0
     fi
   done
+}
+
+last_values_file() {
+  local last=""
+  local next_is_values=false
+
+  for arg in "$@"; do
+    if [[ "${next_is_values}" == "true" ]]; then
+      last="${arg}"
+      next_is_values=false
+      continue
+    fi
+
+    case "${arg}" in
+      -f|--values)
+        next_is_values=true
+        ;;
+      -f=*|--values=*)
+        last="${arg#*=}"
+        ;;
+    esac
+  done
+
+  printf '%s\n' "${last}"
 }
 
 release_name() {
@@ -121,6 +156,35 @@ collect_diagnostics() {
   fi
 }
 
+chart_is_pullpreview_stack() {
+  [[ "${1:-}" == "install" || "${1:-}" == "upgrade" ]] || return 1
+  for arg in "$@"; do
+    if [[ "${arg}" == *pullpreview-stack* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+run_pullpreview_phased_deploy() {
+  local namespace
+  local values_file
+
+  namespace="$(flag_value "--namespace" "$@")"
+  if [[ -z "${namespace}" ]]; then
+    namespace="$(flag_value "-n" "$@")"
+  fi
+  namespace="${namespace:-default}"
+
+  values_file="$(last_values_file "$@")"
+  export PULLPREVIEW_NAMESPACE="${namespace}"
+  export PULLPREVIEW_VALUES_FILE="${values_file}"
+
+  echo "[pullpreview helm] Phased deploy context: namespace=${namespace} values_file=${values_file:-<none>}"
+  echo "[pullpreview helm] Using phased helmfile deploy instead of umbrella chart install."
+  bash /app/pullpreview/helmfile-sync.sh
+}
+
 for arg in "$@"; do
   if [[ "${arg}" == "--wait" ]]; then
     has_wait=true
@@ -154,6 +218,22 @@ done
 
 if [[ "${had_atomic}" == "true" && "${has_wait}" != "true" ]]; then
   args+=("--wait")
+fi
+
+if chart_is_pullpreview_stack "${args[@]}"; then
+  set +e
+  run_pullpreview_phased_deploy "${args[@]}"
+  status=$?
+  set -e
+  if [[ "${status}" -ne 0 ]]; then
+    namespace="$(flag_value "--namespace" "${args[@]}")"
+    if [[ -z "${namespace}" ]]; then
+      namespace="$(flag_value "-n" "${args[@]}")"
+    fi
+    namespace="${namespace:-default}"
+    collect_diagnostics "" "${namespace}"
+  fi
+  exit "${status}"
 fi
 
 if [[ "${had_atomic}" != "true" ]]; then

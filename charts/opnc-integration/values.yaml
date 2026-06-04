@@ -4,6 +4,13 @@ integrationSetupMethod: 'sso-external'
 
 previewMode: false
 
+# When defer is true, setup-job is not created by the bootstrap release; install it via a
+# follow-up release with renderScope: setupJob (PullPreview phased deploy).
+renderScope: bootstrap
+setupJob:
+  enabled: true
+  defer: false
+
 openprojectHost: openproject.test
 openprojectAssetHost: openproject-assets.test
 nextcloudHost: nextcloud.test

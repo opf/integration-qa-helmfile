@@ -68,9 +68,11 @@ extraVolumes:
     configMap:
       name: op-entry-configmap
       defaultMode: 0755
+  {{- if not (.Values.previewMode | default false) }}
   - name: ca-cert
     secret:
       secretName: {{ or .Values.ingress.tlsSecretName .Values.ingress.existingTlsSecretName }}
+  {{- end }}
   {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
   - name: empty-app-dir
     emptyDir: {}
@@ -89,9 +91,11 @@ extraVolumeMounts:
   - name: entrypoint
     mountPath: /app/docker/prod/entrypoint.sh
     subPath: entrypoint.sh
+  {{- if not (.Values.previewMode | default false) }}
   - name: ca-cert
     mountPath: {{ .Values.ingress.caCertFileMountPath }}
     subPath: ca.crt
+  {{- end }}
   {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
   - name: op-source-data
     mountPath: {{ .Values.openproject.customSourceMountPath | quote }}

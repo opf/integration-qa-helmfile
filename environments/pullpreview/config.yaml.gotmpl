@@ -1,0 +1,97 @@
+{{- $publicDns := requiredEnv "PULLPREVIEW_PUBLIC_DNS" -}}
+{{- $setupMethod := env "INTEGRATION_SETUP_METHOD" | default "sso-external" -}}
+{{- $opVersion := env "OPENPROJECT_VERSION" | default "17" -}}
+{{- $opBranch := env "OPENPROJECT_BRANCH" -}}
+{{- $ncVersion := env "NEXTCLOUD_VERSION" | default "32" -}}
+{{- $ncBranch := env "NEXTCLOUD_BRANCH" -}}
+{{- $kcVersion := env "KEYCLOAK_VERSION" | default "26.2.5" -}}
+{{- $ioVersion := env "INTEGRATION_OPENPROJECT_VERSION" -}}
+{{- $ioBranch := env "INTEGRATION_OPENPROJECT_GIT_BRANCH" -}}
+{{- $xwikiVersion := env "XWIKI_VERSION" | default "17.10.6" -}}
+{{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.1.0" -}}
+previewMode: true
+
+integration:
+  setupMethod: {{ $setupMethod | quote }}
+  oidcClients:
+    nextcloud:
+      id: nextcloud
+      secret: nextcloud-secret
+    openprojectNC:
+      id: 4xMOWGYBXhSMNBcSwpgPW1B3Q7TPuP3S
+      secret: 7V5AJR9TtNNaGtnZROSYp6N9oCTvxbbi
+    openprojectKC:
+      id: openproject
+      secret: openproject-secret
+
+openproject:
+  fullnameOverride: openproject
+  host: {{ $publicDns | quote }}
+  assetHost: {{ printf "openproject-assets.%s" $publicDns | quote }}
+  standalone: false
+  version: {{ $opVersion | quote }}
+  gitSourceBranch: {{ $opBranch | quote }}
+  localSourcePath: ''
+  customSourceMountPath: /home/app/openproject
+  sourcePvcStorage: 12Gi
+  enableTestSetup: false
+  railsEnv: production
+  enterpriseToken: |
+{{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | nindent 4 }}
+  postgresql:
+    host: op-postgresql
+    database: openproject
+    username: openproject
+    password: openproject
+
+nextcloud:
+  version: {{ $ncVersion | quote }}
+  gitSourceBranch: {{ $ncBranch | quote }}
+  fullnameOverride: nextcloud
+  host: {{ printf "nextcloud.%s" $publicDns | quote }}
+  enableApps:
+    - name: integration_openproject
+      version: {{ $ioVersion | quote }}
+      gitBranch: {{ $ioBranch | quote }}
+    - name: oidc
+      version: ''
+      gitBranch: ''
+    - name: user_oidc
+      version: ''
+      gitBranch: ''
+    - name: groupfolders
+      version: ''
+      gitBranch: ''
+  postgresql:
+    host: nc-postgresql
+    database: nextcloud
+    username: nextcloud
+    password: nextcloud
+
+keycloak:
+  version: {{ $kcVersion | quote }}
+  fullnameOverride: keycloak
+  host: {{ printf "keycloak.%s" $publicDns | quote }}
+  providerName: keycloak
+  realm:
+    name: opnc
+  postgresql:
+    host: kc-postgresql
+
+ingress:
+  ingressClassName: traefik
+  tlsSecretName: ''
+  existingTlsSecretName: ''
+  caCertFileMountPath: /certs/ca.crt
+
+persistence:
+  storageClassName: local-path
+  accessMode: ReadWriteOnce
+
+xwiki:
+  enabled: true
+  host: {{ printf "xwiki.%s" $publicDns | quote }}
+  version: {{ $xwikiVersion | quote }}
+  extensions:
+    openproject:
+      version: {{ $xwikiExtVersion | quote }}

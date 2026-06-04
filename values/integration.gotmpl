@@ -1,4 +1,9 @@
 integrationSetupMethod: {{ .Values.integration.setupMethod }}
+previewMode: {{ dig "previewMode" false .Values }}
+
+setupJob:
+  enabled: true
+  defer: {{ dig "previewMode" false .Values }}
 
 openprojectHost: {{ .Values.openproject.host }}
 openprojectAssetHost: {{ .Values.openproject.assetHost }}
@@ -19,6 +24,7 @@ openproject:
   enableTestSetup: {{ .Values.openproject.enableTestSetup | default false }}
   railsEnv: {{ .Values.openproject.railsEnv | quote }}
 
+{{- if not (.Values.previewMode | default false) }}
 extraVolumes:
   - name: ca-cert
     secret:
@@ -34,6 +40,7 @@ extraEnv:
     value: {{ .Values.ingress.caCertFileMountPath }}
   - name: SSL_CERT_FILE
     value: {{ .Values.ingress.caCertFileMountPath }}
+{{- end }}
 
 oidcProvider:
   name: {{ .Values.keycloak.providerName }}

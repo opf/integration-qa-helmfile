@@ -1,3 +1,4 @@
+{{- if include "opnc.renderBootstrapResources" . }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -34,3 +35,5 @@ data:
   enable-apps: {{ range $app := .Values.nextcloud.enableApps -}}
     {{ $app.name }}{{ if $app.gitBranch }}@git={{ $app.gitBranch }} {{ else }}{{ if $app.version }}@{{ $app.version }}{{ end }} {{ end }}
   {{- end }}
+
+{{- end }}

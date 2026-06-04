@@ -1,4 +1,4 @@
-{{ if not .Values.openproject.standalone }}
+{{- if include "opnc.renderSetupJob" . }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -49,4 +49,4 @@ spec:
             name: opnc-setup-configmap
             defaultMode: 0755
         {{- include "opnc.volumes.extraVolumes" . | indent 8 }}
-{{ end }}
+{{- end }}
