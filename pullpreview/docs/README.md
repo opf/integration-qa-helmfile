@@ -48,6 +48,8 @@ PullPreview still uses [`charts/pullpreview-stack`](../../charts/pullpreview-sta
 
 Phased sync runs on the preview VM via [`helmfile-sync.sh`](../helmfile-sync.sh) (triggered from [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) when the action installs `pullpreview-stack`). Values come from [`environments/pullpreview/config.yaml.gotmpl`](../../environments/pullpreview/config.yaml.gotmpl) and the same [`values/*.gotmpl`](../../values/) templates as local, with `previewMode: true` (no in-cluster CA / cert-manager path).
 
+[`resolve-pullpreview-env.sh`](../resolve-pullpreview-env.sh) reads the rendered PullPreview stack values file on the VM and exports `PULLPREVIEW_PUBLIC_DNS`, `OPENPROJECT_ENTERPRISE_TOKEN`, and workflow image/branch inputs (`NEXTCLOUD_VERSION`, `OPENPROJECT_VERSION`, git branches, etc.) so helmfile does not fall back to chart defaults when those env vars are not forwarded to the instance shell.
+
 **Nextcloud git source:** `nc-gitsource-pvc` is not created in the bootstrap `opnc-integration` release (Helm `--wait` would block on `WaitForFirstConsumer` until the Nextcloud pod exists). It is installed via [`charts/opnc-nextcloud-pvc`](../../charts/opnc-nextcloud-pvc) in the `nextcloud-pvc` release immediately before `nextcloud`, only when `nextcloud.gitSourceBranch` / `NEXTCLOUD_BRANCH` is set.
 
 The preview VM pre-script installs **helmfile** and **kustomize** (required for XWiki `strategicMergePatches` and reliable `helmfile destroy` on failure).

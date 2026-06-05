@@ -20,6 +20,15 @@ collect_phase_diagnostics() {
   if command -v kubectl >/dev/null 2>&1; then
     kubectl get pods,jobs,deployments,statefulsets,pvc -n "${namespace}" 2>&1 || true
     kubectl get events -n "${namespace}" --sort-by=.lastTimestamp 2>&1 | tail -n 80 || true
+    if [[ "${phase}" == "nextcloud" ]]; then
+      local nc_pod=""
+      nc_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=nextcloud" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+      if [[ -n "${nc_pod}" ]]; then
+        echo "[pullpreview helmfile] Nextcloud pod log tail (${nc_pod}):"
+        kubectl logs "${nc_pod}" -n "${namespace}" -c nextcloud --tail=120 2>&1 || true
+        kubectl logs "${nc_pod}" -n "${namespace}" -c presetup --tail=80 2>&1 || true
+      fi
+    fi
   fi
   echo "::endgroup::"
 }
