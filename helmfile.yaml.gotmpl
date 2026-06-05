@@ -76,6 +76,8 @@ releases:
   #     - opnc-integration
   - name: nextcloud-pvc
     chart: ./charts/opnc-nextcloud-pvc
+    wait: false
+    atomic: false
     installed: {{ and (not .Values.openproject.standalone) (ne (.Values.nextcloud.gitSourceBranch | default "") "") }}
     values:
       - values/nc-pvc-values.gotmpl
