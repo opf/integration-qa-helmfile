@@ -1,3 +1,4 @@
+{{- if include "opnc.renderBootstrapResources" . }}
 {{ if and (not .Values.previewMode) (not .Values.ingress.existingTlsSecretName) }}
 ---
 apiVersion: cert-manager.io/v1
@@ -48,3 +49,5 @@ spec:
     name: {{ include "opnc.issuerName" . }}
     kind: Issuer
 {{ end }}
+
+{{- end }}

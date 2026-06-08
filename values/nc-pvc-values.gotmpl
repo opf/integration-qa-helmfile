@@ -1,0 +1,5 @@
+persistence:
+  storageClassName: {{ .Values.persistence.storageClassName | quote }}
+  accessModes:
+    - {{ .Values.persistence.accessMode | quote }}
+  size: 8Gi

@@ -8,6 +8,7 @@ charts/xwiki/charts/mariadb/
 charts/xwiki/charts/postgresql/
 tmpcharts-*/
 helmfile-*/
+helmfile.yaml-*/
 tmp/
 environments/override.yaml
 

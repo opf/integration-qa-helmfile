@@ -11,8 +11,10 @@ environment:
   DATABASE_HOST: {{ .Values.openproject.postgresql.host }}
   DATABASE_URL: postgresql://{{ .Values.openproject.postgresql.username }}:{{ .Values.openproject.postgresql.password }}@{{ .Values.openproject.postgresql.host }}/{{ .Values.openproject.postgresql.database }}{{ if eq .Values.openproject.railsEnv "development" }}_dev{{ end }}
   OPENPROJECT_SEED__ENTERPRISE__TOKEN: {{ toYaml .Values.openproject.enterpriseToken | indent 2 }}
+  {{- if not (.Values.previewMode | default false) }}
   CURL_CA_BUNDLE: {{ .Values.ingress.caCertFileMountPath }}
   SSL_CERT_FILE: {{ .Values.ingress.caCertFileMountPath }}
+  {{- end }}
 
   {{ if eq  .Values.integration.setupMethod "sso-external" }}
   OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: https://{{ .Values.keycloak.host }}/realms/{{ .Values.keycloak.realm.name }}

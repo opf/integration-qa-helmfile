@@ -40,12 +40,10 @@ fi
 
 echo "[INFO] Building OpenProject from source..."
 
-set -x
-
 mkdir -p "$APP_PATH" && cd "$APP_PATH"
 
 if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]] && [[ -z $(find "$APP_PATH" -mindepth 1 -print -quit) ]]; then
-    echo "[INFO] Cloning OpenProject from branch: $OP_GIT_SOURCE_BRANCH"
+    echo "[INFO] Cloning OpenProject source branch."
     git clone --branch "$OP_GIT_SOURCE_BRANCH" --depth 1 --single-branch "https://github.com/opf/openproject" "$APP_PATH"
 fi
 
@@ -68,7 +66,16 @@ bundle config set --local path "./vendor/bundle"
 bundle config set --local with "$rails_with"
 
 # wait for database to be ready
-timeout 300s bash -c "until psql $DATABASE_URL -c '\q'; do echo 'Waiting for database...'; sleep 2; done"
+timeout 300s bash -c '
+attempt=0
+until psql "$DATABASE_URL" -c "\q" >/dev/null 2>&1; do
+    if (( attempt % 15 == 0 )); then
+        echo "Waiting for database..."
+    fi
+    attempt=$((attempt + 1))
+    sleep 2
+done
+'
 
 function create_database() {
     local db_name="$1"
@@ -77,16 +84,31 @@ function create_database() {
         psql "$DATABASE_URL" -c "CREATE DATABASE $db_name"
     fi
 }
+
+function insert_database_url() {
+    local section="$1"
+    local url="$2"
+    local tmp_file
+
+    tmp_file="$(mktemp)"
+    while IFS= read -r line; do
+        printf '%s\n' "$line"
+        if [[ "$line" == "${section}:" ]]; then
+            printf '  url: %s\n' "$url"
+        fi
+    done < ./config/database.yml > "$tmp_file"
+    mv "$tmp_file" ./config/database.yml
+}
+
 # create development and test databases if they don't exist
 if [[ "$RAILS_ENV" != "production" ]]; then
     # create_database "openproject_dev"
     create_database "openproject_test"
     test_db_url="${DATABASE_URL%/*}/openproject_test"
-    # add the db url to database.yml
-    sed -i "/^development:/a\  url: $DATABASE_URL" ./config/database.yml
-    sed -i "/^test:/a\  url: $test_db_url" ./config/database.yml
+    insert_database_url "development" "$DATABASE_URL"
+    insert_database_url "test" "$test_db_url"
 else
-    sed -i "/^production:/a\  url: $DATABASE_URL" ./config/database.yml
+    insert_database_url "production" "$DATABASE_URL"
 fi
 
 bin/setup_dev

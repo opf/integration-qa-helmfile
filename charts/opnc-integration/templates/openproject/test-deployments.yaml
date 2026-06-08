@@ -1,3 +1,4 @@
+{{- if include "opnc.renderBootstrapResources" . }}
 {{ if and .Values.openproject.enableTestSetup (ne .Values.openproject.railsEnv "production") }}
 apiVersion: apps/v1
 kind: Deployment
@@ -123,3 +124,4 @@ spec:
       port: 3000
       targetPort: 3000
 {{ end }}
+{{- end }}

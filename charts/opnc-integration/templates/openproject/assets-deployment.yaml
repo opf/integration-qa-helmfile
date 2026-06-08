@@ -1,3 +1,4 @@
+{{- if include "opnc.renderBootstrapResources" . }}
 {{ if .Values.openproject.localSourcePath }}
 apiVersion: apps/v1
 kind: Deployment
@@ -71,3 +72,4 @@ data:
   serve-assets.sh: |
 {{ .Files.Get "scripts/openproject/serve-assets.sh" | indent 4 }}
 {{ end }}
+{{- end }}

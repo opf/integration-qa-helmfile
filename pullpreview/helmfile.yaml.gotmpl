@@ -1,0 +1,108 @@
+---
+environments:
+  pullpreview:
+    missingFileHandler: Error
+    values:
+      - ../environments/pullpreview/config.yaml.gotmpl
+
+---
+repositories:
+  - name: nextcloud
+    url: https://nextcloud.github.io/helm
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+  - name: traefik
+    url: https://traefik.github.io/charts
+  - name: xwiki-helm
+    url: https://xwiki-contrib.github.io/xwiki-helm
+
+namespace: {{ requiredEnv "PULLPREVIEW_NAMESPACE" }}
+
+helmDefaults:
+  wait: true
+  atomic: true
+  createNamespace: true
+
+releases:
+  - name: traefik
+    chart: traefik/traefik
+    version: ~39.0.5
+    timeout: 600
+    values:
+      - ../values/traefik-pullpreview.gotmpl
+
+  - name: opnc-integration
+    chart: ../charts/opnc-integration
+    timeout: 600
+    values:
+      - ../values/integration.gotmpl
+      - ../values/op-env.gotmpl
+    needs:
+      - traefik
+
+  - name: openproject
+    chart: ../charts/openproject
+    timeout: 1200
+    values:
+      - ../values/op-values.gotmpl
+      - ../values/op-env.gotmpl
+    needs:
+      - opnc-integration
+
+  - name: keycloak
+    chart: bitnami/keycloak
+    version: ~24.7.5
+    timeout: 900
+    installed: {{ not .Values.openproject.standalone }}
+    values:
+      - ../values/kc-values.gotmpl
+    needs:
+      - opnc-integration
+
+  - name: nextcloud-pvc
+    chart: ../charts/opnc-nextcloud-pvc
+    timeout: 120
+    wait: false
+    atomic: false
+    installed: {{ and (not .Values.openproject.standalone) (ne (.Values.nextcloud.gitSourceBranch | default "") "") }}
+    values:
+      - ../values/nc-pvc-values.gotmpl
+    needs:
+      - opnc-integration
+
+  - name: nextcloud
+    chart: nextcloud/nextcloud
+    version: ~9.0.0
+    timeout: 1800
+    installed: {{ not .Values.openproject.standalone }}
+    values:
+      - ../values/nc-values.gotmpl
+    needs:
+      - opnc-integration
+      {{- if ne (.Values.nextcloud.gitSourceBranch | default "") "" }}
+      - nextcloud-pvc
+      {{- end }}
+
+  - name: opnc-setup-job
+    chart: ../charts/opnc-integration
+    timeout: 900
+    values:
+      - ../values/integration.gotmpl
+      - ../values/op-env.gotmpl
+      - ../values/opnc-setup-job.gotmpl
+    needs:
+      - openproject
+      - keycloak
+      - nextcloud
+
+  - name: xwiki
+    chart: xwiki-helm/xwiki
+    version: ~1.6.7
+    timeout: 2700
+    installed: {{ .Values.xwiki.enabled }}
+    needs:
+      - opnc-integration
+    values:
+      - ../values/xwiki-values.gotmpl
+    strategicMergePatches:
+      - ../patches/xwiki/xwiki.yaml

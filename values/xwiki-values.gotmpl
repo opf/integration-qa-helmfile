@@ -1,5 +1,13 @@
+fullnameOverride: xwiki
 image:
   tag: {{ .Values.xwiki.version | default "latest" | quote }}
+{{- if .Values.previewMode | default false }}
+probes:
+  readiness:
+    httpGet:
+      enabled: true
+      path: /
+{{- end }}
 customConfigs:
   xwiki.properties:
     distribution.job.interactive: false

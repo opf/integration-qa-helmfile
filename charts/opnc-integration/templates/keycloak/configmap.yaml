@@ -1,3 +1,4 @@
+{{- if include "opnc.renderBootstrapResources" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5,3 +6,5 @@ metadata:
 data:
   entrypoint.sh: |
 {{ .Files.Get "scripts/keycloak.sh" | indent 4 }}
+
+{{- end }}

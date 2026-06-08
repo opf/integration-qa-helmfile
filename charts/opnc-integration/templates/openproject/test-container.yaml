@@ -1,3 +1,4 @@
+{{- if include "opnc.renderBootstrapResources" . }}
 {{ if and .Values.openproject.enableTestSetup (ne .Values.openproject.railsEnv "production") }}
 apiVersion: apps/v1
 kind: Deployment
@@ -65,3 +66,4 @@ spec:
       protocol: TCP
       name: http
 {{ end }}
+{{- end }}

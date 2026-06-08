@@ -18,8 +18,10 @@ nextcloud:
       image: node:22
       command: ["/docker-entrypoint-hooks.d/presetup.sh"]
       env:
+        {{- if .Values.nextcloud.gitSourceBranch }}
         - name: NC_GIT_SOURCE_BRANCH
           value: {{ .Values.nextcloud.gitSourceBranch | quote }}
+        {{- end }}
         - name: NEXTCLOUD_ENABLE_APPS
           valueFrom:
             configMapKeyRef:
@@ -29,11 +31,15 @@ nextcloud:
         - name: presetup
           mountPath: /docker-entrypoint-hooks.d/presetup.sh
           subPath: presetup.sh
+        {{- if .Values.nextcloud.gitSourceBranch }}
         - name: nc-git-source
           mountPath: /usr/src/nc
+        {{- end }}
   extraEnv:
+    {{- if .Values.nextcloud.gitSourceBranch }}
     - name: NC_GIT_SOURCE_BRANCH
       value: {{ .Values.nextcloud.gitSourceBranch | quote }}
+    {{- end }}
     - name: OVERWRITEPROTOCOL
       value: https
     - name: OVERWRITECLIURL
@@ -51,10 +57,12 @@ nextcloud:
         configMapKeyRef:
           name: nextcloud-enable-apps
           key: enable-apps
+    {{- if not (.Values.previewMode | default false) }}
     - name: CURL_CA_BUNDLE
       value: {{ .Values.ingress.caCertFileMountPath }}
     - name: SSL_CERT_FILE
       value: {{ .Values.ingress.caCertFileMountPath }}
+    {{- end }}
   extraVolumes:
     - name: presetup
       configMap:
@@ -64,16 +72,20 @@ nextcloud:
       configMap:
         name: nc-beforestart-configmap
         defaultMode: 0755
+    {{- if not (.Values.previewMode | default false) }}
     - name: ca-cert
       secret:
         secretName: {{ or .Values.ingress.tlsSecretName .Values.ingress.existingTlsSecretName }}
+    {{- end }}
     - name: entrypoint
       configMap:
         name: nc-entrypoint-configmap
         defaultMode: 0755
+    {{- if .Values.nextcloud.gitSourceBranch }}
     - name: nc-git-source
       persistentVolumeClaim:
         claimName: nc-gitsource-pvc
+    {{- end }}
   extraVolumeMounts:
     - name: presetup
       mountPath: /docker-entrypoint-hooks.d/presetup.sh
@@ -81,14 +93,18 @@ nextcloud:
     - name: beforestart
       mountPath: /docker-entrypoint-hooks.d/before-starting/beforestart.sh
       subPath: beforestart.sh
+    {{- if not (.Values.previewMode | default false) }}
     - name: ca-cert
       mountPath: {{ .Values.ingress.caCertFileMountPath }}
       subPath: ca.crt
+    {{- end }}
     - name: entrypoint
       mountPath: /entrypoint.sh
       subPath: entrypoint.sh
+    {{- if .Values.nextcloud.gitSourceBranch }}
     - name: nc-git-source
       mountPath: /usr/src/nc
+    {{- end }}
 internalDatabase:
   enabled: false
 externalDatabase:
