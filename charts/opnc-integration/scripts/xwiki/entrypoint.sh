@@ -10,9 +10,6 @@ EXTENSION_REPO="/usr/local/xwiki/data/extension/repository"
 FLAVOR_NAME="xwiki-platform-distribution-flavor-xip"
 XWIKI_DOWNLOAD_URL="https://nexus.xwiki.org/nexus/content/repositories/releases/org/xwiki"
 
-# extensions
-OPENPROJECT_EXTENSION_ID="com.xwiki.projectmanagement:project-management-openproject-ui"
-
 if [ -z "$OPENPROJECT_HOST" ]; then
     echo "[ERROR] OPENPROJECT_HOST is not set."
     exit 1
@@ -24,7 +21,7 @@ if [ -z "$OPENPROJECT_CLIENT_ID" ] || [ -z "$OPENPROJECT_CLIENT_SECRET" ]; then
 fi
 
 if [ -z "$EXTENSION_OPENPROJECT_VERSION" ]; then
-    EXTENSION_OPENPROJECT_VERSION="1.1.0"
+    EXTENSION_OPENPROJECT_VERSION="1.1.1"
 fi
 
 echo "############################################"
@@ -103,6 +100,8 @@ function install_extension() {
     req_body="${req_body//%extension_id%/$ext_id}"
     req_body="${req_body//%extension_version%/$ext_version}"
 
+    echo "[INFO] Installing extension: $ext_id ($ext_version)"
+
     install_status=$(curl -sS -XPUT "$REST_URL/jobs?jobType=install" -u "$SUPER_ADMIN_AUTH" \
     -H"XWiki-Form-Token: $FORM_TOKEN" \
     -H"Content-Type: text/xml" \
@@ -174,8 +173,7 @@ fi
 echo "############################################"
 echo "# Install OpenProject Extension            #"
 echo "############################################"
-echo "[INFO] Installing extension: $OPENPROJECT_EXTENSION_ID ($EXTENSION_OPENPROJECT_VERSION)"
-install_extension "$OPENPROJECT_EXTENSION_ID" "$EXTENSION_OPENPROJECT_VERSION" "openproject"
+install_extension "com.xwiki.projectmanagement:project-management-openproject-ui" "$EXTENSION_OPENPROJECT_VERSION" "openproject"
 install_extension "com.xwiki.licensing:application-licensing-test-api" "1.32.2" "licensing-api"
 
 echo "############################################"

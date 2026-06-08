@@ -73,8 +73,8 @@ openproject:
   # XWiki Connection                         #
   ############################################
   xwiki:
-    clientId: xwiki-client
-    clientSecret: xwiki-secret
+    clientId: xwiki-client-id
+    clientSecret: xwiki-client-secret
 
 nextcloud:
   ############################################
@@ -145,5 +145,4 @@ xwiki:
   version: '17.10.6'
   extensions:
     openproject:
-      version: '1.1.0'
-      enterpriseLicense: ''
+      version: '1.1.1'
