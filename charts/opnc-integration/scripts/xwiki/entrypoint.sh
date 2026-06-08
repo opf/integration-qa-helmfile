@@ -2,7 +2,8 @@
 
 set -e
 
-BASE_URL="http://localhost:8080/rest"
+BASE_URL="http://localhost:8080"
+REST_URL="$BASE_URL/rest"
 WEBAPPS_DIR=/usr/local/tomcat/webapps/ROOT/WEB-INF
 XWIKI_VERSION=$(sed -n 's/^version=//p' $WEBAPPS_DIR/version.properties)
 EXTENSION_REPO="/usr/local/xwiki/data/extension/repository"
@@ -10,7 +11,6 @@ FLAVOR_NAME="xwiki-platform-distribution-flavor-xip"
 XWIKI_DOWNLOAD_URL="https://nexus.xwiki.org/nexus/content/repositories/releases/org/xwiki"
 
 # extensions
-XWIKI_STANDARD_FLAVOR_ID="org.xwiki.platform:xwiki-platform-distribution-flavor-mainwiki"
 OPENPROJECT_EXTENSION_ID="com.xwiki.projectmanagement:project-management-openproject-ui"
 
 if [ -z "$OPENPROJECT_HOST" ]; then
@@ -38,12 +38,12 @@ rm "$FLAVOR_NAME.xip"
 echo "[INFO] Standard flavor downloaded to $EXTENSION_REPO"
 
 echo "############################################"
-echo "# Start XWiki                              #"
+echo "# Start XWiki With Standard Flavor         #"
 echo "############################################"
 /entrypoint/start.sh &
 
-echo "[INFO] Waiting for XWiki to start..."
-until curl -sL "$BASE_URL" > /dev/null; do
+echo "[INFO] Waiting for XWiki to be initialized..."
+until curl -sL "$REST_URL" > /dev/null; do
     sleep 5
 done
 
@@ -83,6 +83,14 @@ EXT_REQ_BODY='
       </list>
     </value>
   </property>
+  <property>
+    <key>user.reference</key>
+    <value>
+      <org.xwiki.model.reference.DocumentReference xmlns="">
+        <name>superadmin</name>
+      </org.xwiki.model.reference.DocumentReference>
+    </value>
+  </property>
 </jobRequest>'
 
 function install_extension() {
@@ -95,7 +103,7 @@ function install_extension() {
     req_body="${req_body//%extension_id%/$ext_id}"
     req_body="${req_body//%extension_version%/$ext_version}"
 
-    install_status=$(curl -sS -XPUT "$BASE_URL/jobs?jobType=install" -u "$SUPER_ADMIN_AUTH" \
+    install_status=$(curl -sS -XPUT "$REST_URL/jobs?jobType=install" -u "$SUPER_ADMIN_AUTH" \
     -H"XWiki-Form-Token: $FORM_TOKEN" \
     -H"Content-Type: text/xml" \
     -d "$req_body" \
@@ -110,7 +118,7 @@ function install_extension() {
     while true; do
         local status_response job_state current_offset percentage
 
-        status_response=$(curl -sS "$BASE_URL/jobstatus/extension/install/install-$3?media=json" -u "$SUPER_ADMIN_AUTH")
+        status_response=$(curl -sS "$REST_URL/jobstatus/extension/install/install-$3?media=json" -u "$SUPER_ADMIN_AUTH")
 
         job_state=$(echo "$status_response" | grep -oP 'state":"\K[A-Z]+' || echo "")
         if [ "$job_state" == "RUNNING" ]; then
@@ -136,7 +144,7 @@ function setup_openproject_connection() {
     local timestamp op_conn_id conn_status
     timestamp=$(date +%s%3N)
     op_conn_id="Connection$timestamp"
-    conn_status=$(curl -sS -XPOST "$BASE_URL/wikis/xwiki/spaces/OpenProject/spaces/Code/spaces/OpenProjectConfigurations/pages/$op_conn_id/openproject/configurations" \
+    conn_status=$(curl -sS -XPOST "$REST_URL/wikis/xwiki/spaces/OpenProject/spaces/Code/spaces/OpenProjectConfigurations/pages/$op_conn_id/openproject/configurations" \
         -H "XWiki-Form-Token: $FORM_TOKEN" \
         -H "Content-Type: application/json" \
         -d "{
@@ -157,23 +165,18 @@ function setup_openproject_connection() {
 }
 
 # Get the form token for the superadmin user
-FORM_TOKEN=$(curl -sSI "$BASE_URL" -u "$SUPER_ADMIN_AUTH" | grep -oP 'XWiki-Form-Token: \K[a-zA-Z0-9_-]+' || echo "")
+FORM_TOKEN=$(curl -sSI "$REST_URL" -u "$SUPER_ADMIN_AUTH" | grep -oP 'XWiki-Form-Token: \K[a-zA-Z0-9_-]+' || echo "")
 if [ -z "$FORM_TOKEN" ]; then
     echo "[ERROR] Failed to retrieve form token."
     exit 1
 fi
 
 echo "############################################"
-echo "# Install XWiki Standard Flavor            #"
-echo "############################################"
-echo "[INFO] Installing the standard flavor..."
-install_extension "$XWIKI_STANDARD_FLAVOR_ID" "$XWIKI_VERSION" "flavor"
-
-echo "############################################"
 echo "# Install OpenProject Extension            #"
 echo "############################################"
 echo "[INFO] Installing extension: $OPENPROJECT_EXTENSION_ID ($EXTENSION_OPENPROJECT_VERSION)"
 install_extension "$OPENPROJECT_EXTENSION_ID" "$EXTENSION_OPENPROJECT_VERSION" "openproject"
+install_extension "com.xwiki.licensing:application-licensing-test-api" "1.32.2" "licensing-api"
 
 echo "############################################"
 echo "# Setup OpenProject Connection             #"

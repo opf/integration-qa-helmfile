@@ -12,6 +12,12 @@ customConfigs:
   xwiki.properties:
     distribution.job.interactive: false
     distribution.job.interactive.wiki: false
+    distribution.defaultUI: "org.xwiki.platform:xwiki-platform-distribution-flavor-mainwiki"
+probes:
+  liveness:
+    enabled: false
+  readiness:
+    enabled: false
 customConfigsSecrets:
   xwiki.cfg:
     xwiki.superadminpassword:
