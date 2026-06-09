@@ -119,3 +119,15 @@ postgresql:
 memcached:
   image:
     repository: bitnamilegacy/memcached
+{{- if and (not (.Values.previewMode | default false)) .Values.ingress.hostAliasIp }}
+hostAliases:
+  - ip: {{ .Values.ingress.hostAliasIp | quote }}
+    hostnames:
+      - {{ .Values.openproject.host }}
+      - {{ .Values.openproject.assetHost }}
+      - {{ .Values.nextcloud.host }}
+      - {{ .Values.keycloak.host }}
+      {{- if .Values.xwiki.enabled }}
+      - {{ .Values.xwiki.host }}
+      {{- end }}
+{{- end }}

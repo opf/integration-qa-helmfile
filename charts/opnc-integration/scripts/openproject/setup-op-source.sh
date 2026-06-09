@@ -112,7 +112,20 @@ else
 fi
 
 bin/setup_dev
+bin/rails db:migrate
 bin/rails $setup_cmd
+
+# Git-source deploys disable the image seeder job; seed env-driven data explicitly.
+if bin/rails runner "exit(Setting.seed_enterprise_token.present? ? 0 : 1)"; then
+    echo "[INFO] Seeding Enterprise token from environment..."
+    bin/rails runner "EnvData::TokenSeeder.new({}).seed!"
+fi
+
+# OP 17.5+ persists OIDC login providers in auth_providers (EnvData::OpenIDConnect::ProviderSeeder).
+if bin/rails runner "exit(Setting.seed_oidc_provider.present? ? 0 : 1)"; then
+    echo "[INFO] Seeding OpenID Connect provider(s) from environment..."
+    bin/rails runner "EnvData::OpenIDConnect::ProviderSeeder.new({}).seed!"
+fi
 
 if [[ "$RAILS_ENV" != "production" ]]; then
     RAILS_ENV="test" bin/rails db:migrate db:test:prepare

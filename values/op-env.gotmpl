@@ -2,7 +2,8 @@ environment:
   RAILS_ENV: {{ .Values.openproject.railsEnv | quote }}
   OPENPROJECT_LOG__LEVEL: info
   OPENPROJECT_EDITION: standard
-  OPENPROJECT_DEV_EXTRA_HOSTS: {{ .Values.openproject.host }}
+  OPENPROJECT_HOST__NAME: {{ .Values.openproject.host | quote }}
+  OPENPROJECT_DEV_EXTRA_HOSTS: {{ printf "%s,%s,%s" .Values.openproject.host .Values.nextcloud.host .Values.keycloak.host }}
   OPENPROJECT_APIV3__ENABLE__BASIC__AUTH: 'true'
   OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_USER: 'admin'
   OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: 'admin'
@@ -14,15 +15,34 @@ environment:
   {{- if not (.Values.previewMode | default false) }}
   CURL_CA_BUNDLE: {{ .Values.ingress.caCertFileMountPath }}
   SSL_CERT_FILE: {{ .Values.ingress.caCertFileMountPath }}
+  # k3d host aliases resolve *.test to a private LAN IP; OP SSRF protection blocks storage setup without this.
+  OPENPROJECT_SSRF_PROTECTION_IP_ALLOWLIST: {{ dig "ssrfProtectionIpAllowlist" "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8" .Values.openproject | quote }}
   {{- end }}
 
   {{ if eq  .Values.integration.setupMethod "sso-external" }}
+  # Full Keycloak OIDC env for op-buildsource-job (17.5+ seeds providers into auth_providers from env).
+  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_DISPLAY__NAME: {{ .Values.keycloak.providerName | quote }}
+  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_HOST: {{ .Values.keycloak.host | quote }}
+  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_IDENTIFIER: {{ .Values.integration.oidcClients.openprojectKC.id | quote }}
+  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_SECRET: {{ .Values.integration.oidcClients.openprojectKC.secret | quote }}
+  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_AUTHORIZATION__ENDPOINT: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/auth
+  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_TOKEN__ENDPOINT: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/token
+  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_USERINFO__ENDPOINT: /realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/userinfo
+  OPENPROJECT_OPENID__CONNECT_KEYCLOAK_SCOPE: "[openid offline_access]"
   OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: https://{{ .Values.keycloak.host }}/realms/{{ .Values.keycloak.realm.name }}
   OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: https://{{ .Values.keycloak.host }}/realms/{{ .Values.keycloak.realm.name }}/protocol/openid-connect/certs
   OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: https://{{ .Values.openproject.host }}/
   OPENPROJECT_OPENID__CONNECT_KEYCLOAK_GRANT__TYPES__SUPPORTED: "authorization_code implicit urn:ietf:params:oauth:grant-type:token-exchange"
 
   {{ else if eq .Values.integration.setupMethod "sso-nextcloud" }}
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_DISPLAY__NAME: nextcloud
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_HOST: {{ .Values.nextcloud.host | quote }}
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_IDENTIFIER: {{ .Values.integration.oidcClients.openprojectNC.id | quote }}
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_SECRET: {{ .Values.integration.oidcClients.openprojectNC.secret | quote }}
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_AUTHORIZATION__ENDPOINT: /index.php/apps/oidc/authorize
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_TOKEN__ENDPOINT: /index.php/apps/oidc/token
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_USERINFO__ENDPOINT: /index.php/apps/oidc/userinfo
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_SCOPE: "[openid offline_access]"
   OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_ISSUER: https://{{ .Values.nextcloud.host }}
   OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_JWKS__URI: https://{{ .Values.nextcloud.host }}/remote.php/apps/oidc/jwks
   OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_POST__LOGOUT__REDIRECT__URI: https://{{ .Values.openproject.host }}/

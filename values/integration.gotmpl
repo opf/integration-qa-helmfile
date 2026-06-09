@@ -52,6 +52,7 @@ ingress:
   ingressClassName: {{ .Values.ingress.ingressClassName }}
   tlsSecretName: {{ .Values.ingress.tlsSecretName }}
   existingTlsSecretName: {{ .Values.ingress.existingTlsSecretName }}
+  hostAliasIp: {{ .Values.ingress.hostAliasIp | quote }}
 
 persistence:
   storageClassName: {{ .Values.persistence.storageClassName | quote }}

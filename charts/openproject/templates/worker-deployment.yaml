@@ -46,6 +46,10 @@ spec:
       nodeSelector:
         {{ toYaml . | nindent 8 | trim }}
       {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{ toYaml . | nindent 8 | trim }}
+      {{- end }}
       {{- with (coalesce .Values.worker.topologySpreadConstraints .Values.topologySpreadConstraints) }}
       topologySpreadConstraints:
         {{ toYaml . | nindent 8 | trim }}

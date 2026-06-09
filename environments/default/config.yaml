@@ -134,6 +134,8 @@ ingress:
   existingTlsSecretName: ''
   # path to mount the CA certificate file in the container
   caCertFileMountPath: /certs/ca.crt
+  # Traefik LoadBalancer IP for pod hostAliases (*.test). Set automatically by `make deploy`.
+  hostAliasIp: ''
 
 persistence:
   storageClassName: 'local-path'

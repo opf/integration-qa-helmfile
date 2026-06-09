@@ -36,7 +36,12 @@ setup:
 
 .PHONY: deploy
 deploy:
-	@helmfile sync
+	@INGRESS_IP=$$(kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	if [ -n "$$INGRESS_IP" ]; then \
+	  helmfile sync --state-values-set ingress.hostAliasIp=$$INGRESS_IP; \
+	else \
+	  helmfile sync; \
+	fi
 
 .PHONY: deploy-dev
 deploy-dev:

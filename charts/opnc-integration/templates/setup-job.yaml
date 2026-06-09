@@ -7,6 +7,25 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      {{- $ingressIp := .Values.ingress.hostAliasIp }}
+      {{- if and (not $ingressIp) (not .Values.previewMode) }}
+      {{- $traefik := lookup "v1" "Service" "kube-system" "traefik" }}
+      {{- if and $traefik $traefik.status.loadBalancer.ingress }}
+      {{- $ingressIp = (index $traefik.status.loadBalancer.ingress 0).ip }}
+      {{- end }}
+      {{- end }}
+      {{- if and (not .Values.previewMode) $ingressIp }}
+      hostAliases:
+        - ip: {{ $ingressIp | quote }}
+          hostnames:
+            - {{ include "opnc.openprojectHost" . }}
+            - {{ include "opnc.openprojectAssetHost" . }}
+            - {{ include "opnc.nextcloudHost" . }}
+            - {{ include "opnc.keycloakHost" . }}
+            {{- if .Values.xwiki.enabled }}
+            - {{ include "opnc.xwikiHost" . }}
+            {{- end }}
+      {{- end }}
       containers:
         - name: setup-integration
           image: ddev/ddev-utilities
@@ -26,7 +45,7 @@ spec:
               value: '{{ include "opnc.oidc.openprojectClientId" . }}'
             - name: OIDC_OPENPROJECT_CLIENT_SECRET
               value: '{{ include "opnc.oidc.openprojectClientSecret" . }}'
-            {{- if .Values.previewMode }}
+            # In-cluster health checks: *.test hostnames resolve on the host (k3d /etc/hosts) but not from pods.
             - name: NEXTCLOUD_WAIT_URL
               value: 'http://nextcloud/status.php'
             - name: NEXTCLOUD_WAIT_HOST_HEADER
@@ -35,7 +54,6 @@ spec:
               value: 'http://openproject:8080/health_checks/default'
             - name: KEYCLOAK_WAIT_URL
               value: 'http://keycloak:8080/realms/opnc'
-            {{- end }}
             {{- include "opnc.extraEnv" . | indent 12 }}
           volumeMounts:
             - name: setup-script
