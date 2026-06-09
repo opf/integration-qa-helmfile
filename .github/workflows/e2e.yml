@@ -127,7 +127,7 @@ on:
         required: false
         type: string
       xwiki_extension_openproject_version:
-        description: "XWiki openproject extension version (empty = 1.1.0)"
+        description: "XWiki openproject extension version (empty = 1.1.1)"
         required: false
         type: string
 
@@ -755,7 +755,7 @@ jobs:
           if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
             echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "- XWiki OpenProject extension version: \`1.1.0\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- XWiki OpenProject extension version: \`1.1.1\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
           fi
           echo "" >> "${GITHUB_STEP_SUMMARY}"
 

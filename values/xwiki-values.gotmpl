@@ -12,13 +12,25 @@ customConfigs:
   xwiki.properties:
     distribution.job.interactive: false
     distribution.job.interactive.wiki: false
+    distribution.defaultUI: "org.xwiki.platform:xwiki-platform-distribution-flavor-mainwiki"
+probes:
+  liveness:
+    enabled: false
+  readiness:
+    enabled: false
 customConfigsSecrets:
   xwiki.cfg:
     xwiki.superadminpassword:
       value: admin
 extraEnvVars:
   - name: EXTENSION_OPENPROJECT_VERSION
-    value: {{ .Values.xwiki.extensions.openproject.version | default "1.1.0" | quote }}
+    value: {{ .Values.xwiki.extensions.openproject.version | default "1.1.1" | quote }}
+  - name: OPENPROJECT_HOST
+    value: https://{{ .Values.openproject.host }}
+  - name: OPENPROJECT_CLIENT_ID
+    value: {{ .Values.openproject.xwiki.clientId | quote }}
+  - name: OPENPROJECT_CLIENT_SECRET
+    value: {{ .Values.openproject.xwiki.clientSecret | quote }}
 extraVolumes:
   - name: xwiki-entrypoint
     configMap:
