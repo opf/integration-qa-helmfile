@@ -51,7 +51,7 @@ cp /scripts/database.yaml ./config/database.yml
 
 export SECRET_KEY_BASE=1
 rails_with=""
-setup_cmd="db:seed"
+setup_cmd=""
 if [[ "$RAILS_ENV" != "production" ]]; then
     rails_with="development test"
 

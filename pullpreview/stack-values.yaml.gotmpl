@@ -100,11 +100,6 @@ openproject:
     OPENPROJECT_DISABLE_DEV_ASSET_PROXY: "true"
 {{- end }}
 
-{{- if $openprojectBranch }}
-  seederJob:
-    enabled: false
-{{- end }}
-
   extraVolumes:
     - name: entrypoint
       configMap:

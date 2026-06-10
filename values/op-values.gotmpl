@@ -57,7 +57,6 @@ appInit:
     requests:
       memory: '512Mi'
 seederJob:
-  enabled: {{ and (empty .Values.openproject.localSourcePath) (empty .Values.openproject.gitSourceBranch) }}
   resources:
     limits:
       memory: '1Gi'
