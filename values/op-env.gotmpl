@@ -7,6 +7,10 @@ environment:
   OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_USER: 'admin'
   OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: 'admin'
   OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK: 'true'
+  OPENPROJECT_SSRF_PROTECTION_IP_ALLOWLIST: '0.0.0.0/0,::0/0'
+  OPENPROJECT_DEFAULT__LANGUAGE: en
+  OPENPROJECT_ONBOARDING__ENABLED: false
+  OPENPROJECT_SEED__ADMIN__USER__PASSWORD__RESET: false
   # 'DATABASE_HOST' is used by the db seeder in production mode.
   DATABASE_HOST: {{ .Values.openproject.postgresql.host }}
   DATABASE_URL: postgresql://{{ .Values.openproject.postgresql.username }}:{{ .Values.openproject.postgresql.password }}@{{ .Values.openproject.postgresql.host }}/{{ .Values.openproject.postgresql.database }}{{ if eq .Values.openproject.railsEnv "development" }}_dev{{ end }}
