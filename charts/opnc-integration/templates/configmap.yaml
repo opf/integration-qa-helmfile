@@ -7,5 +7,7 @@ metadata:
 data:
   setup-integration.sh: |
 {{ .Files.Get "scripts/setup-integration.sh" | indent 4 }}
+  setup-xwiki-oauth.rb: |
+{{ .Files.Get "scripts/setup-xwiki-oauth.rb" | indent 4 }}
 
 {{- end }}

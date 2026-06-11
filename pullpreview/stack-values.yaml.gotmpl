@@ -218,6 +218,12 @@ xwiki:
   extraEnvVars:
     - name: EXTENSION_OPENPROJECT_VERSION
       value: {{ $xwikiExtensionOpenProjectVersion | default "1.1.1" | quote }}
+    - name: OPENPROJECT_HOST
+      value: "https://{{ pullpreview_public_dns }}"
+    - name: OPENPROJECT_CLIENT_ID
+      value: xwiki-client-id
+    - name: OPENPROJECT_CLIENT_SECRET
+      value: xwiki-client-secret
   extraVolumes:
     - name: xwiki-entrypoint
       configMap:

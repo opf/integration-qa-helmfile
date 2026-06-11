@@ -20,6 +20,24 @@ disable_app() {
     run_occ app:disable "$app_name" >/dev/null 2>&1 || true
 }
 
+wait_for_url() {
+    local url="$1"
+    local max_retry=60
+    local retry=1
+
+    while [[ $retry -le $max_retry ]]; do
+        if curl -sf "$url" >/dev/null 2>&1; then
+            return 0
+        fi
+        echo "[INFO] Waiting for '$url' to be ready... (Retry $retry/$max_retry)"
+        sleep 5
+        ((retry++))
+    done
+
+    echo "[ERROR] Timeout waiting for '$url'"
+    return 1
+}
+
 ###################################
 # Enable apps                     #
 ###################################
@@ -103,6 +121,8 @@ else
 fi
 # allow local remote servers
 run_occ config:system:set allow_local_remote_servers --value 1
+# Keycloak must be reachable before configuring the OIDC provider.
+wait_for_url "$OIDC_KEYCLOAK_DISCOVERY_URL"
 # setup user_oidc app
 run_occ config:app:set --value=1 user_oidc store_login_token
 run_occ config:system:set user_oidc --type boolean --value="true" oidc_provider_bearer_validation

@@ -1,3 +1,12 @@
+{{- $ncGitSourceBranch := .Values.nextcloud.gitSourceBranch | default "" -}}
+{{- $hasGitApps := false -}}
+{{- range .Values.nextcloud.enableApps -}}
+{{- if .gitBranch -}}
+{{- $hasGitApps = true -}}
+{{- end -}}
+{{- end -}}
+{{- $useNcGitPvc := ne $ncGitSourceBranch "" -}}
+{{- $useNcGitVolume := or $useNcGitPvc $hasGitApps -}}
 global:
   security:
     allowInsecureImages: true
@@ -18,9 +27,9 @@ nextcloud:
       image: node:22
       command: ["/docker-entrypoint-hooks.d/presetup.sh"]
       env:
-        {{- if .Values.nextcloud.gitSourceBranch }}
+        {{- if $ncGitSourceBranch }}
         - name: NC_GIT_SOURCE_BRANCH
-          value: {{ .Values.nextcloud.gitSourceBranch | quote }}
+          value: {{ $ncGitSourceBranch | quote }}
         {{- end }}
         - name: NEXTCLOUD_ENABLE_APPS
           valueFrom:
@@ -31,14 +40,14 @@ nextcloud:
         - name: presetup
           mountPath: /docker-entrypoint-hooks.d/presetup.sh
           subPath: presetup.sh
-        {{- if .Values.nextcloud.gitSourceBranch }}
+        {{- if $useNcGitVolume }}
         - name: nc-git-source
           mountPath: /usr/src/nc
         {{- end }}
   extraEnv:
-    {{- if .Values.nextcloud.gitSourceBranch }}
+    {{- if $ncGitSourceBranch }}
     - name: NC_GIT_SOURCE_BRANCH
-      value: {{ .Values.nextcloud.gitSourceBranch | quote }}
+      value: {{ $ncGitSourceBranch | quote }}
     {{- end }}
     - name: OVERWRITEPROTOCOL
       value: https
@@ -81,10 +90,13 @@ nextcloud:
       configMap:
         name: nc-entrypoint-configmap
         defaultMode: 0755
-    {{- if .Values.nextcloud.gitSourceBranch }}
+    {{- if $useNcGitPvc }}
     - name: nc-git-source
       persistentVolumeClaim:
         claimName: nc-gitsource-pvc
+    {{- else if $hasGitApps }}
+    - name: nc-git-source
+      emptyDir: {}
     {{- end }}
   extraVolumeMounts:
     - name: presetup
@@ -101,7 +113,7 @@ nextcloud:
     - name: entrypoint
       mountPath: /entrypoint.sh
       subPath: entrypoint.sh
-    {{- if .Values.nextcloud.gitSourceBranch }}
+    {{- if $useNcGitVolume }}
     - name: nc-git-source
       mountPath: /usr/src/nc
     {{- end }}
