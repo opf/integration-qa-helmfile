@@ -3,7 +3,7 @@
 set -euo pipefail
 
 namespace="${1:?namespace required}"
-timeout="${2:-30m}"
+timeout="${2:-10m}"
 
 echo "[pullpreview] Waiting for setup-job in namespace ${namespace} (timeout ${timeout})..."
 

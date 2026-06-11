@@ -8,12 +8,13 @@ import {
   findProjectByIdentifierOrName,
   listProjectStorages,
   listStorages,
+  waitForNextcloudStorageHealthy,
 } from './openproject-api';
 import { deleteNextcloudFile } from './nextcloud-api';
 import { OpenProjectProjectStoragesPage } from '../pageobjects/openproject';
 import type { TestUser } from './test-users';
 
-export { ensureUserIsAdmin, deleteProject };
+export { ensureUserIsAdmin, deleteProject, waitForNextcloudStorageHealthy };
 
 async function ensureProjectExists(
   keyOrName: string,

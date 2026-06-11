@@ -16,6 +16,7 @@ import {
   deleteUploadedTestFile,
   ensureProjectHasNextcloudStorage,
   ensureUserIsAdmin,
+  waitForNextcloudStorageHealthy,
 } from '../../utils/test-helpers';
 import {
   deleteWorkPackageFileLinksByName,
@@ -121,21 +122,16 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     await ensureAliceAdminForCurrentSession(page, homePage);
 
     await ensureProjectHasNextcloudStorage('demo-project', page);
+    await waitForNextcloudStorageHealthy('demo-project');
     await deleteWorkPackageFileLinksByName(2, uploadedFileName);
 
     await homePage.navigateToDemoProjectWorkPackageFiles(2);
     await homePage.waitForDemoProjectWorkPackageFilesUrl();
 
-    const uploadInput = homePage.getLocator('workPackageFilesUploadInput');
-    await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
-
-    await uploadInput.setInputFiles(`fixtures/${uploadedFileName}`);
-
-    const filesPickerModal = homePage.getLocator('filesPickerModal');
-    await filesPickerModal.waitFor({ state: 'visible', timeout: 15000 });
+    await homePage.openFilesPickerWithUpload(uploadedFileName);
+    await homePage.waitForFilesPickerReady(uploadedFileName);
 
     const chooseLocationButton = homePage.getLocator('filesPickerConfirmButton');
-    await chooseLocationButton.waitFor({ state: 'visible', timeout: 15000 });
     await chooseLocationButton.click();
 
     // Handle "file already exists" modal if it appears

@@ -29,6 +29,16 @@ collect_phase_diagnostics() {
         kubectl logs "${nc_pod}" -n "${namespace}" -c presetup --tail=80 2>&1 || true
       fi
     fi
+    if [[ "${phase}" == "xwiki" ]]; then
+      local xwiki_pod=""
+      xwiki_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=xwiki" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+      if [[ -n "${xwiki_pod}" ]]; then
+        echo "[pullpreview helmfile] XWiki pod log tail (${xwiki_pod}):"
+        kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --tail=200 2>&1 || true
+        echo "[pullpreview helmfile] XWiki pod previous log tail (${xwiki_pod}):"
+        kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --previous --tail=200 2>&1 || true
+      fi
+    fi
   fi
   echo "::endgroup::"
 }
@@ -61,6 +71,6 @@ for release in "${releases[@]}"; do
   sync_release "${release}" || exit 1
 done
 
-pullpreview/wait-setup-job.sh "${namespace}" "${PULLPREVIEW_SETUP_JOB_TIMEOUT:-30m}"
+pullpreview/wait-setup-job.sh "${namespace}" "${PULLPREVIEW_SETUP_JOB_TIMEOUT:-10m}"
 
 echo "[pullpreview helmfile] Phased deploy finished successfully."

@@ -58,9 +58,11 @@ interface StoragesCollection {
 
 export interface OpenProjectApiProjectStorage {
   id: number;
+  projectFolderMode?: string;
   _links: {
     project: { href: string };
     storage: { href: string };
+    projectFolder?: { href: string };
   };
 }
 
@@ -278,6 +280,83 @@ export async function listStorages(
     credentials
   );
   return data._embedded?.elements ?? [];
+}
+
+function getStorageIdFromHref(storageHref: string): number | undefined {
+  const match = storageHref.match(/\/storages\/(\d+)/);
+  return match ? Number(match[1]) : undefined;
+}
+
+async function findNextcloudStorage(
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiStorage | undefined> {
+  const storages = await listStorages(credentials);
+  return storages.find((storage) => storage.name.toLowerCase().includes('nextcloud'));
+}
+
+async function isNextcloudProjectStorageHealthy(
+  projectId: number,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<boolean> {
+  const nextcloudStorage = await findNextcloudStorage(credentials);
+  if (!nextcloudStorage) {
+    return false;
+  }
+
+  const projectStorages = await listProjectStorages(projectId, credentials);
+  const linkedStorage = projectStorages.find((projectStorage) => {
+    const storageId = getStorageIdFromHref(projectStorage._links.storage.href);
+    return storageId === nextcloudStorage.id;
+  });
+
+  const projectFolderHref = linkedStorage?._links.projectFolder?.href;
+  if (!linkedStorage || !projectFolderHref) {
+    return false;
+  }
+
+  try {
+    await apiRequest(
+      `/storages/${nextcloudStorage.id}/files?parent=${encodeURIComponent(projectFolderHref)}`,
+      'GET',
+      credentials
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function waitForNextcloudStorageHealthy(
+  projectIdentifier: string,
+  options: {
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+    credentials?: AdminCredentials;
+  } = {}
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 180_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 5_000;
+  const credentials = options.credentials ?? DEFAULT_ADMIN_CREDENTIALS;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const project = await findProjectByIdentifierOrName(projectIdentifier, credentials);
+    if (!project) {
+      throw new Error(
+        `OpenProject project '${projectIdentifier}' not found while waiting for Nextcloud storage health.`
+      );
+    }
+
+    if (await isNextcloudProjectStorageHealthy(project.id, credentials)) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `Timed out waiting for Nextcloud storage to become healthy for project '${projectIdentifier}'.`
+  );
 }
 
 export async function listProjectStorages(

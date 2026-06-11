@@ -26,8 +26,7 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
       .catch(() => false);
 
     if (!activeAppsHeadingVisible) {
-      // Nextcloud versions/skins differ; the apps page can render without this exact heading.
-      const settingsShell = this.page.locator('#content.app-settings');
+      const settingsShell = this.getLocator('appsSettingsContent');
       await settingsShell.first().waitFor({ state: 'visible', timeout: 20000 });
     }
   }

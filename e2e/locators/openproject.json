@@ -172,6 +172,14 @@
       "by": "locator",
       "value": "button[data-test-selector='op-files-picker-modal--confirm']"
     },
+    "filesPickerNoConnectionError": {
+      "by": "getByText",
+      "value": "No Nextcloud connection"
+    },
+    "filesPickerCancelButton": {
+      "by": "locator",
+      "value": "button[data-test-selector='op-files-picker-modal--cancel'], [data-test-selector='op-files-picker-modal'] button:has-text('Cancel')"
+    },
     "filesUploadSuccessMessage": {
       "by": "locator",
       "value": ".op-toast--content:has-text('Successfully created 1 file link.'), .flash.notice:has-text('Successfully created 1 file link.'), .flash-message.-success:has-text('Successfully created 1 file link.'), [role='status']:has-text('Successfully created 1 file link.')"
