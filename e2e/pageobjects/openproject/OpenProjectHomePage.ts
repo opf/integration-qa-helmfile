@@ -298,7 +298,7 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
   }
 
   async openWorkPackageFilesTab(timeout: number = 15000): Promise<void> {
-    const filesTab = this.getLocator('filesMenuItem').first();
+    const filesTab = this.getLocator('filesMenuItem');
     await filesTab.waitFor({ state: 'visible', timeout });
     await Promise.all([
       this.waitForDemoProjectWorkPackageFilesUrl(timeout),

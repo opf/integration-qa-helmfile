@@ -9,12 +9,18 @@ import {
   listProjectStorages,
   listStorages,
   waitForNextcloudStorageHealthy,
+  ensureUserIsProjectMember,
 } from './openproject-api';
 import { deleteNextcloudFile } from './nextcloud-api';
 import { OpenProjectProjectStoragesPage } from '../pageobjects/openproject';
 import type { TestUser } from './test-users';
 
-export { ensureUserIsAdmin, deleteProject, waitForNextcloudStorageHealthy };
+export {
+  ensureUserIsAdmin,
+  ensureUserIsProjectMember,
+  deleteProject,
+  waitForNextcloudStorageHealthy,
+};
 
 async function ensureProjectExists(
   keyOrName: string,

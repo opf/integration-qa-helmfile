@@ -201,6 +201,45 @@ export interface EnsureAdminResult {
   updated: boolean;
 }
 
+interface OpenProjectApiRole {
+  id: number;
+  name: string;
+}
+
+interface RolesCollection {
+  _embedded?: {
+    elements?: OpenProjectApiRole[];
+  };
+}
+
+interface OpenProjectApiMembership {
+  id: number;
+  _links: {
+    project: { href: string };
+    principal: { href: string };
+    roles: Array<{ href: string; title?: string }>;
+  };
+}
+
+interface MembershipsCollection {
+  _embedded?: {
+    elements?: OpenProjectApiMembership[];
+  };
+}
+
+export interface EnsureProjectMemberResult {
+  userId: number;
+  projectId: number;
+  created: boolean;
+}
+
+export async function findOpenProjectUser(
+  identifier: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiUser | undefined> {
+  return findUserByIdentifier(identifier, credentials);
+}
+
 export async function ensureUserIsAdmin(
   identifier: string,
   credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
@@ -225,6 +264,94 @@ export async function setUserAdmin(
   credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
 ): Promise<void> {
   await updateUserAdminStatus(userId, isAdmin, credentials);
+}
+
+async function findRoleByName(
+  roleName: string,
+  credentials: AdminCredentials
+): Promise<OpenProjectApiRole | undefined> {
+  const data = await apiRequest<RolesCollection>('/roles', 'GET', credentials);
+  return data._embedded?.elements?.find(
+    (role) => role.name.toLowerCase() === roleName.toLowerCase()
+  );
+}
+
+function getPrincipalIdFromHref(principalHref: string): number | undefined {
+  const match = principalHref.match(/\/users\/(\d+)/);
+  return match ? Number(match[1]) : undefined;
+}
+
+async function listProjectMemberships(
+  projectId: number,
+  credentials: AdminCredentials
+): Promise<OpenProjectApiMembership[]> {
+  const filters = encodeURIComponent(
+    JSON.stringify([
+      {
+        project: {
+          operator: '=',
+          values: [String(projectId)],
+        },
+      },
+    ])
+  );
+
+  const data = await apiRequest<MembershipsCollection>(
+    `/memberships?filters=${filters}`,
+    'GET',
+    credentials
+  );
+
+  return data._embedded?.elements ?? [];
+}
+
+export async function ensureUserIsProjectMember(
+  userIdentifier: string,
+  projectIdentifier: string,
+  roleName = 'Member',
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<EnsureProjectMemberResult> {
+  const user = await findUserByIdentifier(userIdentifier, credentials);
+  if (!user) {
+    throw new Error(`OpenProject user '${userIdentifier}' not found via API`);
+  }
+
+  const project = await findProjectByIdentifierOrName(projectIdentifier, credentials);
+  if (!project) {
+    throw new Error(`OpenProject project '${projectIdentifier}' not found via API`);
+  }
+
+  const role = await findRoleByName(roleName, credentials);
+  if (!role) {
+    throw new Error(`OpenProject role '${roleName}' not found via API`);
+  }
+
+  const memberships = await listProjectMemberships(project.id, credentials);
+  const alreadyMember = memberships.some(
+    (membership) => getPrincipalIdFromHref(membership._links.principal.href) === user.id
+  );
+
+  if (alreadyMember) {
+    return { userId: user.id, projectId: project.id, created: false };
+  }
+
+  await apiRequest(
+    '/memberships',
+    'POST',
+    credentials,
+    {
+      _links: {
+        project: { href: `/api/v3/projects/${project.id}` },
+        principal: { href: `/api/v3/users/${user.id}` },
+        roles: [{ href: `/api/v3/roles/${role.id}` }],
+      },
+      _meta: {
+        sendNotification: false,
+      },
+    }
+  );
+
+  return { userId: user.id, projectId: project.id, created: true };
 }
 
 export async function listProjects(

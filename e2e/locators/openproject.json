@@ -111,8 +111,11 @@
       "value": "a.settings-menu-item.op-menu--item-action[title='Project settings']"
     },
     "filesMenuItem": {
-      "by": "getByTitle",
-      "value": "Files"
+      "by": "getByRole",
+      "value": {
+        "role": "tab",
+        "name": "Files"
+      }
     },
     "externalFileStoragesText": {
       "by": "locator",

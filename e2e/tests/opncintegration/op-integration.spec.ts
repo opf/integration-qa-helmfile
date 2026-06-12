@@ -16,10 +16,12 @@ import {
   deleteUploadedTestFile,
   ensureProjectHasNextcloudStorage,
   ensureUserIsAdmin,
+  ensureUserIsProjectMember,
   waitForNextcloudStorageHealthy,
 } from '../../utils/test-helpers';
 import {
   deleteWorkPackageFileLinksByName,
+  findOpenProjectUser,
   setUserAdmin,
 } from '../../utils/openproject-api';
 import type { EnsureAdminResult } from '../../utils/openproject-api';
@@ -27,19 +29,24 @@ import { testConfig } from '../../utils/config';
 import { logInfo, logWarn } from '../../utils/logger';
 import { squashTestCase } from '../../utils/squash-metadata';
 
-async function ensureAliceAdmin(): Promise<EnsureAdminResult> {
-  const identifiers = [
-    ALICE_USER.username,
-    ALICE_USER.email,
-    `${ALICE_USER.username}@example.com`,
-  ].filter((identifier, index, all): identifier is string => {
-    return Boolean(identifier) && all.indexOf(identifier) === index;
-  });
+const ALICE_IDENTIFIERS = [
+  ALICE_USER.username,
+  ALICE_USER.email,
+  `${ALICE_USER.username}@example.com`,
+].filter((identifier, index, all): identifier is string => {
+  return Boolean(identifier) && all.indexOf(identifier) === index;
+});
 
+let aliceWasAdminBeforeSuite = false;
+let aliceAdminElevatedBySuite = false;
+
+async function withAliceIdentifier<T>(
+  action: (identifier: string) => Promise<T>
+): Promise<T> {
   let lastError: unknown;
-  for (const identifier of identifiers) {
+  for (const identifier of ALICE_IDENTIFIERS) {
     try {
-      return await ensureUserIsAdmin(identifier);
+      return await action(identifier);
     } catch (error: unknown) {
       lastError = error;
       if (!(error instanceof Error) || !error.message.includes('not found via API')) {
@@ -53,12 +60,24 @@ async function ensureAliceAdmin(): Promise<EnsureAdminResult> {
     : new Error('OpenProject user for Alice not found via API');
 }
 
+async function ensureAliceAdmin(): Promise<EnsureAdminResult> {
+  return withAliceIdentifier((identifier) => ensureUserIsAdmin(identifier));
+}
+
+async function ensureAliceIsDemoProjectMember(): Promise<void> {
+  await withAliceIdentifier((identifier) =>
+    ensureUserIsProjectMember(identifier, 'demo-project')
+  );
+}
+
 async function ensureAliceAdminForCurrentSession(
   page: Page,
   homePage: OpenProjectHomePage
 ): Promise<void> {
   const { updated } = await ensureAliceAdmin();
-  if (!updated) return;
+  if (updated) {
+    aliceAdminElevatedBySuite = true;
+  }
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await homePage.waitForReady({ dismissOnboarding: false });
@@ -66,7 +85,17 @@ async function ensureAliceAdminForCurrentSession(
 
 test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   test.describe.configure({ mode: 'serial', timeout: 120_000 });
-  
+
+  test.beforeAll(async () => {
+    await withAliceIdentifier(async (identifier) => {
+      const user = await findOpenProjectUser(identifier);
+      if (!user) {
+        throw new Error('OpenProject user for Alice not found via API');
+      }
+      aliceWasAdminBeforeSuite = user.admin;
+    });
+  });
+
   test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
     const loginPage = new OpenProjectLoginPage(page);
     await loginPage.navigateTo();
@@ -119,7 +148,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     const homePage = new OpenProjectHomePage(page);
     await homePage.waitForReady();
 
-    await ensureAliceAdminForCurrentSession(page, homePage);
+    await ensureAliceIsDemoProjectMember();
 
     await ensureProjectHasNextcloudStorage('demo-project', page);
     await waitForNextcloudStorageHealthy('demo-project');
@@ -163,7 +192,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
         homePage = new OpenProjectHomePage(page);
         await homePage.waitForReady();
-        await ensureAliceAdminForCurrentSession(page, homePage);
+        await ensureAliceIsDemoProjectMember();
       });
 
       await test.step('Open the target work package', async () => {
@@ -251,12 +280,19 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       logWarn('[Cleanup] Failed to delete project "test":', err);
     }
 
-    try {
-      const { userId } = await ensureAliceAdmin();
-      await setUserAdmin(userId, false);
-      logInfo('[Cleanup] Revoked admin permissions from Alice');
-    } catch (err) {
-      logWarn('[Cleanup] Failed to revoke admin permissions from Alice:', err);
+    if (aliceAdminElevatedBySuite && !aliceWasAdminBeforeSuite) {
+      try {
+        await withAliceIdentifier(async (identifier) => {
+          const user = await findOpenProjectUser(identifier);
+          if (!user) {
+            throw new Error('OpenProject user for Alice not found via API');
+          }
+          await setUserAdmin(user.id, false);
+        });
+        logInfo('[Cleanup] Revoked admin permissions from Alice');
+      } catch (err) {
+        logWarn('[Cleanup] Failed to revoke admin permissions from Alice:', err);
+      }
     }
   });
 
