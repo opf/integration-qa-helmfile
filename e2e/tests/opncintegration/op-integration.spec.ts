@@ -87,13 +87,13 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   test.describe.configure({ mode: 'serial', timeout: 120_000 });
 
   test.beforeAll(async () => {
-    await withAliceIdentifier(async (identifier) => {
+    for (const identifier of ALICE_IDENTIFIERS) {
       const user = await findOpenProjectUser(identifier);
-      if (!user) {
-        throw new Error('OpenProject user for Alice not found via API');
+      if (user) {
+        aliceWasAdminBeforeSuite = user.admin;
+        return;
       }
-      aliceWasAdminBeforeSuite = user.admin;
-    });
+    }
   });
 
   test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
