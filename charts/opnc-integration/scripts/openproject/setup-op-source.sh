@@ -43,8 +43,19 @@ echo "[INFO] Building OpenProject from source..."
 mkdir -p "$APP_PATH" && cd "$APP_PATH"
 
 if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]] && [[ -z $(find "$APP_PATH" -mindepth 1 -print -quit) ]]; then
+    echo "[INFO] Verifying branch '${OP_GIT_SOURCE_BRANCH}' exists in opf/openproject..."
+    OP_REPO_URL="https://github.com/opf/openproject"
+    if ! git ls-remote --exit-code --heads "${OP_REPO_URL}" "refs/heads/${OP_GIT_SOURCE_BRANCH}" >/dev/null 2>&1; then
+        near_misses=$(git ls-remote --heads "${OP_REPO_URL}" "*${OP_GIT_SOURCE_BRANCH}*" 2>/dev/null | awk '{print $2}' | sed 's|refs/heads/||' | head -5 | tr '\n' ' ')
+        if [[ -n "${near_misses}" ]]; then
+            echo "[ERROR] Branch '${OP_GIT_SOURCE_BRANCH}' not found in opf/openproject. Did you mean: ${near_misses}?"
+        else
+            echo "[ERROR] Branch '${OP_GIT_SOURCE_BRANCH}' not found in opf/openproject."
+        fi
+        exit 1
+    fi
     echo "[INFO] Cloning OpenProject source branch."
-    git clone --branch "$OP_GIT_SOURCE_BRANCH" --depth 1 --single-branch "https://github.com/opf/openproject" "$APP_PATH"
+    git clone --branch "$OP_GIT_SOURCE_BRANCH" --depth 1 --single-branch "${OP_REPO_URL}" "$APP_PATH"
 fi
 
 cp /scripts/database.yaml ./config/database.yml

@@ -5,6 +5,7 @@ kind: Job
 metadata:
   name: op-buildsource-job
 spec:
+  backoffLimit: 2
   template:
     spec:
       restartPolicy: Never

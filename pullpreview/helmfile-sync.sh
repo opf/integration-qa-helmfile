@@ -43,14 +43,66 @@ collect_phase_diagnostics() {
   echo "::endgroup::"
 }
 
+watch_buildsource_job() {
+  # Poll op-buildsource-job while the openproject helmfile sync runs in the background.
+  # Exits 0 if the Job completes successfully or does not exist.
+  # Exits 1 if the Job reaches a Failed condition, dumping the log and killing the sync.
+  local sync_pid="$1"
+  local poll_interval=15
+
+  # Give the job a moment to be created before polling.
+  sleep "${poll_interval}"
+
+  while kill -0 "${sync_pid}" 2>/dev/null; do
+    if ! kubectl get job op-buildsource-job -n "${namespace}" >/dev/null 2>&1; then
+      sleep "${poll_interval}"
+      continue
+    fi
+
+    local job_failed
+    job_failed=$(kubectl get job op-buildsource-job -n "${namespace}" \
+      -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo "")
+
+    if [[ "${job_failed}" == "True" ]]; then
+      echo "::error::[pullpreview helmfile] op-buildsource-job failed; aborting openproject sync."
+      echo "[pullpreview helmfile] op-buildsource-job log tail:"
+      kubectl logs -n "${namespace}" -l job-name=op-buildsource-job \
+        --all-containers=true --tail=80 2>&1 || true
+      kill "${sync_pid}" 2>/dev/null || true
+      return 1
+    fi
+
+    sleep "${poll_interval}"
+  done
+
+  return 0
+}
+
 sync_release() {
   local release="$1"
   echo "::group::Helmfile release: ${release}"
   echo "[pullpreview helmfile] Syncing release ${release} in namespace ${namespace}"
-  set +e
-  "${helmfile_common[@]}" -l "name=${release}" sync
-  local status=$?
-  set -e
+
+  if [[ "${release}" == "openproject" ]]; then
+    set +e
+    "${helmfile_common[@]}" -l "name=${release}" sync &
+    local sync_pid=$!
+    watch_buildsource_job "${sync_pid}"
+    local watcher_status=$?
+    wait "${sync_pid}"
+    local status=$?
+    set -e
+    # If the watcher aborted the sync due to a build failure, prefer the watcher's exit code.
+    if [[ "${watcher_status}" -ne 0 ]]; then
+      status="${watcher_status}"
+    fi
+  else
+    set +e
+    "${helmfile_common[@]}" -l "name=${release}" sync
+    local status=$?
+    set -e
+  fi
+
   if [[ "${status}" -ne 0 ]]; then
     echo "::error::Helmfile release ${release} failed"
     collect_phase_diagnostics "${release}"
