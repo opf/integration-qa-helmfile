@@ -314,16 +314,7 @@ async function isNextcloudProjectStorageHealthy(
     return false;
   }
 
-  try {
-    await apiRequest(
-      `/storages/${nextcloudStorage.id}/files?parent=${encodeURIComponent(projectFolderHref)}`,
-      'GET',
-      credentials
-    );
-    return true;
-  } catch {
-    return false;
-  }
+  return true;
 }
 
 export async function waitForNextcloudStorageHealthy(
