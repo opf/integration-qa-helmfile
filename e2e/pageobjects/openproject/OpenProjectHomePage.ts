@@ -254,8 +254,51 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     await this.copyDemoProjectTo(newIdentifier);
   }
 
+  async openFilesPickerWithUpload(fixtureFileName: string): Promise<void> {
+    const uploadInput = this.getLocator('workPackageFilesUploadInput');
+    await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
+    await uploadInput.setInputFiles(`fixtures/${fixtureFileName}`);
+    await this.getLocator('filesPickerModal').waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  async waitForFilesPickerReady(fixtureFileName: string, maxAttempts = 12): Promise<void> {
+    const modal = this.getLocator('filesPickerModal');
+    const noConnection = this.getLocator('filesPickerNoConnectionError');
+    const confirmButton = this.getLocator('filesPickerConfirmButton');
+    const cancelButton = this.getLocator('filesPickerCancelButton');
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await modal.waitFor({ state: 'visible', timeout: 15000 });
+
+      if (await noConnection.isVisible({ timeout: 2000 }).catch(() => false)) {
+        if (await cancelButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await cancelButton.click();
+        } else {
+          await this.page.keyboard.press('Escape');
+        }
+        await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
+        if (attempt < maxAttempts - 1) {
+          await this.openFilesPickerWithUpload(fixtureFileName);
+        }
+        continue;
+      }
+
+      await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
+      if (await confirmButton.isEnabled()) {
+        return;
+      }
+
+      await this.page.waitForTimeout(5000);
+    }
+
+    await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
+    if (!(await confirmButton.isEnabled())) {
+      throw new Error('Files picker "Choose location" button did not become enabled.');
+    }
+  }
+
   async openWorkPackageFilesTab(timeout: number = 15000): Promise<void> {
-    const filesTab = this.getLocator('filesMenuItem').first();
+    const filesTab = this.getLocator('filesMenuItem');
     await filesTab.waitFor({ state: 'visible', timeout });
     await Promise.all([
       this.waitForDemoProjectWorkPackageFilesUrl(timeout),

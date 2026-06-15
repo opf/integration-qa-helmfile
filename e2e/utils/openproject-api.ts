@@ -58,9 +58,11 @@ interface StoragesCollection {
 
 export interface OpenProjectApiProjectStorage {
   id: number;
+  projectFolderMode?: string;
   _links: {
     project: { href: string };
     storage: { href: string };
+    projectFolder?: { href: string };
   };
 }
 
@@ -199,6 +201,45 @@ export interface EnsureAdminResult {
   updated: boolean;
 }
 
+interface OpenProjectApiRole {
+  id: number;
+  name: string;
+}
+
+interface RolesCollection {
+  _embedded?: {
+    elements?: OpenProjectApiRole[];
+  };
+}
+
+interface OpenProjectApiMembership {
+  id: number;
+  _links: {
+    project: { href: string };
+    principal: { href: string };
+    roles: Array<{ href: string; title?: string }>;
+  };
+}
+
+interface MembershipsCollection {
+  _embedded?: {
+    elements?: OpenProjectApiMembership[];
+  };
+}
+
+export interface EnsureProjectMemberResult {
+  userId: number;
+  projectId: number;
+  created: boolean;
+}
+
+export async function findOpenProjectUser(
+  identifier: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiUser | undefined> {
+  return findUserByIdentifier(identifier, credentials);
+}
+
 export async function ensureUserIsAdmin(
   identifier: string,
   credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
@@ -223,6 +264,94 @@ export async function setUserAdmin(
   credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
 ): Promise<void> {
   await updateUserAdminStatus(userId, isAdmin, credentials);
+}
+
+async function findRoleByName(
+  roleName: string,
+  credentials: AdminCredentials
+): Promise<OpenProjectApiRole | undefined> {
+  const data = await apiRequest<RolesCollection>('/roles', 'GET', credentials);
+  return data._embedded?.elements?.find(
+    (role) => role.name.toLowerCase() === roleName.toLowerCase()
+  );
+}
+
+function getPrincipalIdFromHref(principalHref: string): number | undefined {
+  const match = principalHref.match(/\/users\/(\d+)/);
+  return match ? Number(match[1]) : undefined;
+}
+
+async function listProjectMemberships(
+  projectId: number,
+  credentials: AdminCredentials
+): Promise<OpenProjectApiMembership[]> {
+  const filters = encodeURIComponent(
+    JSON.stringify([
+      {
+        project: {
+          operator: '=',
+          values: [String(projectId)],
+        },
+      },
+    ])
+  );
+
+  const data = await apiRequest<MembershipsCollection>(
+    `/memberships?filters=${filters}`,
+    'GET',
+    credentials
+  );
+
+  return data._embedded?.elements ?? [];
+}
+
+export async function ensureUserIsProjectMember(
+  userIdentifier: string,
+  projectIdentifier: string,
+  roleName = 'Member',
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<EnsureProjectMemberResult> {
+  const user = await findUserByIdentifier(userIdentifier, credentials);
+  if (!user) {
+    throw new Error(`OpenProject user '${userIdentifier}' not found via API`);
+  }
+
+  const project = await findProjectByIdentifierOrName(projectIdentifier, credentials);
+  if (!project) {
+    throw new Error(`OpenProject project '${projectIdentifier}' not found via API`);
+  }
+
+  const role = await findRoleByName(roleName, credentials);
+  if (!role) {
+    throw new Error(`OpenProject role '${roleName}' not found via API`);
+  }
+
+  const memberships = await listProjectMemberships(project.id, credentials);
+  const alreadyMember = memberships.some(
+    (membership) => getPrincipalIdFromHref(membership._links.principal.href) === user.id
+  );
+
+  if (alreadyMember) {
+    return { userId: user.id, projectId: project.id, created: false };
+  }
+
+  await apiRequest(
+    '/memberships',
+    'POST',
+    credentials,
+    {
+      _links: {
+        project: { href: `/api/v3/projects/${project.id}` },
+        principal: { href: `/api/v3/users/${user.id}` },
+        roles: [{ href: `/api/v3/roles/${role.id}` }],
+      },
+      _meta: {
+        sendNotification: false,
+      },
+    }
+  );
+
+  return { userId: user.id, projectId: project.id, created: true };
 }
 
 export async function listProjects(
@@ -278,6 +407,74 @@ export async function listStorages(
     credentials
   );
   return data._embedded?.elements ?? [];
+}
+
+function getStorageIdFromHref(storageHref: string): number | undefined {
+  const match = storageHref.match(/\/storages\/(\d+)/);
+  return match ? Number(match[1]) : undefined;
+}
+
+async function findNextcloudStorage(
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<OpenProjectApiStorage | undefined> {
+  const storages = await listStorages(credentials);
+  return storages.find((storage) => storage.name.toLowerCase().includes('nextcloud'));
+}
+
+async function isNextcloudProjectStorageHealthy(
+  projectId: number,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<boolean> {
+  const nextcloudStorage = await findNextcloudStorage(credentials);
+  if (!nextcloudStorage) {
+    return false;
+  }
+
+  const projectStorages = await listProjectStorages(projectId, credentials);
+  const linkedStorage = projectStorages.find((projectStorage) => {
+    const storageId = getStorageIdFromHref(projectStorage._links.storage.href);
+    return storageId === nextcloudStorage.id;
+  });
+
+  const projectFolderHref = linkedStorage?._links.projectFolder?.href;
+  if (!linkedStorage || !projectFolderHref) {
+    return false;
+  }
+
+  return true;
+}
+
+export async function waitForNextcloudStorageHealthy(
+  projectIdentifier: string,
+  options: {
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+    credentials?: AdminCredentials;
+  } = {}
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 180_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 5_000;
+  const credentials = options.credentials ?? DEFAULT_ADMIN_CREDENTIALS;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const project = await findProjectByIdentifierOrName(projectIdentifier, credentials);
+    if (!project) {
+      throw new Error(
+        `OpenProject project '${projectIdentifier}' not found while waiting for Nextcloud storage health.`
+      );
+    }
+
+    if (await isNextcloudProjectStorageHealthy(project.id, credentials)) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `Timed out waiting for Nextcloud storage to become healthy for project '${projectIdentifier}'.`
+  );
 }
 
 export async function listProjectStorages(

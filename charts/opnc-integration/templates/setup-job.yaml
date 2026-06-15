@@ -4,9 +4,41 @@ kind: Job
 metadata:
   name: setup-job
 spec:
+  backoffLimit: 10
   template:
     spec:
       restartPolicy: Never
+      {{- if .Values.xwiki.enabled }}
+      initContainers:
+        - name: xwiki-oauth-setup
+          image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - bundle
+            - exec
+            - rails
+            - runner
+            - /scripts/setup-xwiki-oauth.rb
+          env:
+            - name: XWIKI_OAUTH_CLIENT_ID
+              value: {{ index .Values.openproject.xwiki "clientId" | default "xwiki-client-id" | quote }}
+            - name: XWIKI_OAUTH_CLIENT_SECRET
+              value: {{ index .Values.openproject.xwiki "clientSecret" | default "xwiki-client-secret" | quote }}
+            - name: XWIKI_HOST
+              value: {{ include "opnc.xwikiHost" . | quote }}
+            - name: RAILS_ENV
+              value: {{ .Values.environment.RAILS_ENV | default "production" | quote }}
+            - name: DATABASE_URL
+              value: {{ required "environment.DATABASE_URL is required for XWiki OAuth setup" .Values.environment.DATABASE_URL | quote }}
+            - name: DATABASE_HOST
+              value: {{ .Values.environment.DATABASE_HOST | quote }}
+            - name: OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK
+              value: "true"
+          volumeMounts:
+            - name: setup-script
+              mountPath: /scripts/setup-xwiki-oauth.rb
+              subPath: setup-xwiki-oauth.rb
+      {{- end }}
       containers:
         - name: setup-integration
           image: ddev/ddev-utilities

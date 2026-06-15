@@ -162,6 +162,15 @@ collect_diagnostics() {
     echo "[pullpreview helm] OpenProject source build log tail:"
     kubectl logs job/op-buildsource-job -n "${namespace}" --all-containers=true --tail=160 2>&1 | redact_stream || true
   fi
+
+  if kubectl get deployment nextcloud -n "${namespace}" >/dev/null 2>&1; then
+    echo "[pullpreview helm] Nextcloud presetup init container log tail:"
+    kubectl logs deployment/nextcloud -n "${namespace}" -c presetup --tail=160 2>&1 | redact_stream || true
+    echo "[pullpreview helm] Nextcloud main container log tail:"
+    kubectl logs deployment/nextcloud -n "${namespace}" -c nextcloud --tail=200 2>&1 | redact_stream || true
+    echo "[pullpreview helm] Nextcloud main container previous log tail:"
+    kubectl logs deployment/nextcloud -n "${namespace}" -c nextcloud --previous --tail=200 2>&1 | redact_stream || true
+  fi
 }
 
 chart_is_pullpreview_stack() {

@@ -55,6 +55,9 @@ openproject:
   standalone: false
   enableTestSetup: false
   railsEnv: 'production'
+  xwiki:
+    clientId: xwiki-client-id
+    clientSecret: xwiki-client-secret
 # OpenProject environment variables
 environment: {}
 

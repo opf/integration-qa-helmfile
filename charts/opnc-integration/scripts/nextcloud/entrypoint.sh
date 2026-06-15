@@ -8,7 +8,7 @@ set -eu
 
 ############## CUSTOM START ##############
 SRC_DIR=/usr/src/nextcloud
-if [ -n "$NC_GIT_SOURCE_BRANCH" ]; then
+if [ -n "${NC_GIT_SOURCE_BRANCH:-}" ]; then
     mv /usr/src/nextcloud/config/* /usr/src/nc/config/
     SRC_DIR=/usr/src/nc
 fi

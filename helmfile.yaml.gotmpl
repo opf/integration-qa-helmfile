@@ -91,6 +91,7 @@ releases:
       - values/nc-values.gotmpl
     needs:
       - opnc-integration
+      - keycloak
       {{- if ne (.Values.nextcloud.gitSourceBranch | default "") "" }}
       - nextcloud-pvc
       {{- end }}

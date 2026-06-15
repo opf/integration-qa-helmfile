@@ -8,7 +8,7 @@
 {{- $ioVersion := env "INTEGRATION_OPENPROJECT_VERSION" -}}
 {{- $ioBranch := env "INTEGRATION_OPENPROJECT_GIT_BRANCH" -}}
 {{- $xwikiVersion := env "XWIKI_VERSION" | default "17.10.6" -}}
-{{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.1.0" -}}
+{{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.1.1" -}}
 previewMode: true
 
 integration:
@@ -43,6 +43,9 @@ openproject:
     database: openproject
     username: openproject
     password: openproject
+  xwiki:
+    clientId: xwiki-client-id
+    clientSecret: xwiki-client-secret
 
 nextcloud:
   version: {{ $ncVersion | quote }}

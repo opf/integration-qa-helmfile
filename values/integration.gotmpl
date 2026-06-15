@@ -1,3 +1,4 @@
+{{- $openprojectXwiki := .Values.openproject.xwiki | default dict -}}
 integrationSetupMethod: {{ .Values.integration.setupMethod }}
 previewMode: {{ dig "previewMode" false .Values }}
 
@@ -24,6 +25,9 @@ openproject:
   standalone: {{ .Values.openproject.standalone | default false }}
   enableTestSetup: {{ .Values.openproject.enableTestSetup | default false }}
   railsEnv: {{ .Values.openproject.railsEnv | quote }}
+  xwiki:
+    clientId: {{ $openprojectXwiki.clientId | default "xwiki-client-id" | quote }}
+    clientSecret: {{ $openprojectXwiki.clientSecret | default "xwiki-client-secret" | quote }}
 
 {{- if not (.Values.previewMode | default false) }}
 extraVolumes:

@@ -302,8 +302,14 @@ jobs:
             local value="$3"
 
             [[ -z "${value}" ]] && return 0
-            if ! git ls-remote --exit-code --heads "${repo_url}" "${value}" >/dev/null 2>&1; then
-              echo "::error::${input_name} was not found in the expected upstream repository."
+            if ! git ls-remote --exit-code --heads "${repo_url}" "refs/heads/${value}" >/dev/null 2>&1; then
+              local near_misses
+              near_misses=$(git ls-remote --heads "${repo_url}" "*${value}*" 2>/dev/null | awk '{print $2}' | sed 's|refs/heads/||' | head -5 | tr '\n' ' ')
+              if [[ -n "${near_misses}" ]]; then
+                echo "::error::${input_name} '${value}' was not found. Did you mean one of: ${near_misses}?"
+              else
+                echo "::error::${input_name} '${value}' was not found in the expected upstream repository."
+              fi
               exit 1
             fi
           }

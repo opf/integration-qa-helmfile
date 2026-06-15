@@ -111,8 +111,11 @@
       "value": "a.settings-menu-item.op-menu--item-action[title='Project settings']"
     },
     "filesMenuItem": {
-      "by": "getByTitle",
-      "value": "Files"
+      "by": "getByRole",
+      "value": {
+        "role": "tab",
+        "name": "Files"
+      }
     },
     "externalFileStoragesText": {
       "by": "locator",
@@ -171,6 +174,14 @@
     "filesPickerConfirmButton": {
       "by": "locator",
       "value": "button[data-test-selector='op-files-picker-modal--confirm']"
+    },
+    "filesPickerNoConnectionError": {
+      "by": "getByText",
+      "value": "No Nextcloud connection"
+    },
+    "filesPickerCancelButton": {
+      "by": "locator",
+      "value": "button[data-test-selector='op-files-picker-modal--cancel'], [data-test-selector='op-files-picker-modal'] button:has-text('Cancel')"
     },
     "filesUploadSuccessMessage": {
       "by": "locator",
