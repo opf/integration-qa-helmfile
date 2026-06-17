@@ -649,7 +649,7 @@ jobs:
           SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           TAG_GREP_B64: ${{ needs.deploy.outputs.grep_b64 }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           TAG_GREP=""
           if [[ -n "${TAG_GREP_B64:-}" ]]; then
             TAG_GREP="$(printf '%s' "${TAG_GREP_B64}" | base64 -d)"
@@ -660,7 +660,13 @@ jobs:
           fi
           echo "Running: ${args[*]}"
           echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST}"
+          _test_start=$(date +%s)
+          set +e
           "${args[@]}"
+          _test_status=$?
+          set -e
+          echo "TIMING_TESTS=$(( $(date +%s) - _test_start ))" >> "$GITHUB_ENV"
+          exit "${_test_status}"
 
       - name: Publish Playwright results to Squash TM
         if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
@@ -672,7 +678,10 @@ jobs:
           SQUASH_TM_IMPORT_STEPS: "true"
           SQUASH_TM_VALIDATE_STEP_COUNT: "true"
           SQUASH_TM_SKIP_MISSING_AUTH: "true"
-        run: npm run squash:publish
+        run: |
+          _sq_start=$(date +%s)
+          npm run squash:publish
+          echo "TIMING_SQUASH=$(( $(date +%s) - _sq_start ))" >> "$GITHUB_ENV"
 
       - name: Upload Squash TM payload
         if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
@@ -879,6 +888,19 @@ jobs:
           path: e2e/test-results
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Test phase timing summary
+        if: always() && needs.deploy.outputs.live == 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "### Test phase timings"
+            echo ""
+            echo "| Phase | Seconds |"
+            echo "|---|---|"
+            echo "| Playwright run | ${TIMING_TESTS:-n/a} |"
+            echo "| Squash publish | ${TIMING_SQUASH:-n/a} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Final status
         if: always()

@@ -78,6 +78,20 @@ watch_buildsource_job() {
   return 0
 }
 
+declare -a PP_TIMING_ROWS=()
+pp_deploy_start=$(date +%s)
+
+print_pp_timing() {
+  echo "::group::Phase timings (seconds)"
+  printf '%-20s %8s\n' "PHASE" "SECONDS"
+  local row
+  for row in "${PP_TIMING_ROWS[@]}"; do
+    printf '%-20s %8s\n' "${row% *}" "${row##* }"
+  done
+  printf '%-20s %8s\n' "TOTAL" "$(( $(date +%s) - pp_deploy_start ))"
+  echo "::endgroup::"
+}
+
 sync_release() {
   local release="$1"
   echo "::group::Helmfile release: ${release}"
@@ -120,9 +134,22 @@ echo "[pullpreview helmfile] Phased deploy starting (namespace=${namespace}, hos
 
 releases=(traefik opnc-integration openproject keycloak nextcloud-pvc nextcloud opnc-setup-job xwiki)
 for release in "${releases[@]}"; do
-  sync_release "${release}" || exit 1
+  rel_start=$(date +%s)
+  set +e
+  sync_release "${release}"
+  rel_rc=$?
+  set -e
+  PP_TIMING_ROWS+=("${release} $(( $(date +%s) - rel_start ))")
+  if [[ "${rel_rc}" -ne 0 ]]; then
+    print_pp_timing
+    exit 1
+  fi
 done
 
+sj_start=$(date +%s)
 pullpreview/wait-setup-job.sh "${namespace}" "${PULLPREVIEW_SETUP_JOB_TIMEOUT:-10m}"
+PP_TIMING_ROWS+=("wait-setup-job $(( $(date +%s) - sj_start ))")
+
+print_pp_timing
 
 echo "[pullpreview helmfile] Phased deploy finished successfully."

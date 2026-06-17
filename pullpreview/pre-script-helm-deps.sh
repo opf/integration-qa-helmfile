@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+_bootstrap_start=$(date +%s)
 echo "[pullpreview pre_script] Building Helm dependencies on the instance..."
 cd /app
 echo "[pullpreview pre_script] Ensuring Helm repos are configured..."
@@ -283,4 +284,5 @@ exit "${status}"
 EOF
   chmod +x "${helm_path}"
 fi
+echo "[pullpreview pre_script] bootstrap took $(( $(date +%s) - _bootstrap_start ))s"
 echo "[pullpreview pre_script] Done."
