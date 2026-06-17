@@ -130,6 +130,11 @@ on:
         description: "XWiki openproject extension version (empty = 1.1.1)"
         required: false
         type: string
+      wiki_enhancements:
+        description: "Enable OpenProject wiki_enhancements feature flag (XWiki)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -370,6 +375,7 @@ jobs:
           INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
           XWIKI_VERSION: ${{ github.event.inputs.xwiki_version }}
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ github.event.inputs.xwiki_extension_openproject_version }}
+          OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.wiki_enhancements }}
 
       - name: Strip SSH lines from PullPreview summary
         if: >-
