@@ -184,7 +184,7 @@ chart_is_pullpreview_stack() {
   return 1
 }
 
-run_pullpreview_phased_deploy() {
+run_pullpreview_dag_deploy() {
   local namespace
   local values_file
 
@@ -198,8 +198,8 @@ run_pullpreview_phased_deploy() {
   export PULLPREVIEW_NAMESPACE="${namespace}"
   export PULLPREVIEW_VALUES_FILE="${values_file}"
 
-  echo "[pullpreview helm] Phased deploy context: namespace=${namespace} values_file=${values_file:-<none>}"
-  echo "[pullpreview helm] Using phased helmfile deploy instead of umbrella chart install."
+  echo "[pullpreview helm] DAG deploy context: namespace=${namespace} values_file=${values_file:-<none>}"
+  echo "[pullpreview helm] Using DAG helmfile deploy instead of umbrella chart install."
   bash /app/pullpreview/helmfile-sync.sh
 }
 
@@ -240,7 +240,7 @@ fi
 
 if chart_is_pullpreview_stack "${args[@]}"; then
   set +e
-  run_pullpreview_phased_deploy "${args[@]}"
+  run_pullpreview_dag_deploy "${args[@]}"
   status=$?
   set -e
   if [[ "${status}" -ne 0 ]]; then

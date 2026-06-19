@@ -593,12 +593,17 @@ jobs:
     needs: deploy
     if: always()
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
     timeout-minutes: 90
     env:
       CI: true
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      PLAYWRIGHT_IMAGE_VERSION: "1.58.2"
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
       OPENPROJECT_HOST: ${{ needs.deploy.outputs.openproject_host }}
@@ -622,23 +627,34 @@ jobs:
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Use Node.js
-        if: needs.deploy.outputs.tests_should_run == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: e2e/.node-version
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
-
       - name: Install dependencies
         if: needs.deploy.outputs.tests_should_run == 'true'
         working-directory: e2e
         run: npm ci
 
-      - name: Install Playwright browsers
+      - name: Verify Playwright browser availability
         if: needs.deploy.outputs.tests_should_run == 'true'
         working-directory: e2e
-        run: npx playwright install --with-deps chromium
+        run: |
+          set -euo pipefail
+          installed_version="$(node -p "require('./node_modules/@playwright/test/package.json').version")"
+          expected_version="${PLAYWRIGHT_IMAGE_VERSION#v}"
+          if [[ "${installed_version}" != "${expected_version}" ]]; then
+            echo "::error::@playwright/test ${installed_version} does not match Playwright image version ${expected_version}. Update the workflow image and PLAYWRIGHT_IMAGE_VERSION together."
+            exit 1
+          fi
+          npx playwright --version
+          node <<'NODE'
+          const { chromium } = require('@playwright/test');
+
+          (async () => {
+            const browser = await chromium.launch();
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
 
       - name: Run Playwright tests
         id: tests

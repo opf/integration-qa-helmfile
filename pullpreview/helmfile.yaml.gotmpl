@@ -102,8 +102,11 @@ releases:
     timeout: 2700
     installed: {{ .Values.xwiki.enabled }}
     needs:
+      # opnc-setup-job is intentionally omitted: the XWiki entrypoint only stores the OP
+      # connection config in XWiki (no OP API call at deploy time). The OAuth client that
+      # setup-job registers in OP is needed only when users authenticate, which happens
+      # after the full deploy completes.
       - opnc-integration
-      - opnc-setup-job
     values:
       - ../values/xwiki-values.gotmpl
     strategicMergePatches:

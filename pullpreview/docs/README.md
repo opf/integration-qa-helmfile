@@ -40,13 +40,13 @@ PullPreview still uses [`charts/pullpreview-stack`](../../charts/pullpreview-sta
 
 | | Local (`make deploy`) | PullPreview / E2E CI |
 |---|---|---|
-| Orchestration | [`helmfile.yaml.gotmpl`](../../helmfile.yaml.gotmpl) — cert-manager → opnc-integration (incl. `setup-job`) → openproject → **nextcloud-pvc** (if `nextcloud.gitSourceBranch`) → nextcloud / keycloak / xwiki | [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) — traefik → opnc-integration (bootstrap only) → openproject → keycloak → **nextcloud-pvc** (if NC git branch) → nextcloud → **opnc-setup-job** → xwiki |
+| Orchestration | [`helmfile.yaml.gotmpl`](../../helmfile.yaml.gotmpl) — cert-manager → opnc-integration (incl. `setup-job`) → openproject → **nextcloud-pvc** (if `nextcloud.gitSourceBranch`) → nextcloud / keycloak / xwiki | [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) — traefik → opnc-integration (bootstrap only) → openproject / keycloak / **nextcloud-pvc** (if NC git branch) / xwiki in parallel → nextcloud → **opnc-setup-job** |
 | Namespace | `opnc-integration` (k3d) | Dynamic `pp-gh-…` (PullPreview) |
 | Hosts | `/etc/hosts` (`*.test`) | `*.my.opf.run` (generated FQDN) |
 | Integration wiring | Wait for `setup-job` **Completed** (root README) | `opnc-setup-job` release after OpenProject/Keycloak/Nextcloud, then [`wait-setup-job.sh`](../wait-setup-job.sh) |
 | GitHub summary | — | Per-service URL checks and deploy status ([`e2e.yml`](../../.github/workflows/e2e.yml), [`pullpreview.yml`](../../.github/workflows/pullpreview.yml)) |
 
-Phased sync runs on the preview VM via [`helmfile-sync.sh`](../helmfile-sync.sh) (triggered from [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) when the action installs `pullpreview-stack`). Values come from [`environments/pullpreview/config.yaml.gotmpl`](../../environments/pullpreview/config.yaml.gotmpl) and the same [`values/*.gotmpl`](../../values/) templates as local, with `previewMode: true` (no in-cluster CA / cert-manager path).
+DAG sync runs on the preview VM via [`helmfile-sync.sh`](../helmfile-sync.sh) (triggered from [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) when the action installs `pullpreview-stack`). Values come from [`environments/pullpreview/config.yaml.gotmpl`](../../environments/pullpreview/config.yaml.gotmpl) and the same [`values/*.gotmpl`](../../values/) templates as local, with `previewMode: true` (no in-cluster CA / cert-manager path).
 
 [`resolve-pullpreview-env.sh`](../resolve-pullpreview-env.sh) reads the rendered PullPreview stack values file on the VM and exports `PULLPREVIEW_PUBLIC_DNS`, `OPENPROJECT_ENTERPRISE_TOKEN`, and workflow image/branch inputs (`NEXTCLOUD_VERSION`, `OPENPROJECT_VERSION`, git branches, etc.) so helmfile does not fall back to chart defaults when those env vars are not forwarded to the instance shell.
 
@@ -80,11 +80,11 @@ Published URLs follow the generated FQDN, for example `https://<fqdn>`, `https:/
 
 | Path | Role |
 |---|---|
-| [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) | Phased PullPreview releases |
+| [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) | DAG PullPreview releases |
 | [`stack-values.yaml.gotmpl`](../stack-values.yaml.gotmpl) | Values passed to `pullpreview/action` (DNS, versions) |
 | [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) | Helm/helmfile/kustomize bootstrap on the preview VM |
-| [`charts/opnc-nextcloud-pvc`](../../charts/opnc-nextcloud-pvc) | Git-source PVC (phased release before Nextcloud) |
-| [`helmfile-sync.sh`](../helmfile-sync.sh) | Sequential release sync |
+| [`charts/opnc-nextcloud-pvc`](../../charts/opnc-nextcloud-pvc) | Git-source PVC release used by Nextcloud |
+| [`helmfile-sync.sh`](../helmfile-sync.sh) | Concurrent DAG release sync |
 | [`environments/pullpreview/`](../../environments/pullpreview/) | PullPreview-specific helmfile environment |
 
 E2E tests against a live preview: [`e2e/README.md`](../../e2e/README.md).
