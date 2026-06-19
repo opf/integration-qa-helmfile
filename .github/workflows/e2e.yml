@@ -238,6 +238,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Validate deployment inputs
+        id: validate_inputs
         env:
           IN_OP_VER: ${{ github.event.inputs.openproject_version }}
           IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
@@ -329,6 +330,73 @@ jobs:
             fi
           }
 
+          branch_exists() {
+            local repo_url="$1"
+            local value="$2"
+
+            git ls-remote --exit-code --heads "${repo_url}" "refs/heads/${value}" >/dev/null 2>&1
+          }
+
+          integration_openproject_release_exists() {
+            local version="${1#v}"
+            local app_name="integration_openproject"
+            local repo_url="https://github.com/nextcloud/${app_name}"
+
+            curl -fsIL -o /dev/null "${repo_url}/releases/download/v${version}/${app_name}-v${version}.tar.gz" ||
+              curl -fsIL -o /dev/null "${repo_url}/releases/download/v${version}/${app_name}-${version}.tar.gz" ||
+              curl -fsIL -o /dev/null "${repo_url}/releases/download/${version}/${app_name}-${version}.tar.gz"
+          }
+
+          latest_integration_openproject_patch() {
+            local minor="${1#v}"
+            local escaped_minor="${minor//./\\.}"
+
+            git ls-remote --tags --refs https://github.com/nextcloud/integration_openproject.git "refs/tags/v${minor}.*" 2>/dev/null |
+              awk '{print $2}' |
+              sed 's|refs/tags/v||' |
+              grep -E "^${escaped_minor}\\.[0-9]+$" |
+              sort -V |
+              tail -1 || true
+          }
+
+          resolve_integration_openproject_source() {
+            effective_io_ver="${IN_IO_VER}"
+            effective_io_branch="${IN_IO_BRANCH}"
+
+            if [[ -n "${effective_io_branch}" ]]; then
+              effective_io_ver=""
+              return 0
+            fi
+
+            [[ -n "${effective_io_ver}" ]] || return 0
+
+            if integration_openproject_release_exists "${effective_io_ver}"; then
+              effective_io_ver="${effective_io_ver#v}"
+              return 0
+            fi
+
+            if [[ "${effective_io_ver#v}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+              local latest_patch
+              latest_patch="$(latest_integration_openproject_patch "${effective_io_ver}")"
+              if [[ -n "${latest_patch}" ]] && integration_openproject_release_exists "${latest_patch}"; then
+                echo "::notice::integration_openproject_version '${effective_io_ver}' resolved to published release '${latest_patch}'."
+                effective_io_ver="${latest_patch}"
+                return 0
+              fi
+
+              local release_branch="release/${effective_io_ver#v}"
+              if branch_exists "https://github.com/nextcloud/integration_openproject.git" "${release_branch}"; then
+                echo "::notice::integration_openproject_version '${effective_io_ver}' is not a published release; using branch '${release_branch}'."
+                effective_io_ver=""
+                effective_io_branch="${release_branch}"
+                return 0
+              fi
+            fi
+
+            echo "::error::integration_openproject_version '${IN_IO_VER}' was not found as a downloadable release artifact. Use a full published version such as '3.1.0', or set integration_openproject_branch to an existing branch such as 'release/3.1'."
+            exit 1
+          }
+
           effective_op_ver="${IN_OP_VER:-17}"
           effective_nc_ver="${IN_NC_VER:-32}"
           effective_kc_ver="${IN_KC_VER:-26.2.5}"
@@ -341,6 +409,11 @@ jobs:
           check_image_exists "nextcloud_version" "docker.io/library/nextcloud:${effective_nc_ver}"
           check_image_exists "keycloak_version" "docker.io/bitnamilegacy/keycloak:${effective_kc_ver}"
           check_image_exists "xwiki_version" "docker.io/library/xwiki:${effective_xwiki_ver}"
+          resolve_integration_openproject_source
+          {
+            echo "integration_openproject_version=${effective_io_ver}"
+            echo "integration_openproject_branch=${effective_io_branch}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: PullPreview up
         id: pullpreview_up
@@ -371,8 +444,8 @@ jobs:
           NEXTCLOUD_VERSION: ${{ github.event.inputs.nextcloud_version }}
           NEXTCLOUD_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
           KEYCLOAK_VERSION: ${{ github.event.inputs.keycloak_version }}
-          INTEGRATION_OPENPROJECT_VERSION: ${{ github.event.inputs.integration_openproject_version }}
-          INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
+          INTEGRATION_OPENPROJECT_VERSION: ${{ steps.validate_inputs.outputs.integration_openproject_version }}
+          INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ steps.validate_inputs.outputs.integration_openproject_branch }}
           XWIKI_VERSION: ${{ github.event.inputs.xwiki_version }}
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ github.event.inputs.xwiki_extension_openproject_version }}
           OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.wiki_enhancements }}
