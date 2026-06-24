@@ -115,7 +115,7 @@ make deploy-op-standalone
 
 ## PullPreview
 
-PullPreview deploys the integration stack on Hetzner for PR previews and manual E2E runs. See **[`pullpreview/docs/README.md`](pullpreview/docs/README.md)** for smoke vs full stack deploy, phased helmfile order, CI workflows, secrets, and validation.
+PullPreview deploys the integration stack on Hetzner for PR previews and manual E2E runs. See **[`pullpreview/docs/README.md`](pullpreview/docs/README.md)** for smoke vs full stack deploy, DAG helmfile order, CI workflows, secrets, and validation.
 
 ## Serve From Git Branch
 

@@ -130,6 +130,11 @@ on:
         description: "XWiki openproject extension version (empty = 1.1.1)"
         required: false
         type: string
+      wiki_enhancements:
+        description: "Enable OpenProject wiki_enhancements feature flag (XWiki)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -233,6 +238,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Validate deployment inputs
+        id: validate_inputs
         env:
           IN_OP_VER: ${{ github.event.inputs.openproject_version }}
           IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
@@ -324,6 +330,73 @@ jobs:
             fi
           }
 
+          branch_exists() {
+            local repo_url="$1"
+            local value="$2"
+
+            git ls-remote --exit-code --heads "${repo_url}" "refs/heads/${value}" >/dev/null 2>&1
+          }
+
+          integration_openproject_release_exists() {
+            local version="${1#v}"
+            local app_name="integration_openproject"
+            local repo_url="https://github.com/nextcloud/${app_name}"
+
+            curl -fsIL -o /dev/null "${repo_url}/releases/download/v${version}/${app_name}-v${version}.tar.gz" ||
+              curl -fsIL -o /dev/null "${repo_url}/releases/download/v${version}/${app_name}-${version}.tar.gz" ||
+              curl -fsIL -o /dev/null "${repo_url}/releases/download/${version}/${app_name}-${version}.tar.gz"
+          }
+
+          latest_integration_openproject_patch() {
+            local minor="${1#v}"
+            local escaped_minor="${minor//./\\.}"
+
+            git ls-remote --tags --refs https://github.com/nextcloud/integration_openproject.git "refs/tags/v${minor}.*" 2>/dev/null |
+              awk '{print $2}' |
+              sed 's|refs/tags/v||' |
+              grep -E "^${escaped_minor}\\.[0-9]+$" |
+              sort -V |
+              tail -1 || true
+          }
+
+          resolve_integration_openproject_source() {
+            effective_io_ver="${IN_IO_VER}"
+            effective_io_branch="${IN_IO_BRANCH}"
+
+            if [[ -n "${effective_io_branch}" ]]; then
+              effective_io_ver=""
+              return 0
+            fi
+
+            [[ -n "${effective_io_ver}" ]] || return 0
+
+            if integration_openproject_release_exists "${effective_io_ver}"; then
+              effective_io_ver="${effective_io_ver#v}"
+              return 0
+            fi
+
+            if [[ "${effective_io_ver#v}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+              local latest_patch
+              latest_patch="$(latest_integration_openproject_patch "${effective_io_ver}")"
+              if [[ -n "${latest_patch}" ]] && integration_openproject_release_exists "${latest_patch}"; then
+                echo "::notice::integration_openproject_version '${effective_io_ver}' resolved to published release '${latest_patch}'."
+                effective_io_ver="${latest_patch}"
+                return 0
+              fi
+
+              local release_branch="release/${effective_io_ver#v}"
+              if branch_exists "https://github.com/nextcloud/integration_openproject.git" "${release_branch}"; then
+                echo "::notice::integration_openproject_version '${effective_io_ver}' is not a published release; using branch '${release_branch}'."
+                effective_io_ver=""
+                effective_io_branch="${release_branch}"
+                return 0
+              fi
+            fi
+
+            echo "::error::integration_openproject_version '${IN_IO_VER}' was not found as a downloadable release artifact. Use a full published version such as '3.1.0', or set integration_openproject_branch to an existing branch such as 'release/3.1'."
+            exit 1
+          }
+
           effective_op_ver="${IN_OP_VER:-17}"
           effective_nc_ver="${IN_NC_VER:-32}"
           effective_kc_ver="${IN_KC_VER:-26.2.5}"
@@ -336,6 +409,11 @@ jobs:
           check_image_exists "nextcloud_version" "docker.io/library/nextcloud:${effective_nc_ver}"
           check_image_exists "keycloak_version" "docker.io/bitnamilegacy/keycloak:${effective_kc_ver}"
           check_image_exists "xwiki_version" "docker.io/library/xwiki:${effective_xwiki_ver}"
+          resolve_integration_openproject_source
+          {
+            echo "integration_openproject_version=${effective_io_ver}"
+            echo "integration_openproject_branch=${effective_io_branch}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: PullPreview up
         id: pullpreview_up
@@ -366,10 +444,11 @@ jobs:
           NEXTCLOUD_VERSION: ${{ github.event.inputs.nextcloud_version }}
           NEXTCLOUD_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
           KEYCLOAK_VERSION: ${{ github.event.inputs.keycloak_version }}
-          INTEGRATION_OPENPROJECT_VERSION: ${{ github.event.inputs.integration_openproject_version }}
-          INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
+          INTEGRATION_OPENPROJECT_VERSION: ${{ steps.validate_inputs.outputs.integration_openproject_version }}
+          INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ steps.validate_inputs.outputs.integration_openproject_branch }}
           XWIKI_VERSION: ${{ github.event.inputs.xwiki_version }}
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ github.event.inputs.xwiki_extension_openproject_version }}
+          OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.wiki_enhancements }}
 
       - name: Strip SSH lines from PullPreview summary
         if: >-
@@ -587,12 +666,17 @@ jobs:
     needs: deploy
     if: always()
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
     timeout-minutes: 90
     env:
       CI: true
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      PLAYWRIGHT_IMAGE_VERSION: "1.58.2"
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
       OPENPROJECT_HOST: ${{ needs.deploy.outputs.openproject_host }}
@@ -616,23 +700,34 @@ jobs:
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Use Node.js
-        if: needs.deploy.outputs.tests_should_run == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: e2e/.node-version
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
-
       - name: Install dependencies
         if: needs.deploy.outputs.tests_should_run == 'true'
         working-directory: e2e
         run: npm ci
 
-      - name: Install Playwright browsers
+      - name: Verify Playwright browser availability
         if: needs.deploy.outputs.tests_should_run == 'true'
         working-directory: e2e
-        run: npx playwright install --with-deps chromium
+        run: |
+          set -euo pipefail
+          installed_version="$(node -p "require('./node_modules/@playwright/test/package.json').version")"
+          expected_version="${PLAYWRIGHT_IMAGE_VERSION#v}"
+          if [[ "${installed_version}" != "${expected_version}" ]]; then
+            echo "::error::@playwright/test ${installed_version} does not match Playwright image version ${expected_version}. Update the workflow image and PLAYWRIGHT_IMAGE_VERSION together."
+            exit 1
+          fi
+          npx playwright --version
+          node <<'NODE'
+          const { chromium } = require('@playwright/test');
+
+          (async () => {
+            const browser = await chromium.launch();
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
 
       - name: Run Playwright tests
         id: tests
@@ -643,7 +738,7 @@ jobs:
           SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           TAG_GREP_B64: ${{ needs.deploy.outputs.grep_b64 }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           TAG_GREP=""
           if [[ -n "${TAG_GREP_B64:-}" ]]; then
             TAG_GREP="$(printf '%s' "${TAG_GREP_B64}" | base64 -d)"
@@ -654,7 +749,13 @@ jobs:
           fi
           echo "Running: ${args[*]}"
           echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST}"
+          _test_start=$(date +%s)
+          set +e
           "${args[@]}"
+          _test_status=$?
+          set -e
+          echo "TIMING_TESTS=$(( $(date +%s) - _test_start ))" >> "$GITHUB_ENV"
+          exit "${_test_status}"
 
       - name: Publish Playwright results to Squash TM
         if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
@@ -666,7 +767,10 @@ jobs:
           SQUASH_TM_IMPORT_STEPS: "true"
           SQUASH_TM_VALIDATE_STEP_COUNT: "true"
           SQUASH_TM_SKIP_MISSING_AUTH: "true"
-        run: npm run squash:publish
+        run: |
+          _sq_start=$(date +%s)
+          npm run squash:publish
+          echo "TIMING_SQUASH=$(( $(date +%s) - _sq_start ))" >> "$GITHUB_ENV"
 
       - name: Upload Squash TM payload
         if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
@@ -873,6 +977,19 @@ jobs:
           path: e2e/test-results
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Test phase timing summary
+        if: always() && needs.deploy.outputs.live == 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "### Test phase timings"
+            echo ""
+            echo "| Phase | Seconds |"
+            echo "|---|---|"
+            echo "| Playwright run | ${TIMING_TESTS:-n/a} |"
+            echo "| Squash publish | ${TIMING_SQUASH:-n/a} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Final status
         if: always()

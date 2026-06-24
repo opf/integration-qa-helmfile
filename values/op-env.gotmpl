@@ -11,6 +11,9 @@ environment:
   OPENPROJECT_DEFAULT__LANGUAGE: en
   OPENPROJECT_ONBOARDING__ENABLED: false
   OPENPROJECT_SEED__ADMIN__USER__PASSWORD__RESET: false
+  {{- if dig "features" "wikiEnhancements" false .Values.openproject }}
+  OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS_ACTIVE: 'true'
+  {{- end }}
   # 'DATABASE_HOST' is used by the db seeder in production mode.
   DATABASE_HOST: {{ .Values.openproject.postgresql.host }}
   DATABASE_URL: postgresql://{{ .Values.openproject.postgresql.username }}:{{ .Values.openproject.postgresql.password }}@{{ .Values.openproject.postgresql.host }}/{{ .Values.openproject.postgresql.database }}{{ if eq .Values.openproject.railsEnv "development" }}_dev{{ end }}

@@ -27,7 +27,8 @@ spec:
             - name: XWIKI_HOST
               value: {{ include "opnc.xwikiHost" . | quote }}
             - name: RAILS_ENV
-              value: {{ .Values.environment.RAILS_ENV | default "production" | quote }}
+              # OAuth setup uses rails runner from the image; development boot needs the listen gem.
+              value: "production"
             - name: DATABASE_URL
               value: {{ required "environment.DATABASE_URL is required for XWiki OAuth setup" .Values.environment.DATABASE_URL | quote }}
             - name: DATABASE_HOST

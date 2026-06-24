@@ -9,6 +9,7 @@
 {{- $nextcloudBranch := trim (env "NEXTCLOUD_BRANCH") -}}
 {{- $xwikiVersion := trim (env "XWIKI_VERSION") -}}
 {{- $xwikiExtensionOpenProjectVersion := trim (env "XWIKI_EXTENSION_OPENPROJECT_VERSION") -}}
+{{- $wikiEnhancements := eq (trim (env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "false")) "true" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
 {{- $xwikiImageTag := $xwikiVersion | default "17.10.6" -}}
@@ -39,6 +40,7 @@ opnc-integration:
     OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: admin
     OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK: "true"
     OPENPROJECT_DISABLE__MIGRATIONS__CHECK: "true"
+    OPENPROJECT_SSRF_PROTECTION_IP_ALLOWLIST: "0.0.0.0/0,::0/0"
     DATABASE_HOST: op-postgresql
     DATABASE_URL: postgresql://openproject:openproject@op-postgresql/openproject
     OPENPROJECT_SEED__ENTERPRISE__TOKEN: |
@@ -47,6 +49,9 @@ opnc-integration:
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_GRANT__TYPES__SUPPORTED: "authorization_code implicit urn:ietf:params:oauth:grant-type:token-exchange"
+{{- if $wikiEnhancements }}
+    OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS_ACTIVE: "true"
+{{- end }}
     APP_PATH: {{ $openprojectSourcePath | quote }}
     BUNDLE_APP_CONFIG: ./.bundle
     BUNDLE_WITHOUT: ""
@@ -84,12 +89,16 @@ openproject:
     OPENPROJECT_SEED__ENTERPRISE__TOKEN: |
 {{ requiredEnv "OPENPROJECT_ENTERPRISE_TOKEN" | indent 6 }}
     OPENPROJECT_DEV_EXTRA_HOSTS: "{{ pullpreview_public_dns }}"
+    OPENPROJECT_SSRF_PROTECTION_IP_ALLOWLIST: "0.0.0.0/0,::0/0"
     DATABASE_HOST: op-postgresql
     DATABASE_URL: postgresql://openproject:openproject@op-postgresql/openproject
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/protocol/openid-connect/certs"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: "https://{{ pullpreview_public_dns }}/"
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_GRANT__TYPES__SUPPORTED: "authorization_code implicit urn:ietf:params:oauth:grant-type:token-exchange"
+{{- if $wikiEnhancements }}
+    OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS_ACTIVE: "true"
+{{- end }}
 {{- if $openprojectBranch }}
     APP_PATH: {{ $openprojectSourcePath | quote }}
     BUNDLE_APP_CONFIG: ./.bundle

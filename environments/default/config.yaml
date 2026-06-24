@@ -75,6 +75,11 @@ openproject:
   xwiki:
     clientId: xwiki-client-id
     clientSecret: xwiki-client-secret
+  ############################################
+  # OpenProject feature flags                #
+  ############################################
+  features:
+    wikiEnhancements: false
 
 nextcloud:
   ############################################

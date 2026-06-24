@@ -1,23 +1,23 @@
 fullnameOverride: xwiki
 image:
   tag: {{ .Values.xwiki.version | default "latest" | quote }}
-{{- if .Values.previewMode | default false }}
 probes:
+  liveness:
+    enabled: false
   readiness:
+{{- if .Values.previewMode | default false }}
+    enabled: true
     httpGet:
       enabled: true
       path: /
+{{- else }}
+    enabled: false
 {{- end }}
 customConfigs:
   xwiki.properties:
     distribution.job.interactive: false
     distribution.job.interactive.wiki: false
     distribution.defaultUI: "org.xwiki.platform:xwiki-platform-distribution-flavor-mainwiki"
-probes:
-  liveness:
-    enabled: false
-  readiness:
-    enabled: false
 customConfigsSecrets:
   xwiki.cfg:
     xwiki.superadminpassword:
