@@ -166,6 +166,16 @@ jobs:
           set -euo pipefail
           .github/scripts/preview-check-url.sh "XWiki" "https://xwiki.${PREVIEW_HOST}/bin/distribution/XWiki/Distribution" "200" 120 10 true
 
+      - name: Check XWiki metadata
+        id: check_xwiki_metadata
+        if: steps.pullpreview.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          .github/scripts/preview-check-url.sh "XWiki metadata" "https://xwiki.${PREVIEW_HOST}/rest/openproject/metadata" "200" 120 10
+
       - name: Require all endpoint checks
         if: always() && steps.pullpreview.outputs.live == 'true'
         env:
@@ -173,10 +183,11 @@ jobs:
           CHECK_NC: ${{ steps.check_nextcloud.outcome }}
           CHECK_KC: ${{ steps.check_keycloak.outcome }}
           CHECK_XW: ${{ steps.check_xwiki.outcome }}
+          CHECK_XW_META: ${{ steps.check_xwiki_metadata.outcome }}
         run: |
           set -euo pipefail
           failed=false
-          for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}"; do
+          for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}"; do
             name="${entry%%:*}"
             outcome="${entry#*:}"
             if [[ "${outcome}" == "failure" || "${outcome}" == "skipped" ]]; then

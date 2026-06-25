@@ -57,6 +57,7 @@ spec:
       {{- end }}
       {{- include "openproject.podSecurityContext" . | indent 6 }}
       serviceAccountName: {{ include "common.names.fullname" . }}
+      {{- include "openproject.hostAliases" . | nindent 6 }}
       volumes:
         {{- include "openproject.tmpVolumeSpec" . | indent 8 }}
         {{- if .Values.egress.tls.rootCA.fileName }}

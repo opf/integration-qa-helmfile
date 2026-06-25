@@ -53,12 +53,17 @@ opnc-integration:
 xwiki:
   fullnameOverride: xwiki
   image:
-    tag: "17.10.6"
+    tag: "18.3.0"
   probes:
     readiness:
+      initialDelaySeconds: 120
+      timeoutSeconds: 10
+      periodSeconds: 30
+      failureThreshold: 40
+      successThreshold: 1
       httpGet:
         enabled: true
-        path: /
+        path: /rest/openproject/metadata
 
 openproject:
   fullnameOverride: openproject

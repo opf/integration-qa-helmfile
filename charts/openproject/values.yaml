@@ -11,6 +11,12 @@
 ## tmp folders as (permissions for) these don't work correctly in local clusters.
 develop: false
 
+## PullPreview: map public ingress hostnames to Traefik ClusterIP inside the web pod.
+previewMode: false
+previewIngressServiceName: traefik
+previewIngressAliasHosts: []
+hostAliases: []
+
 global:
   ## Credentials to fetch images from private registry.
   ##

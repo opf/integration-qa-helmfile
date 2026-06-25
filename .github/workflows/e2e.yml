@@ -17,12 +17,12 @@ run-name: >-
         ),
         format(
           'Xwiki v.{0}',
-          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.6'
+          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '18.3.0'
         ),
         github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
         format(
           'xwiki ext v.{0}',
-          github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.1.0'
+          github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.2.0-rc-7'
         ),
         github.event.inputs.keycloak_version != '' && format(' - KC v.{0}', github.event.inputs.keycloak_version) || ''
       )
@@ -123,17 +123,19 @@ on:
         required: false
         type: string
       xwiki_version:
-        description: "XWiki image tag (empty = 17.10.6)"
+        description: "XWiki image tag"
         required: false
+        default: "18.3.0"
         type: string
       xwiki_extension_openproject_version:
-        description: "XWiki openproject extension version (empty = 1.1.1)"
+        description: "XWiki openproject extension version"
         required: false
+        default: "1.2.0-rc-7"
         type: string
       wiki_enhancements:
         description: "Enable OpenProject wiki_enhancements feature flag (XWiki)"
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -400,7 +402,8 @@ jobs:
           effective_op_ver="${IN_OP_VER:-17}"
           effective_nc_ver="${IN_NC_VER:-32}"
           effective_kc_ver="${IN_KC_VER:-26.2.5}"
-          effective_xwiki_ver="${IN_XWIKI_VER:-17.10.6}"
+          effective_xwiki_ver="${IN_XWIKI_VER:-18.3.0}"
+          effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0-rc-7}"
 
           check_branch_exists "openproject_branch" "https://github.com/opf/openproject.git" "${IN_OP_BRANCH}"
           check_branch_exists "nextcloud_branch" "https://github.com/nextcloud/server.git" "${IN_NC_BRANCH}"
@@ -413,6 +416,8 @@ jobs:
           {
             echo "integration_openproject_version=${effective_io_ver}"
             echo "integration_openproject_branch=${effective_io_branch}"
+            echo "effective_xwiki_version=${effective_xwiki_ver}"
+            echo "effective_xwiki_extension_version=${effective_xwiki_ext}"
           } >> "$GITHUB_OUTPUT"
 
       - name: PullPreview up
@@ -446,8 +451,8 @@ jobs:
           KEYCLOAK_VERSION: ${{ github.event.inputs.keycloak_version }}
           INTEGRATION_OPENPROJECT_VERSION: ${{ steps.validate_inputs.outputs.integration_openproject_version }}
           INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ steps.validate_inputs.outputs.integration_openproject_branch }}
-          XWIKI_VERSION: ${{ github.event.inputs.xwiki_version }}
-          XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ github.event.inputs.xwiki_extension_openproject_version }}
+          XWIKI_VERSION: ${{ steps.validate_inputs.outputs.effective_xwiki_version }}
+          XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ steps.validate_inputs.outputs.effective_xwiki_extension_version }}
           OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.wiki_enhancements }}
 
       - name: Strip SSH lines from PullPreview summary
@@ -532,6 +537,16 @@ jobs:
           # XWiki does first-time setup and extension installs; follow redirects once setup completes.
           .github/scripts/preview-check-url.sh "XWiki" "https://xwiki.${PREVIEW_HOST}/bin/distribution/XWiki/Distribution" "200" 120 10 true
 
+      - name: Check XWiki metadata
+        id: check_xwiki_metadata
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        run: |
+          set -euo pipefail
+          .github/scripts/preview-check-url.sh "XWiki metadata" "https://xwiki.${PREVIEW_HOST}/rest/openproject/metadata" "200" 120 10
+
       - name: Require all endpoint checks
         id: validate_urls
         if: always() && steps.pullpreview_up.outputs.live == 'true'
@@ -540,10 +555,11 @@ jobs:
           CHECK_NC: ${{ steps.check_nextcloud.outcome }}
           CHECK_KC: ${{ steps.check_keycloak.outcome }}
           CHECK_XW: ${{ steps.check_xwiki.outcome }}
+          CHECK_XW_META: ${{ steps.check_xwiki_metadata.outcome }}
         run: |
           set -euo pipefail
           failed=false
-          for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}"; do
+          for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}"; do
             name="${entry%%:*}"
             outcome="${entry#*:}"
             if [[ "${outcome}" == "failure" ]]; then
@@ -595,6 +611,7 @@ jobs:
           dump "https://xwiki.${preview_host}/"
           dump "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution"
           dump "https://xwiki.${preview_host}/bin/view/Main/"
+          dump "https://xwiki.${preview_host}/rest/openproject/metadata"
           dump "https://xwiki.${preview_host}/rest/wikis/xwiki"
 
       - name: Export hosts for Playwright
@@ -860,12 +877,12 @@ jobs:
           if [[ -n "${IN_XWIKI_VER:-}" ]]; then
             echo "- XWiki image tag: \`${IN_XWIKI_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "- XWiki image tag: \`17.10.6\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- XWiki image tag: \`18.3.0\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
           fi
           if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
             echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "- XWiki OpenProject extension version: \`1.1.1\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- XWiki OpenProject extension version: \`1.2.0-rc-7\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
           fi
           echo "" >> "${GITHUB_STEP_SUMMARY}"
 

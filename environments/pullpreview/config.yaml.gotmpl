@@ -7,9 +7,9 @@
 {{- $kcVersion := env "KEYCLOAK_VERSION" | default "26.2.5" -}}
 {{- $ioVersion := env "INTEGRATION_OPENPROJECT_VERSION" -}}
 {{- $ioBranch := env "INTEGRATION_OPENPROJECT_GIT_BRANCH" -}}
-{{- $xwikiVersion := env "XWIKI_VERSION" | default "17.10.6" -}}
-{{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.1.1" -}}
-{{- $wikiEnhancements := env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "" -}}
+{{- $xwikiVersion := env "XWIKI_VERSION" | default "18.3.0" -}}
+{{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.2.0-rc-7" -}}
+{{- $wikiEnhancements := env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true" -}}
 previewMode: true
 
 integration:

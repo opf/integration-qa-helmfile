@@ -209,3 +209,24 @@ securityContext:
 checksum/env-{{ $suffix }}: {{ include (print $.Template.BasePath "/secret_" $suffix ".yaml") $ | sha256sum }}
 {{- end }}
 {{- end }}
+
+{{/*
+Pod /etc/hosts aliases. In PullPreview, map public XWiki hostnames to the Traefik
+ClusterIP so OpenProject can reach https://xwiki.<preview-host> from inside the pod.
+*/}}
+{{- define "openproject.hostAliases" -}}
+{{- $aliases := .Values.hostAliases | default list | deepCopy }}
+{{- if and (.Values.previewMode | default false) (.Values.previewIngressAliasHosts | default list) }}
+{{- $traefik := lookup "v1" "Service" .Release.Namespace (.Values.previewIngressServiceName | default "traefik") }}
+{{- if $traefik }}
+{{- $ip := $traefik.spec.clusterIP }}
+{{- range .Values.previewIngressAliasHosts }}
+{{- $aliases = append $aliases (dict "ip" $ip "hostnames" (list .)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if $aliases }}
+hostAliases:
+{{- toYaml $aliases | nindent 2 }}
+{{- end }}
+{{- end -}}
