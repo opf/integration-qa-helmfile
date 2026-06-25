@@ -211,17 +211,42 @@ checksum/env-{{ $suffix }}: {{ include (print $.Template.BasePath "/secret_" $su
 {{- end }}
 
 {{/*
-Pod /etc/hosts aliases. In PullPreview, map public XWiki hostnames to the Traefik
-ClusterIP so OpenProject can reach https://xwiki.<preview-host> from inside the pod.
+Pod /etc/hosts aliases. In PullPreview, TLS terminates on the host proxy (port 443),
+not on in-cluster Traefik (HTTP :80). Map public hostnames to the k3s host gateway so
+OpenProject can reach https://xwiki.<preview-host> from inside the pod.
 */}}
+{{- define "openproject.previewIngressHostIP" -}}
+{{- if .Values.previewIngressHostIP }}
+{{- .Values.previewIngressHostIP }}
+{{- else }}
+{{- $hostIP := "" }}
+{{- $nodes := lookup "v1" "Node" "" "" }}
+{{- if $nodes }}
+{{- range $node := $nodes.items }}
+{{- range $addr := $node.status.addresses }}
+{{- if and (not $hostIP) (eq $addr.type "InternalIP") }}
+{{- $ip := $addr.address }}
+{{- if or (hasPrefix "10." $ip) (hasPrefix "172." $ip) (hasPrefix "192.168." $ip) }}
+{{- $hostIP = $ip }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if not $hostIP }}
+{{- $hostIP = .Values.previewIngressHostGatewayIP | default "10.42.0.1" }}
+{{- end }}
+{{- $hostIP }}
+{{- end }}
+{{- end -}}
+
 {{- define "openproject.hostAliases" -}}
 {{- $aliases := .Values.hostAliases | default list | deepCopy }}
 {{- if and (.Values.previewMode | default false) (.Values.previewIngressAliasHosts | default list) }}
-{{- $traefik := lookup "v1" "Service" .Release.Namespace (.Values.previewIngressServiceName | default "traefik") }}
-{{- if $traefik }}
-{{- $ip := $traefik.spec.clusterIP }}
+{{- $hostIP := include "openproject.previewIngressHostIP" . }}
+{{- if $hostIP }}
 {{- range .Values.previewIngressAliasHosts }}
-{{- $aliases = append $aliases (dict "ip" $ip "hostnames" (list .)) }}
+{{- $aliases = append $aliases (dict "ip" $hostIP "hostnames" (list .)) }}
 {{- end }}
 {{- end }}
 {{- end }}
