@@ -5,14 +5,15 @@ probes:
   liveness:
     enabled: false
   readiness:
-{{- if .Values.previewMode | default false }}
     enabled: true
+    initialDelaySeconds: 120
+    timeoutSeconds: 10
+    periodSeconds: 30
+    failureThreshold: 40
+    successThreshold: 1
     httpGet:
       enabled: true
-      path: /
-{{- else }}
-    enabled: false
-{{- end }}
+      path: /rest/openproject/metadata
 customConfigs:
   xwiki.properties:
     distribution.job.interactive: false
@@ -24,7 +25,7 @@ customConfigsSecrets:
       value: admin
 extraEnvVars:
   - name: EXTENSION_OPENPROJECT_VERSION
-    value: {{ .Values.xwiki.extensions.openproject.version | default "1.1.1" | quote }}
+    value: {{ .Values.xwiki.extensions.openproject.version | default "1.2.0-rc-7" | quote }}
   - name: OPENPROJECT_HOST
     value: https://{{ .Values.openproject.host }}
   - name: OPENPROJECT_CLIENT_ID

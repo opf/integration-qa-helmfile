@@ -2,6 +2,11 @@ global:
   security:
     allowInsecureImages: true
 fullnameOverride: {{ .Values.openproject.fullnameOverride }}
+previewMode: {{ .Values.previewMode | default false }}
+{{- if and (.Values.previewMode | default false) (.Values.xwiki.enabled | default false) }}
+previewIngressAliasHosts:
+  - {{ .Values.xwiki.host | quote }}
+{{- end }}
 # See https://github.com/opf/helm-charts/issues/201#issuecomment-2908788062
 containerSecurityContext:
   readOnlyRootFilesystem: false

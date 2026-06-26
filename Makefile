@@ -32,7 +32,7 @@ endif
 .PHONY: setup
 setup:
 	k3d cluster create opnc -c config/k3d.yaml \
-		$(VOL_ARG) --host-alias $(HOST_IP):openproject.test,nextcloud.test,keycloak.test,openproject-assets.test
+		$(VOL_ARG) --host-alias $(HOST_IP):openproject.test,nextcloud.test,keycloak.test,openproject-assets.test,xwiki.test
 
 .PHONY: deploy
 deploy:

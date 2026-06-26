@@ -207,6 +207,22 @@ if [[ "${setup_rc}" -ne 0 ]]; then
   exit "${setup_rc}"
 fi
 
+if [[ "${PULLPREVIEW_VERIFY_XWIKI_FROM_OP_POD:-true}" == "true" && -n "${PULLPREVIEW_PUBLIC_DNS:-}" ]]; then
+  verify_started_at="$(date +%s)"
+  set +e
+  pullpreview/verify-xwiki-from-op-pod.sh "${namespace}" "${PULLPREVIEW_PUBLIC_DNS}"
+  verify_rc=$?
+  set -e
+  record_pp_timing "verify-xwiki-from-op" "${verify_started_at}"
+
+  if [[ "${verify_rc}" -ne 0 ]]; then
+    collect_deploy_diagnostics "xwiki metadata unreachable from OpenProject pod"
+    destroy_partial_deploy
+    print_pp_timing
+    exit "${verify_rc}"
+  fi
+fi
+
 if [[ "${PULLPREVIEW_SUCCESS_DIAGNOSTICS:-false}" == "true" ]]; then
   collect_deploy_diagnostics "successful deploy"
 fi

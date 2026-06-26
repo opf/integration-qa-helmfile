@@ -25,7 +25,7 @@ if [ -z "$OPENPROJECT_CLIENT_ID" ] || [ -z "$OPENPROJECT_CLIENT_SECRET" ]; then
 fi
 
 if [ -z "$EXTENSION_OPENPROJECT_VERSION" ]; then
-    EXTENSION_OPENPROJECT_VERSION="1.1.1"
+    EXTENSION_OPENPROJECT_VERSION="1.2.0-rc-7"
 fi
 
 wait_for_url() {
@@ -44,6 +44,24 @@ wait_for_url() {
     done
 
     echo "[ERROR] Timeout waiting for $label"
+    return 1
+}
+
+wait_for_openproject_metadata() {
+    local url="$REST_URL/openproject/metadata"
+    local attempt=1
+
+    while [ "$attempt" -le "$WIKI_INIT_MAX_ATTEMPTS" ]; do
+        if curl -sf "$url" | grep -q '"instanceId"'; then
+            echo "[INFO] OpenProject metadata endpoint is ready."
+            return 0
+        fi
+        echo "[INFO] Waiting for OpenProject metadata endpoint... ($attempt/$WIKI_INIT_MAX_ATTEMPTS)"
+        sleep "$RETRY_SLEEP_SECONDS"
+        attempt=$((attempt + 1))
+    done
+
+    echo "[ERROR] Timeout waiting for OpenProject metadata endpoint at $url"
     return 1
 }
 
@@ -67,10 +85,10 @@ echo "############################################"
 /entrypoint/start.sh &
 
 echo "[INFO] Waiting for XWiki REST API..."
-wait_for_url "$REST_URL" "XWiki REST API" || true
+wait_for_url "$REST_URL/wikis/xwiki/spaces" "XWiki REST API"
 
 echo "[INFO] Waiting for XWiki wiki initialization..."
-wait_for_url "$BASE_URL/bin/view/Main/" "XWiki main wiki" || true
+wait_for_url "$BASE_URL/bin/view/Main/" "XWiki main wiki"
 
 ADMIN_PASS=$(sed -n 's/^xwiki.superadminpassword=//p' $WEBAPPS_DIR/xwiki.cfg)
 SUPER_ADMIN_AUTH="superadmin:$ADMIN_PASS"
@@ -103,9 +121,7 @@ EXT_REQ_BODY='
   <property>
     <key>namespaces</key>
     <value>
-      <list xmlns="">
-        <string>wiki:xwiki</string>
-      </list>
+      %namespaces%
     </value>
   </property>
   <property>
@@ -139,7 +155,15 @@ function install_extension() {
     local ext_id="$1"
     local ext_version="$2"
     local job_suffix="$3"
+    local namespace="${4:-wiki:xwiki}"
     local attempt=1
+    local namespaces_block
+
+    if [ -z "$namespace" ]; then
+        namespaces_block='<list xmlns=""/>'
+    else
+        namespaces_block="<list xmlns=\"\"><string>${namespace}</string></list>"
+    fi
 
     while [ "$attempt" -le "$RETRY_MAX_ATTEMPTS" ]; do
         local req_body install_status job_state status_response
@@ -155,6 +179,7 @@ function install_extension() {
         req_body="${EXT_REQ_BODY//%job_id%/install-$job_suffix}"
         req_body="${req_body//%extension_id%/$ext_id}"
         req_body="${req_body//%extension_version%/$ext_version}"
+        req_body="${req_body//%namespaces%/$namespaces_block}"
 
         echo "[INFO] Installing extension: $ext_id ($ext_version) (attempt $attempt/$RETRY_MAX_ATTEMPTS)"
 
@@ -248,10 +273,16 @@ function setup_openproject_connection() {
 }
 
 echo "############################################"
-echo "# Install OpenProject Extension            #"
+echo "# Install OpenProject Extensions           #"
 echo "############################################"
-install_extension "com.xwiki.projectmanagement:project-management-openproject-ui" "$EXTENSION_OPENPROJECT_VERSION" "openproject" || true
-install_extension "com.xwiki.licensing:application-licensing-test-api" "1.32.2" "licensing-api" || true
+install_extension "com.xwiki.licensing:application-licensing-test-api" "1.32.2" "licensing-api" "wiki:xwiki"
+install_extension "com.xwiki.projectmanagement:project-management-openproject-api" "$EXTENSION_OPENPROJECT_VERSION" "openproject-api" ""
+install_extension "com.xwiki.projectmanagement:project-management-openproject-ui" "$EXTENSION_OPENPROJECT_VERSION" "openproject-ui" "wiki:xwiki"
+
+echo "############################################"
+echo "# Verify OpenProject Metadata Endpoint     #"
+echo "############################################"
+wait_for_openproject_metadata
 
 echo "############################################"
 echo "# Setup OpenProject Connection             #"

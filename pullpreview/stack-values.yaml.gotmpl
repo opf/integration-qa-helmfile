@@ -9,10 +9,10 @@
 {{- $nextcloudBranch := trim (env "NEXTCLOUD_BRANCH") -}}
 {{- $xwikiVersion := trim (env "XWIKI_VERSION") -}}
 {{- $xwikiExtensionOpenProjectVersion := trim (env "XWIKI_EXTENSION_OPENPROJECT_VERSION") -}}
-{{- $wikiEnhancements := eq (trim (env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "false")) "true" -}}
+{{- $wikiEnhancements := eq (trim (env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true")) "true" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
-{{- $xwikiImageTag := $xwikiVersion | default "17.10.6" -}}
+{{- $xwikiImageTag := $xwikiVersion | default "18.3.0" -}}
 {{- $openprojectSourcePath := "/home/app/openproject" -}}
 opnc-integration:
   integrationSetupMethod: {{ $setupMethod | quote }}
@@ -78,6 +78,9 @@ opnc-integration:
 {{- end }}
 
 openproject:
+  previewMode: true
+  previewIngressAliasHosts:
+    - "xwiki.{{ pullpreview_public_dns }}"
   image:
     tag: {{ $openprojectImageTag | quote }}
   openproject:
@@ -217,16 +220,21 @@ xwiki:
       distribution.job.interactive.wiki: false
   probes:
     readiness:
+      initialDelaySeconds: 120
+      timeoutSeconds: 10
+      periodSeconds: 30
+      failureThreshold: 40
+      successThreshold: 1
       httpGet:
         enabled: true
-        path: /
+        path: /rest/openproject/metadata
   customConfigsSecrets:
     xwiki.cfg:
       xwiki.superadminpassword:
         value: admin
   extraEnvVars:
     - name: EXTENSION_OPENPROJECT_VERSION
-      value: {{ $xwikiExtensionOpenProjectVersion | default "1.1.1" | quote }}
+      value: {{ $xwikiExtensionOpenProjectVersion | default "1.2.0-rc-7" | quote }}
     - name: OPENPROJECT_HOST
       value: "https://{{ pullpreview_public_dns }}"
     - name: OPENPROJECT_CLIENT_ID

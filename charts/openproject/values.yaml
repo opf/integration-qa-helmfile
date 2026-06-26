@@ -11,6 +11,13 @@
 ## tmp folders as (permissions for) these don't work correctly in local clusters.
 develop: false
 
+## PullPreview: map public ingress hostnames to the k3s host gateway (TLS proxy on :443).
+previewMode: false
+previewIngressHostIP: ""
+previewIngressHostGatewayIP: "10.42.0.1"
+previewIngressAliasHosts: []
+hostAliases: []
+
 global:
   ## Credentials to fetch images from private registry.
   ##
