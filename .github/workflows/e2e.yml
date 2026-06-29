@@ -24,7 +24,7 @@ run-name: >-
           'xwiki ext v.{0}',
           github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.2.0-rc-7'
         ),
-        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'professional',
+        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate',
         github.event.inputs.keycloak_version != '' && format(' - KC v.{0}', github.event.inputs.keycloak_version) || ''
       )
       || format(
@@ -42,7 +42,7 @@ run-name: >-
           github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
         ),
         github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
-        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'professional',
+        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate',
         github.event.inputs.keycloak_version != '' && format(' - kc {0}', github.event.inputs.keycloak_version) || ''
       )
   }}
@@ -140,9 +140,9 @@ on:
         default: true
         type: boolean
       enterprise_token_tier:
-        description: "OpenProject enterprise token tier (Basic/Professional/Premium/Corporate/Legacy)"
+        description: "OpenProject plan token (integration stack needs corporate or legacy)"
         required: true
-        default: professional
+        default: corporate
         type: choice
         options:
           - basic
@@ -183,6 +183,7 @@ jobs:
         id: enterprise_token
         env:
           ENTERPRISE_TOKEN_TIER: ${{ github.event.inputs.enterprise_token_tier }}
+          SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           TOKEN_BASIC: ${{ secrets.OPENPROJECT_TOKEN_BASIC }}
           TOKEN_PROFESSIONAL: ${{ secrets.OPENPROJECT_TOKEN_PROFESSIONAL }}
           TOKEN_PREMIUM: ${{ secrets.OPENPROJECT_TOKEN_PREMIUM }}
@@ -200,7 +201,7 @@ jobs:
             echo "### E2E manual run (deploy)"
             echo ""
             echo "**Started (Europe/Berlin):** ${ts}"
-            echo "**Enterprise token tier:** ${IN_TIER:-professional}"
+            echo "**Enterprise token tier:** ${IN_TIER:-corporate}"
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
           echo "::notice::E2E deploy started (Europe/Berlin): ${ts}"
