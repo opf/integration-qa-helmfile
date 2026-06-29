@@ -80,7 +80,6 @@ Repository secrets: `HCLOUD_TOKEN`, `HETZNER_CA_KEY`, and OpenProject enterprise
 | professional | `OPENPROJECT_TOKEN_PROFESSIONAL` |
 | premium | `OPENPROJECT_TOKEN_PREMIUM` |
 | corporate (default) | `OPENPROJECT_TOKEN_CORPORATE` |
-| legacy | `OPENPROJECT_ENTERPRISE_TOKEN` |
 
 E2E Manual Run selects the tier at dispatch; integration stack deploys need **corporate**. PR previews use `OPENPROJECT_ENTERPRISE_TOKEN`.
 

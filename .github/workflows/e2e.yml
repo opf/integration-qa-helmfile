@@ -101,7 +101,7 @@ on:
         required: false
         type: string
       openproject_branch:
-        description: "Optional OpenProject git source branch override"
+        description: "Optional OpenProject git source branch"
         required: false
         type: string
       nextcloud_version:
@@ -127,7 +127,7 @@ on:
       xwiki_version:
         description: "XWiki image tag"
         required: false
-        default: "18.3.0"
+        default: "18.4.1"
         type: string
       xwiki_extension_openproject_version:
         description: "XWiki openproject extension version"
@@ -140,7 +140,7 @@ on:
         default: true
         type: boolean
       enterprise_token_tier:
-        description: "OpenProject plan token (integration stack needs corporate or legacy)"
+        description: "OpenProject plan token (integration stack needs corporate)"
         required: true
         default: corporate
         type: choice
@@ -149,7 +149,6 @@ on:
           - professional
           - premium
           - corporate
-          - legacy
 
 permissions:
   contents: read
@@ -188,7 +187,6 @@ jobs:
           TOKEN_PROFESSIONAL: ${{ secrets.OPENPROJECT_TOKEN_PROFESSIONAL }}
           TOKEN_PREMIUM: ${{ secrets.OPENPROJECT_TOKEN_PREMIUM }}
           TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_TOKEN_CORPORATE }}
-          TOKEN_LEGACY: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
         run: .github/scripts/resolve-enterprise-token.sh
 
       - name: Record run start time (Europe/Berlin)
