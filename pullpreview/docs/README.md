@@ -72,7 +72,16 @@ That runs [`validate-helmfile.sh`](../validate-helmfile.sh) (helmfile build + te
 
 Use **PullPreview Cleanup** when a preview was kept after a failed E2E run (`target=e2e`) or a setup-only deploy (`target=setup`), or to remove PR previews (`target=pr`).
 
-Repository secrets: `HCLOUD_TOKEN`, `HETZNER_CA_KEY`, and (full stack) `OPENPROJECT_ENTERPRISE_TOKEN`. PR previews need the `pullpreview` label.
+Repository secrets: `HCLOUD_TOKEN`, `HETZNER_CA_KEY`, and OpenProject enterprise tokens (full stack). PR previews need the `pullpreview` label.
+
+| Tier | Secret |
+|---|---|
+| basic | `OPENPROJECT_TOKEN_BASIC` |
+| professional | `OPENPROJECT_TOKEN_PROFESSIONAL` |
+| premium | `OPENPROJECT_TOKEN_PREMIUM` |
+| corporate (default) | `OPENPROJECT_TOKEN_CORPORATE` |
+
+E2E Manual Run selects the tier at dispatch; integration stack deploys need **corporate**. PR previews use `OPENPROJECT_ENTERPRISE_TOKEN`.
 
 Published URLs follow the generated FQDN, for example `https://<fqdn>`, `https://nextcloud.<fqdn>`, and `https://keycloak.<fqdn>/realms/opnc`.
 
