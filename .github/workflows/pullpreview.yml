@@ -52,6 +52,37 @@ jobs:
             fi
           } >> "$GITHUB_OUTPUT"
 
+      - name: Resolve setup method
+        id: resolve_setup_method
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Default to sso-external; schedule runs always use this default.
+          setup_method="sso-external"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            labels="$(jq -r '[.pull_request.labels[]?.name] | join(" ")' "$GITHUB_EVENT_PATH")"
+            for label in $labels; do
+              case "$label" in
+                auth-sso-nextcloud) setup_method="sso-nextcloud"; break ;;
+                auth-oauth2)        setup_method="oauth2";        break ;;
+                auth-sso-external)  setup_method="sso-external";  break ;;
+              esac
+            done
+          fi
+          echo "method=${setup_method}" >> "$GITHUB_OUTPUT"
+          echo "::notice::PullPreview setup method: ${setup_method}"
+
+      - name: Resolve enterprise token
+        id: enterprise_token
+        env:
+          # PullPreview integration setup always requires the Corporate plan.
+          # TOKEN_CORPORATE is mapped from the single PullPreview secret; switch to a
+          # dedicated OPENPROJECT_TOKEN_CORPORATE secret if tier-specific tokens are added.
+          ENTERPRISE_TOKEN_TIER: corporate
+          SETUP_METHOD: ${{ steps.resolve_setup_method.outputs.method }}
+          TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+        run: .github/scripts/resolve-enterprise-token.sh
+
       - name: Recreate preview before auth-mode change
         if: steps.auth_label_change.outputs.changed == 'true'
         uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
@@ -86,7 +117,8 @@ jobs:
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
-          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
+          INTEGRATION_SETUP_METHOD: ${{ steps.resolve_setup_method.outputs.method }}
           PULLPREVIEW_LOGGER_LEVEL: ERROR
 
       - name: Strip SSH lines from PullPreview summary
