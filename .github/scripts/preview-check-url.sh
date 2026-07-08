@@ -10,19 +10,22 @@ attempts="${4:-12}"
 sleep_seconds="${5:-10}"
 follow_redirects="${6:-false}"
 
+curl_status_args=(-skS -o /dev/null --connect-timeout 10 --write-out '%{http_code}')
+if [[ "${follow_redirects}" == "true" ]]; then
+  curl_status_args+=(-L)
+fi
+
+fetch_http_status() {
+  /usr/bin/curl "${curl_status_args[@]}" "${url}" 2>/dev/null
+}
+
 status=""
 curl_exit=0
 ok=false
 
 for attempt in $(seq 1 "${attempts}"); do
   set +e
-  status="$(
-    /usr/bin/curl -skS -o /dev/null \
-      --connect-timeout 10 \
-      --write-out '%{http_code}' \
-      $([[ "${follow_redirects}" == "true" ]] && echo -n "-L") \
-      "${url}" 2>/dev/null
-  )"
+  status="$(fetch_http_status)"
   curl_exit=$?
   set -e
 
@@ -62,12 +65,7 @@ fi
 if [[ "${ok}" != "true" ]]; then
   echo "::group::Debug: status check for ${name}"
   set +e
-  status="$(
-    /usr/bin/curl -skS -o /dev/null \
-      --connect-timeout 10 \
-      --write-out '%{http_code}' \
-      "${url}" 2>/dev/null
-  )"
+  status="$(fetch_http_status)"
   curl_exit=$?
   set -e
   if [[ "${curl_exit}" -eq 0 ]]; then

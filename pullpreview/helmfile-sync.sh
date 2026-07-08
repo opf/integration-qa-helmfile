@@ -14,7 +14,7 @@ echo "[pullpreview helmfile] namespace=${namespace} values_file=${values_file:-<
 
 helmfile_path="pullpreview/helmfile.yaml.gotmpl"
 helmfile_common=(helmfile -f "${helmfile_path}" -e pullpreview)
-# cpx42 (16 vCPU / 64 GB RAM) handles 4 concurrent Helm releases without contention.
+# cpx42 (8 vCPU / 16 GB RAM) handles 4 concurrent Helm releases without heavy contention.
 # Lower this via PULLPREVIEW_HELMFILE_CONCURRENCY if running on a smaller instance.
 helmfile_concurrency="${PULLPREVIEW_HELMFILE_CONCURRENCY:-4}"
 

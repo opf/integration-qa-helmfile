@@ -26,10 +26,8 @@ summary_file="${GITHUB_STEP_SUMMARY:-}"
 } >> "${summary_file}"
 
 if [[ -n "${preview_url}" ]]; then
-  preview_host="${preview_url#https://}"
-  preview_host="${preview_host#http://}"
-  preview_host="${preview_host%%/*}"
-  preview_host="${preview_host%%:*}"
+  export PREVIEW_URL="${preview_url}"
+  preview_host="$("$(dirname "${BASH_SOURCE[0]}")/preview-parse-host.sh")"
   {
     echo "- OpenProject: ${preview_url}"
     echo "- Nextcloud: https://nextcloud.${preview_host}"

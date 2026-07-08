@@ -17,7 +17,7 @@ run-name: >-
         ),
         format(
           'Xwiki v.{0}',
-          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '18.3.0'
+          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '18.4.1'
         ),
         github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
         format(
@@ -50,10 +50,6 @@ run-name: >-
 defaults:
   run:
     shell: bash
-
-concurrency:
-  group: e2e-manual-${{ github.repository }}-${{ github.run_id }}
-  cancel-in-progress: false
 
 on:
   workflow_dispatch:
@@ -140,14 +136,11 @@ on:
         default: true
         type: boolean
       enterprise_token_tier:
-        description: "OpenProject plan token (integration stack needs corporate)"
+        description: "OpenProject enterprise plan (integration stack requires corporate)"
         required: true
         default: corporate
         type: choice
         options:
-          - basic
-          - professional
-          - premium
           - corporate
 
 permissions:
@@ -182,11 +175,7 @@ jobs:
         id: enterprise_token
         env:
           ENTERPRISE_TOKEN_TIER: ${{ github.event.inputs.enterprise_token_tier }}
-          SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
-          TOKEN_BASIC: ${{ secrets.OPENPROJECT_TOKEN_BASIC }}
-          TOKEN_PROFESSIONAL: ${{ secrets.OPENPROJECT_TOKEN_PROFESSIONAL }}
-          TOKEN_PREMIUM: ${{ secrets.OPENPROJECT_TOKEN_PREMIUM }}
-          TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_TOKEN_CORPORATE }}
+          TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
         run: .github/scripts/resolve-enterprise-token.sh
 
       - name: Record run start time (Europe/Berlin)
@@ -423,7 +412,7 @@ jobs:
           effective_op_ver="${IN_OP_VER:-17}"
           effective_nc_ver="${IN_NC_VER:-32}"
           effective_kc_ver="${IN_KC_VER:-26.2.5}"
-          effective_xwiki_ver="${IN_XWIKI_VER:-18.3.0}"
+          effective_xwiki_ver="${IN_XWIKI_VER:-18.4.1}"
           effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0-rc-7}"
 
           check_branch_exists "openproject_branch" "https://github.com/opf/openproject.git" "${IN_OP_BRANCH}"
@@ -498,102 +487,13 @@ jobs:
           IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: .github/scripts/deploy-preview-summary.sh
 
-      - name: Resolve preview host for checks
-        id: preview_host
-        if: success() && steps.pullpreview_up.outputs.live == 'true'
-        env:
-          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
-        run: |
-          set -euo pipefail
-          host="$(.github/scripts/preview-parse-host.sh)"
-          echo "host=${host}" >> "$GITHUB_OUTPUT"
-          {
-            echo "### Endpoint checks"
-            echo ""
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Check OpenProject
-        id: check_openproject
-        if: success() && steps.pullpreview_up.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          failed=false
-          set +e
-          .github/scripts/preview-check-url.sh "OpenProject (root)" "https://${PREVIEW_HOST}/" "302" || failed=true
-          .github/scripts/preview-check-url.sh "OpenProject (login)" "https://${PREVIEW_HOST}/login" "200" || failed=true
-          set -e
-          [[ "${failed}" != "true" ]]
-
-      - name: Check Nextcloud
-        id: check_nextcloud
-        if: success() && steps.pullpreview_up.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          .github/scripts/preview-check-url.sh "Nextcloud" "https://nextcloud.${PREVIEW_HOST}/status.php" "200" 60 10
-
-      - name: Check Keycloak
-        id: check_keycloak
-        if: success() && steps.pullpreview_up.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          .github/scripts/preview-check-url.sh "Keycloak" "https://keycloak.${PREVIEW_HOST}/realms/opnc" "200"
-
-      - name: Check XWiki
-        id: check_xwiki
-        if: success() && steps.pullpreview_up.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          # XWiki does first-time setup and extension installs; follow redirects once setup completes.
-          .github/scripts/preview-check-url.sh "XWiki" "https://xwiki.${PREVIEW_HOST}/bin/distribution/XWiki/Distribution" "200" 120 10 true
-
-      - name: Check XWiki metadata
-        id: check_xwiki_metadata
-        if: success() && steps.pullpreview_up.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          .github/scripts/preview-check-url.sh "XWiki metadata" "https://xwiki.${PREVIEW_HOST}/rest/openproject/metadata" "200" 120 10
-
-      - name: Require all endpoint checks
+      - name: Preview endpoint checks
         id: validate_urls
-        if: always() && steps.pullpreview_up.outputs.live == 'true'
-        env:
-          CHECK_OP: ${{ steps.check_openproject.outcome }}
-          CHECK_NC: ${{ steps.check_nextcloud.outcome }}
-          CHECK_KC: ${{ steps.check_keycloak.outcome }}
-          CHECK_XW: ${{ steps.check_xwiki.outcome }}
-          CHECK_XW_META: ${{ steps.check_xwiki_metadata.outcome }}
-        run: |
-          set -euo pipefail
-          failed=false
-          for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}"; do
-            name="${entry%%:*}"
-            outcome="${entry#*:}"
-            if [[ "${outcome}" == "failure" ]]; then
-              echo "::error::${name} endpoint check failed"
-              failed=true
-            elif [[ "${outcome}" == "skipped" ]]; then
-              echo "::error::${name} endpoint check was skipped"
-              failed=true
-            fi
-          done
-          if [[ "${failed}" == "true" ]]; then
-            exit 1
-          fi
+        uses: ./.github/actions/preview-endpoint-checks
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        with:
+          preview-url: ${{ steps.pullpreview_up.outputs.url }}
 
       - name: Diagnostics (on URL validation failure)
         if: always() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome != 'success'
@@ -601,11 +501,7 @@ jobs:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
         run: |
           set -euo pipefail
-          preview_url="${PREVIEW_URL}"
-          preview_host="${preview_url#https://}"
-          preview_host="${preview_host#http://}"
-          preview_host="${preview_host%%/*}"
-          preview_host="${preview_host%%:*}"
+          preview_host="$(.github/scripts/preview-parse-host.sh)"
 
           dump() {
             local url="$1"
@@ -644,10 +540,7 @@ jobs:
         run: |
           set -euo pipefail
           preview_url="${PREVIEW_URL}"
-          preview_host="${preview_url#https://}"
-          preview_host="${preview_host#http://}"
-          preview_host="${preview_host%%/*}"
-          preview_host="${preview_host%%:*}"
+          preview_host="$(.github/scripts/preview-parse-host.sh)"
 
           if [[ "${preview_url}" == *:443 ]]; then
             preview_url="${preview_url%:443}"
@@ -898,7 +791,7 @@ jobs:
           if [[ -n "${IN_XWIKI_VER:-}" ]]; then
             echo "- XWiki image tag: \`${IN_XWIKI_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "- XWiki image tag: \`18.3.0\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- XWiki image tag: \`18.4.1\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
           fi
           if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
             echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"
