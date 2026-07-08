@@ -16,13 +16,17 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: pullpreview-${{ github.repository }}-${{ github.event.pull_request.number || 'schedule' }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     if: github.event_name == 'schedule' || github.event.label.name == 'pullpreview' || contains(github.event.pull_request.labels.*.name, 'pullpreview')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - id: auth_label_change
         if: github.event_name == 'pull_request'
@@ -51,6 +55,33 @@ jobs:
               echo "force_action="
             fi
           } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve setup method
+        id: resolve_setup_method
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Default to sso-external; schedule runs always use this default.
+          setup_method="sso-external"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            labels="$(jq -r '[.pull_request.labels[]?.name] | join(" ")' "$GITHUB_EVENT_PATH")"
+            for label in $labels; do
+              case "$label" in
+                auth-sso-nextcloud) setup_method="sso-nextcloud"; break ;;
+                auth-oauth2)        setup_method="oauth2";        break ;;
+                auth-sso-external)  setup_method="sso-external";  break ;;
+              esac
+            done
+          fi
+          echo "method=${setup_method}" >> "$GITHUB_OUTPUT"
+          echo "::notice::PullPreview setup method: ${setup_method}"
+
+      - name: Resolve enterprise token
+        id: enterprise_token
+        env:
+          ENTERPRISE_TOKEN_TIER: corporate
+          TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+        run: .github/scripts/resolve-enterprise-token.sh
 
       - name: Recreate preview before auth-mode change
         if: steps.auth_label_change.outputs.changed == 'true'
@@ -86,7 +117,8 @@ jobs:
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
-          OPENPROJECT_ENTERPRISE_TOKEN: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
+          INTEGRATION_SETUP_METHOD: ${{ steps.resolve_setup_method.outputs.method }}
           PULLPREVIEW_LOGGER_LEVEL: ERROR
 
       - name: Strip SSH lines from PullPreview summary
@@ -107,92 +139,8 @@ jobs:
           PREVIEW_URL: ${{ steps.pullpreview.outputs.url }}
         run: .github/scripts/deploy-preview-summary.sh
 
-      - name: Resolve preview host for checks
-        id: preview_host
+      - name: Preview endpoint checks
+        uses: ./.github/actions/preview-endpoint-checks
         if: steps.pullpreview.outputs.live == 'true'
-        env:
-          PREVIEW_URL: ${{ steps.pullpreview.outputs.url }}
-        run: |
-          set -euo pipefail
-          host="$(.github/scripts/preview-parse-host.sh)"
-          echo "host=${host}" >> "$GITHUB_OUTPUT"
-          {
-            echo "### Endpoint checks"
-            echo ""
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Check OpenProject
-        id: check_openproject
-        if: steps.pullpreview.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          failed=false
-          set +e
-          .github/scripts/preview-check-url.sh "OpenProject (root)" "https://${PREVIEW_HOST}/" "302" || failed=true
-          .github/scripts/preview-check-url.sh "OpenProject (login)" "https://${PREVIEW_HOST}/login" "200" || failed=true
-          set -e
-          [[ "${failed}" != "true" ]]
-
-      - name: Check Nextcloud
-        id: check_nextcloud
-        if: steps.pullpreview.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          .github/scripts/preview-check-url.sh "Nextcloud" "https://nextcloud.${PREVIEW_HOST}/status.php" "200" 60 10
-
-      - name: Check Keycloak
-        id: check_keycloak
-        if: steps.pullpreview.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          .github/scripts/preview-check-url.sh "Keycloak" "https://keycloak.${PREVIEW_HOST}/realms/opnc" "200"
-
-      - name: Check XWiki
-        id: check_xwiki
-        if: steps.pullpreview.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          .github/scripts/preview-check-url.sh "XWiki" "https://xwiki.${PREVIEW_HOST}/bin/distribution/XWiki/Distribution" "200" 120 10 true
-
-      - name: Check XWiki metadata
-        id: check_xwiki_metadata
-        if: steps.pullpreview.outputs.live == 'true'
-        continue-on-error: true
-        env:
-          PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
-        run: |
-          set -euo pipefail
-          .github/scripts/preview-check-url.sh "XWiki metadata" "https://xwiki.${PREVIEW_HOST}/rest/openproject/metadata" "200" 120 10
-
-      - name: Require all endpoint checks
-        if: always() && steps.pullpreview.outputs.live == 'true'
-        env:
-          CHECK_OP: ${{ steps.check_openproject.outcome }}
-          CHECK_NC: ${{ steps.check_nextcloud.outcome }}
-          CHECK_KC: ${{ steps.check_keycloak.outcome }}
-          CHECK_XW: ${{ steps.check_xwiki.outcome }}
-          CHECK_XW_META: ${{ steps.check_xwiki_metadata.outcome }}
-        run: |
-          set -euo pipefail
-          failed=false
-          for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}"; do
-            name="${entry%%:*}"
-            outcome="${entry#*:}"
-            if [[ "${outcome}" == "failure" || "${outcome}" == "skipped" ]]; then
-              echo "::error::${name} endpoint check failed"
-              failed=true
-            fi
-          done
-          [[ "${failed}" != "true" ]]
+        with:
+          preview-url: ${{ steps.pullpreview.outputs.url }}

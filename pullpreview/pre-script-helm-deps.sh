@@ -18,7 +18,9 @@ helm dependency build charts/pullpreview-stack
 if ! command -v helmfile >/dev/null 2>&1; then
   echo "[pullpreview pre_script] Installing helmfile..."
   HF_VERSION="0.170.1"
+  HF_SHA256="af00359dca9162e587fcf102890cec0ffa63b5ee712426db8693dd2669460ec8"
   curl -fsSL -o /tmp/helmfile.tgz "https://github.com/helmfile/helmfile/releases/download/v${HF_VERSION}/helmfile_${HF_VERSION}_linux_amd64.tar.gz"
+  echo "${HF_SHA256}  /tmp/helmfile.tgz" | sha256sum -c -
   tar -xzf /tmp/helmfile.tgz -C /usr/local/bin helmfile
   chmod +x /usr/local/bin/helmfile
 fi
@@ -26,7 +28,9 @@ fi
 if ! command -v kustomize >/dev/null 2>&1; then
   echo "[pullpreview pre_script] Installing kustomize..."
   KUSTOMIZE_VERSION="5.6.0"
+  KUSTOMIZE_SHA256="54e4031ddc4e7fc59e408da29e7c646e8e57b8088c51b84b3df0864f47b5148f"
   curl -fsSL -o /tmp/kustomize.tgz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+  echo "${KUSTOMIZE_SHA256}  /tmp/kustomize.tgz" | sha256sum -c -
   tar -xzf /tmp/kustomize.tgz -C /usr/local/bin kustomize
   chmod +x /usr/local/bin/kustomize
 fi
@@ -56,12 +60,7 @@ replace_next_timeout=false
 had_atomic=false
 has_wait=false
 
-redact_stream() {
-  sed -E \
-    -e 's#postgres(ql)?://[^[:space:]"'\''<>]+#postgresql://[REDACTED]#g' \
-    -e 's#(Authorization: Bearer )[A-Za-z0-9._~+/-]+#\1[REDACTED]#Ig' \
-    -e 's#((password|token|secret|cookie)[A-Za-z0-9_ -]*(=|:))[[:space:]]*[^[:space:]"'\''<>]+#\1 [REDACTED]#Ig'
-}
+source /app/pullpreview/collect-diagnostics.sh
 
 flag_value() {
   local flag="$1"
@@ -139,41 +138,6 @@ release_name() {
   done
 }
 
-collect_diagnostics() {
-  local release="$1"
-  local namespace="$2"
-
-  if ! command -v kubectl >/dev/null 2>&1; then
-    echo "[pullpreview helm] kubectl is unavailable; skipping Kubernetes diagnostics."
-    return 0
-  fi
-
-  echo "[pullpreview helm] Kubernetes resource status:"
-  kubectl get pods,jobs,deployments,statefulsets,pvc -n "${namespace}" 2>&1 | redact_stream || true
-
-  if [[ -n "${release}" ]]; then
-    echo "[pullpreview helm] Helm release status:"
-    "${real_helm}" status "${release}" -n "${namespace}" 2>&1 | redact_stream || true
-  fi
-
-  echo "[pullpreview helm] Recent Kubernetes events:"
-  kubectl get events -n "${namespace}" --sort-by=.lastTimestamp 2>&1 | tail -n 100 | redact_stream || true
-
-  if kubectl get job op-buildsource-job -n "${namespace}" >/dev/null 2>&1; then
-    echo "[pullpreview helm] OpenProject source build log tail:"
-    kubectl logs job/op-buildsource-job -n "${namespace}" --all-containers=true --tail=160 2>&1 | redact_stream || true
-  fi
-
-  if kubectl get deployment nextcloud -n "${namespace}" >/dev/null 2>&1; then
-    echo "[pullpreview helm] Nextcloud presetup init container log tail:"
-    kubectl logs deployment/nextcloud -n "${namespace}" -c presetup --tail=160 2>&1 | redact_stream || true
-    echo "[pullpreview helm] Nextcloud main container log tail:"
-    kubectl logs deployment/nextcloud -n "${namespace}" -c nextcloud --tail=200 2>&1 | redact_stream || true
-    echo "[pullpreview helm] Nextcloud main container previous log tail:"
-    kubectl logs deployment/nextcloud -n "${namespace}" -c nextcloud --previous --tail=200 2>&1 | redact_stream || true
-  fi
-}
-
 chart_is_pullpreview_stack() {
   [[ "${1:-}" == "install" || "${1:-}" == "upgrade" ]] || return 1
   for arg in "$@"; do
@@ -249,7 +213,7 @@ if chart_is_pullpreview_stack "${args[@]}"; then
       namespace="$(flag_value "-n" "${args[@]}")"
     fi
     namespace="${namespace:-default}"
-    collect_diagnostics "" "${namespace}"
+    collect_diagnostics "helm deploy failed" "${namespace}"
   fi
   exit "${status}"
 fi
@@ -272,7 +236,7 @@ if [[ "${status}" -ne 0 ]]; then
   release="$(release_name "${args[@]}")"
 
   echo "[pullpreview helm] Helm deploy failed; collecting limited diagnostics before cleanup."
-  collect_diagnostics "${release}" "${namespace}"
+  collect_diagnostics "helm deploy failed" "${namespace}" "${release}"
 
   if [[ -n "${release}" ]]; then
     echo "[pullpreview helm] Cleaning up failed Helm release."

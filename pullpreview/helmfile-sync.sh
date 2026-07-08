@@ -7,13 +7,14 @@ cd /app
 namespace="${PULLPREVIEW_NAMESPACE:?PULLPREVIEW_NAMESPACE is required}"
 values_file="${PULLPREVIEW_VALUES_FILE:-}"
 
+source pullpreview/collect-diagnostics.sh
 source pullpreview/resolve-pullpreview-env.sh "${values_file}"
 
 echo "[pullpreview helmfile] namespace=${namespace} values_file=${values_file:-<none>} public_dns=${PULLPREVIEW_PUBLIC_DNS:-<unset>}"
 
 helmfile_path="pullpreview/helmfile.yaml.gotmpl"
 helmfile_common=(helmfile -f "${helmfile_path}" -e pullpreview)
-# cpx42 (16 vCPU / 64 GB RAM) handles 4 concurrent Helm releases without contention.
+# cpx42 (8 vCPU / 16 GB RAM) handles 4 concurrent Helm releases without heavy contention.
 # Lower this via PULLPREVIEW_HELMFILE_CONCURRENCY if running on a smaller instance.
 helmfile_concurrency="${PULLPREVIEW_HELMFILE_CONCURRENCY:-4}"
 
@@ -34,47 +35,6 @@ print_pp_timing() {
     printf '%-20s %8s\n' "${row% *}" "${row##* }"
   done
   printf '%-20s %8s\n' "TOTAL" "$(( $(date +%s) - pp_deploy_start ))"
-  echo "::endgroup::"
-}
-
-collect_deploy_diagnostics() {
-  local context="$1"
-
-  echo "::group::Diagnostics: ${context}"
-  if command -v kubectl >/dev/null 2>&1; then
-    kubectl get pods,jobs,deployments,statefulsets,pvc -n "${namespace}" 2>&1 || true
-    kubectl get events -n "${namespace}" --sort-by=.lastTimestamp 2>&1 | tail -n 100 || true
-
-    if kubectl get job op-buildsource-job -n "${namespace}" >/dev/null 2>&1; then
-      echo "[pullpreview helmfile] op-buildsource-job log tail:"
-      kubectl logs -n "${namespace}" -l job-name=op-buildsource-job \
-        --all-containers=true --tail=160 2>&1 || true
-    fi
-
-    if kubectl get job setup-job -n "${namespace}" >/dev/null 2>&1; then
-      echo "[pullpreview helmfile] setup-job log tail:"
-      kubectl logs -n "${namespace}" -l job-name=setup-job \
-        --all-containers=true --tail=200 2>&1 || true
-      kubectl describe job setup-job -n "${namespace}" 2>&1 || true
-    fi
-
-    local nc_pod=""
-    nc_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=nextcloud" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-    if [[ -n "${nc_pod}" ]]; then
-      echo "[pullpreview helmfile] Nextcloud pod log tail (${nc_pod}):"
-      kubectl logs "${nc_pod}" -n "${namespace}" -c nextcloud --tail=160 2>&1 || true
-      kubectl logs "${nc_pod}" -n "${namespace}" -c presetup --tail=120 2>&1 || true
-    fi
-
-    local xwiki_pod=""
-    xwiki_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=xwiki" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-    if [[ -n "${xwiki_pod}" ]]; then
-      echo "[pullpreview helmfile] XWiki pod log tail (${xwiki_pod}):"
-      kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --tail=200 2>&1 || true
-      echo "[pullpreview helmfile] XWiki pod previous log tail (${xwiki_pod}):"
-      kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --previous --tail=200 2>&1 || true
-    fi
-  fi
   echo "::endgroup::"
 }
 
@@ -187,7 +147,7 @@ sync_rc=$?
 set -e
 if [[ "${sync_rc}" -ne 0 ]]; then
   echo "::error::Helmfile DAG sync failed"
-  collect_deploy_diagnostics "helmfile-sync failure"
+  collect_diagnostics "helmfile-sync failure" "${namespace}"
   destroy_partial_deploy
   print_pp_timing
   exit "${sync_rc}"
@@ -201,7 +161,7 @@ set -e
 record_pp_timing "wait-setup-job" "${setup_started_at}"
 
 if [[ "${setup_rc}" -ne 0 ]]; then
-  collect_deploy_diagnostics "setup-job failure"
+  collect_diagnostics "setup-job failure" "${namespace}"
   destroy_partial_deploy
   print_pp_timing
   exit "${setup_rc}"
@@ -216,7 +176,7 @@ if [[ "${PULLPREVIEW_VERIFY_XWIKI_FROM_OP_POD:-true}" == "true" && -n "${PULLPRE
   record_pp_timing "verify-xwiki-from-op" "${verify_started_at}"
 
   if [[ "${verify_rc}" -ne 0 ]]; then
-    collect_deploy_diagnostics "xwiki metadata unreachable from OpenProject pod"
+    collect_diagnostics "xwiki metadata unreachable from OpenProject pod" "${namespace}"
     destroy_partial_deploy
     print_pp_timing
     exit "${verify_rc}"
@@ -224,7 +184,7 @@ if [[ "${PULLPREVIEW_VERIFY_XWIKI_FROM_OP_POD:-true}" == "true" && -n "${PULLPRE
 fi
 
 if [[ "${PULLPREVIEW_SUCCESS_DIAGNOSTICS:-false}" == "true" ]]; then
-  collect_deploy_diagnostics "successful deploy"
+  collect_diagnostics "successful deploy" "${namespace}"
 fi
 
 print_pp_timing

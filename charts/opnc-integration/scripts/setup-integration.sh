@@ -72,6 +72,23 @@ if [[ "$INTEGRATION_APP_SETUP_METHOD" != "oauth2" && "$INTEGRATION_APP_SETUP_MET
     exit 1
 fi
 
+# Exit code for deterministic, non-retryable failures; matched by the Job's
+# podFailurePolicy so Kubernetes fails the whole job instead of retrying.
+TERMINAL_EXIT_CODE=42
+INTEGRATION_SETUP_LOG='/tmp/integration-setup.log'
+
+_handle_integration_script_failure() {
+    echo "" >&2
+    echo "[ERROR] Integration setup script exited with an error (see above)." >&2
+    if grep -q 'Authentication Method requires at least the Corporate enterprise plan' "$INTEGRATION_SETUP_LOG" 2>/dev/null; then
+        echo "[ERROR] Setup method '${INTEGRATION_APP_SETUP_METHOD}' requires a Corporate-tier OpenProject enterprise plan." >&2
+        echo "[ERROR] Verify that OPENPROJECT_SEED__ENTERPRISE__TOKEN in the deployment values is a valid Corporate plan token." >&2
+        echo "[ERROR] This error cannot be fixed by retrying; failing the setup job." >&2
+        exit "$TERMINAL_EXIT_CODE"
+    fi
+    exit 1
+}
+
 # wait for servers
 echo "[INFO] Waiting for Nextcloud to be ready..."
 wait_for_server "$NEXTCLOUD_WAIT_URL" "$NEXTCLOUD_WAIT_HOST_HEADER"
@@ -111,7 +128,7 @@ if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
         exit 1
     fi
 
-    bash integration_setup.sh
+    bash integration_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
     status=$(curl -s -w "%{http_code}" $SCRIPT_URL/integration_oidc_setup.sh -o integration_oidc_setup.sh)
@@ -126,14 +143,13 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
     NC_INTEGRATION_OP_CLIENT_ID=$OIDC_OPENPROJECT_CLIENT_ID \
     NC_INTEGRATION_OP_CLIENT_SECRET=$OIDC_OPENPROJECT_CLIENT_SECRET \
     OP_USE_LOGIN_TOKEN=true \
-    bash integration_oidc_setup.sh
+    bash integration_oidc_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
     echo "[INFO] Waiting for Keycloak to be ready..."
     wait_for_server "$KEYCLOAK_WAIT_URL" "$KEYCLOAK_WAIT_HOST_HEADER"
     echo "[INFO] Keycloak is ready."
 
-    curl -s $SCRIPT_URL/integration_oidc_setup.sh -o integration_oidc_setup.sh
     status=$(curl -s -w "%{http_code}" $SCRIPT_URL/integration_oidc_setup.sh -o integration_oidc_setup.sh)
     if [[ $status -ne 200 ]]; then
         echo "[ERROR] Failed to download script: $SCRIPT_URL/integration_oidc_setup.sh"
@@ -148,5 +164,5 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
     NC_INTEGRATION_TOKEN_EXCHANGE=true \
     OP_STORAGE_AUDIENCE=nextcloud \
     OP_STORAGE_SCOPE=add-nc-aud \
-    bash integration_oidc_setup.sh
+    bash integration_oidc_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
 fi
