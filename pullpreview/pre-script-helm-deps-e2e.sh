@@ -2,4 +2,4 @@
 set -euo pipefail
 
 export PULLPREVIEW_HELM_TIMEOUT=75m
-source pullpreview/pre-script-helm-deps.sh
+source "$(dirname "${BASH_SOURCE[0]}")/pre-script-helm-deps.sh"

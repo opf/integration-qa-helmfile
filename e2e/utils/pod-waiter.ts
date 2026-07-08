@@ -47,25 +47,28 @@ export async function waitForSetupJobComplete(
       );
       
       if (status.trim() === 'True') {
-        // Verify it completed successfully (not failed)
-        const { stdout: failed } = await execAsync(
-          `kubectl get job setup-job -n ${namespace} -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo ""`
-        );
-        
-        if (failed.trim() === 'True') {
-          // Get job logs for debugging
-          try {
-            const { stdout: logs } = await execAsync(
-              `kubectl logs -n ${namespace} -l job-name=setup-job --tail=50 2>/dev/null || echo "Could not retrieve logs"`
-            );
-            throw new Error(`Setup job failed. Last logs:\n${logs}`);
-          } catch (logError: unknown) {
-            throw new Error(`Setup job failed: ${getErrorMessage(logError)}`);
-          }
-        }
-        
         logInfo('Setup job completed successfully');
         return;
+      }
+      
+      // The Failed condition is set only when the job is terminally failed
+      // (backoffLimit exhausted or podFailurePolicy FailJob). Individual
+      // failed pods keep retrying and do not set this condition.
+      const { stdout: failed } = await execAsync(
+        `kubectl get job setup-job -n ${namespace} -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo ""`
+      );
+      
+      if (failed.trim() === 'True') {
+        let logs = 'Could not retrieve logs';
+        try {
+          const { stdout } = await execAsync(
+            `kubectl logs -n ${namespace} -l job-name=setup-job --tail=50 2>/dev/null || echo "Could not retrieve logs"`
+          );
+          logs = stdout;
+        } catch (logError: unknown) {
+          logWarn(`  Could not retrieve setup-job logs: ${getErrorMessage(logError)}`);
+        }
+        throw new Error(`Setup job failed. Last logs:\n${logs}`);
       }
       
       // Show progress
@@ -77,8 +80,12 @@ export async function waitForSetupJobComplete(
       }
       
     } catch (error: unknown) {
-      // Job might not exist yet or kubectl error
       const message = getErrorMessage(error);
+      // Terminal failure detected above; do not keep polling.
+      if (message.startsWith('Setup job failed')) {
+        throw error;
+      }
+      // Job might not exist yet or kubectl error
       if (!message.includes('not found') && !message.includes('No resources found')) {
         logWarn(`  Warning checking setup-job: ${message}`);
       }

@@ -5,6 +5,15 @@ metadata:
   name: setup-job
 spec:
   backoffLimit: 10
+  podFailurePolicy:
+    rules:
+      # Exit code 42 marks a deterministic, non-retryable setup failure
+      # (see _handle_integration_script_failure in setup-integration.sh).
+      - action: FailJob
+        onExitCodes:
+          containerName: setup-integration
+          operator: In
+          values: [42]
   template:
     spec:
       restartPolicy: Never
