@@ -276,6 +276,29 @@ playwright-cli tracing-stop
 playwright-cli close
 ```
 
+## Debugging tests (Playwright 1.59+)
+
+For agentic or interactive debugging of **`npx playwright test`** runs in this repo:
+
+```bash
+# Attach playwright-cli to a running test for step-through debugging
+E2E_ENV=local npx playwright test --debug=cli
+
+# Analyze a failure trace from the CLI (after a test run)
+npx playwright trace open test-results/<path>/trace.zip
+npx playwright trace actions --grep="expect"
+```
+
+When exploring with **playwright-cli** only, bind sessions for multi-client attach (Playwright 1.59+):
+
+```bash
+playwright-cli attach my-session
+# Or enable dashboard: PLAYWRIGHT_DASHBOARD=1 npx playwright test
+playwright-cli show
+```
+
+See [references/tracing.md](references/tracing.md) for CLI trace commands vs test-runner traces.
+
 ## Specific tasks
 
 * **Request mocking** [references/request-mocking.md](references/request-mocking.md)

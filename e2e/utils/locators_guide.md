@@ -37,6 +37,16 @@ This document provides examples of how to use different locator types in your JS
       "text": "Submit Form",
       "exact": true
     }
+  },
+  "helpButtonByDescription": {
+    "by": "getByRole",
+    "value": {
+      "role": "button",
+      "name": "Help",
+      "options": {
+        "description": "Opens the help panel"
+      }
+    }
   }
 }
 ```
@@ -162,6 +172,15 @@ This document provides examples of how to use different locator types in your JS
 ```
 
 ### Drag and Drop Elements
+
+For file uploads via a hidden input, use page object methods with `setInputFiles`. When the product path under test is a true drag-and-drop zone (not a file input), use Playwright's `locator.drop()` in the page object:
+
+```typescript
+// In a page object method — external drop onto a zone (Playwright 1.60+)
+await this.getLocator('dropZone').drop({
+  files: { name: 'note.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') },
+});
+```
 
 ```json
 {
@@ -305,13 +324,14 @@ const button = frame.getByRole('button', { name: 'Submit' });
 ## Tips
 
 1. **Prefer semantic locators**: Use `getByRole`, `getByLabel`, `getByText` over CSS selectors
-2. **Use `exact: true`** when you need precise text matching
-3. **Use element IDs when available**: For elements with stable IDs, use `locator` with `#id` selector
-4. **Chain locators** in your PageObject methods when needed:
+2. **Use `getByRole` `description` (Playwright 1.60+)**: When accessible name alone is ambiguous, pass `description` under `value.options` — the resolver spreads options into `page.getByRole(role, { name, ...options })`
+3. **Use `exact: true`** when you need precise text matching
+4. **Use element IDs when available**: For elements with stable IDs, use `locator` with `#id` selector
+5. **Chain locators** in your PageObject methods when needed:
    ```typescript
    const container = this.getLocator('tableContainer');
    const row = container.locator('tr').first();
    ```
-5. **Avoid brittle selectors**: Don't use CSS classes that change with styling updates
-6. **Fallback to locator**: When semantic locators don't work, use `locator` with CSS selectors or element IDs
+6. **Avoid brittle selectors**: Don't use CSS classes that change with styling updates
+7. **Fallback to locator**: When semantic locators don't work, use `locator` with CSS selectors or element IDs
 

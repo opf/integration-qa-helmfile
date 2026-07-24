@@ -33,10 +33,10 @@ export class OpenProjectProjectStoragesPage extends OpenProjectBasePage {
   }
 
   /**
-   * Add Nextcloud storage to the current project via the UI.
-   * Assumes we are on the project storages external page and storage is not yet linked.
+   * Click New storage and wait for the add-storage wizard.
+   * Assumes we are on the project storages external page.
    */
-  async addNextcloudStorage(): Promise<void> {
+  async openNewStorageForm(): Promise<void> {
     const newStorageLink = this.getLocator('newStorageLink');
     await newStorageLink.waitFor({ state: 'visible', timeout: 10000 });
     await newStorageLink.click();
@@ -46,7 +46,28 @@ export class OpenProjectProjectStoragesPage extends OpenProjectBasePage {
 
     const addFileStorageHeading = this.getLocator('addFileStorageHeading').first();
     await addFileStorageHeading.waitFor({ state: 'visible', timeout: 10000 });
+  }
 
+  /**
+   * Open the storage dropdown and assert options are available.
+   * Assumes we are on the add-storage wizard page.
+   */
+  async openStorageDropdown(): Promise<void> {
+    const storageDropdown = this.getLocator('storageDropdown');
+    await storageDropdown.waitFor({ state: 'visible', timeout: 10000 });
+    await storageDropdown.click();
+
+    const optionCount = await storageDropdown.locator('option').count();
+    if (optionCount === 0) {
+      throw new Error('Storage dropdown has no available file storage options.');
+    }
+  }
+
+  /**
+   * Select a Nextcloud storage option and click Continue.
+   * Assumes we are on the add-storage wizard page.
+   */
+  async selectNextcloudStorageAndContinue(): Promise<void> {
     const storageDropdown = this.getLocator('storageDropdown');
     await storageDropdown.waitFor({ state: 'visible', timeout: 10000 });
 
@@ -70,6 +91,15 @@ export class OpenProjectProjectStoragesPage extends OpenProjectBasePage {
 
     const automaticFolderModeRadio = this.getLocator('automaticFolderModeRadio');
     await automaticFolderModeRadio.waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  /**
+   * Ensure AMPF (automatic) folder mode is selected and click Add.
+   * Assumes we are on the folder-mode step of the wizard.
+   */
+  async selectAutomaticFolderModeAndAdd(): Promise<void> {
+    const automaticFolderModeRadio = this.getLocator('automaticFolderModeRadio');
+    await automaticFolderModeRadio.waitFor({ state: 'visible', timeout: 10000 });
     if (!(await automaticFolderModeRadio.isChecked())) {
       await automaticFolderModeRadio.check();
     }
@@ -80,5 +110,16 @@ export class OpenProjectProjectStoragesPage extends OpenProjectBasePage {
 
     const successMessage = this.getLocator('storageCreationSuccessMessage');
     await successMessage.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  /**
+   * Add Nextcloud storage to the current project via the UI.
+   * Assumes we are on the project storages external page and storage is not yet linked.
+   */
+  async addNextcloudStorage(): Promise<void> {
+    await this.openNewStorageForm();
+    await this.openStorageDropdown();
+    await this.selectNextcloudStorageAndContinue();
+    await this.selectAutomaticFolderModeAndAdd();
   }
 }

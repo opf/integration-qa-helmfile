@@ -55,7 +55,12 @@ export default defineConfig({
     baseURL: baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: {
+      mode: 'retain-on-failure',
+      show: {
+        actions: { position: 'top-left' },
+      },
+    },
     ignoreHTTPSErrors: true,
     viewport: { width: 1280, height: 800 },
     headless: true,

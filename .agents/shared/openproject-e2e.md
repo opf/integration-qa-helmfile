@@ -142,10 +142,19 @@ try {
 - Squash TM result import maps Playwright results through the test's automated test reference, and this repository stores that mapping in Playwright annotations.
 - When a Playwright test corresponds to a Squash TM test case, add `squashTestCase(...)` from `utils/squash-metadata.ts` to the test declaration. The first argument is the numeric Squash test case ID.
 - Use `squashTestCase(2148, { tag: ['@smoke'] })` when a mapped test also needs Playwright tags. Playwright accepts one details object per test, so do not add a second custom metadata object.
-- The publisher derives the automated reference from the Playwright report as `integration-qa-helmfile/<spec folder>#<spec file>#<test title>`. Set the same value in Squash TM's automated test reference field.
+- The publisher derives the automated reference from the Playwright report as `integration-qa-helmfile/<spec folder>#<spec file>#<test title>` (folder and file are separated by `#`, not `/`). Set the **same** value in Squash TM → Automation → Automated test reference. Example: `integration-qa-helmfile/e2e/tests/opncintegration#op-integration.spec.ts#Access OpenProject via Keycloak user authentication`.
+- Official format reference: [Squash TM Playwright automation](https://tm-en.doc.squashtest.com/latest/user-guide/manage-automated-tests/techno/playwright.html).
 - Squash test case, campaign, and iteration IDs are numeric Squash API IDs. Do not invent these IDs from date/time, `@smoke`, `@regression`, GitHub run ID, or other labels; use those values in generated names/descriptions instead.
-- If a Squash-mapped test is renamed or moved, update the Squash TM automated test reference to match the new generated reference.
+- If a Squash-mapped test is renamed or moved, update the Squash TM automated test reference to match the new generated reference (including the exact Playwright test title).
 - CI publishing uses `npm run squash:publish` after Playwright has produced `playwright-report/run-*/results.json`. Publishing needs `SQUASH_TM_API_TOKEN` and either `SQUASH_TM_ITERATION_ID` or a future campaign-based iteration creation flow.
+
+### Aligning Squash cases with Playwright
+
+- Prefer aligning Squash **Action** text to what the automation actually does (and keep chronological UI order). Do not force Playwright to follow legacy/scrambled Squash steps that invent flows the product or helpers do not perform.
+- Squash **prerequisites** (login, admin elevation, membership, healthy storage, cleanup) may stay out of Squash steps. In Playwright, run that work as **setup before** the first `test.step()`, not as counted steps.
+- `test.step('...')` titles should match Squash Action text as closely as practical; Squash step import matches **by position**, so count and order must still match exactly.
+- For multi-screen UI wizards (e.g. add Nextcloud project storage), prefer **granular page-object methods** (one method per Squash step) over one opaque helper called from a single step. Shared helpers like `ensureProjectHasNextcloudStorage` may remain for non-Squash setup in other tests.
+- For idempotent re-runs (resource already present), keep the same `test.step()` count: skip create actions when already configured, assert the expected end state, and still verify the final Squash expected result.
 
 ### Per-test step results (Playwright `test.step()`)
 
@@ -158,7 +167,7 @@ Squash TM import supports `tests[].test_steps[]` with per-step status and attach
 - When step import is enabled, suite-level `junit.xml` is not attached (per-test results and step attachments are used instead). `github-run.txt` remains at suite level.
 - Squash manual steps must be defined in the same order as Playwright `test.step()` blocks.
 
-Example:
+Example (login is a Squash step):
 
 ```ts
 import { squashTestCase } from '../../utils/squash-metadata';
@@ -179,6 +188,28 @@ test(
     await test.step('Hover over a linked file', async () => {
       // ...
     });
+  }
+);
+```
+
+Example (login/admin are Squash prerequisites, not steps):
+
+```ts
+test(
+  'Add Nextcloud file storage to Demo project',
+  squashTestCase(2064, { stepCount: 6 }),
+  async ({ page }) => {
+    // Setup matching Squash prerequisites (not counted as steps).
+    await loginViaKeycloak(page);
+    await ensureAdminForSession(page);
+
+    await test.step('Open the project external file storages settings', async () => {
+      // ...
+    });
+    await test.step('Click on New storage (+Storage)', async () => {
+      // ...
+    });
+    // ... remaining Squash Actions as top-level test.step() blocks
   }
 );
 ```

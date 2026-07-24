@@ -1,4 +1,4 @@
-ARG PLAYWRIGHT_VERSION=v1.58.2
+ARG PLAYWRIGHT_VERSION=v1.61.1
 FROM mcr.microsoft.com/playwright:${PLAYWRIGHT_VERSION}-noble
 
 # Never open or serve report inside container; host opens static report after run

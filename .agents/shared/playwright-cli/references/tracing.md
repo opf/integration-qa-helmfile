@@ -8,6 +8,20 @@ This page describes **`playwright-cli tracing-start` / `tracing-stop`**, which w
 
 When you run **`npx playwright test`** in this repo’s **`e2e/`** project, traces and reports are controlled by `playwright.config.ts`: HTML/JSON/JUnit under `playwright-report/run-*`, and Playwright output under `test-results/` (see `.agents/shared/openproject-e2e.md`, Running Tests). Those are separate from CLI trace folders. Use the same **Trace Viewer** (`npx playwright show-trace`) for `.trace` files from either source when applicable.
 
+## Test runner trace CLI (Playwright 1.59+)
+
+After a failing **`npx playwright test`** run, analyze traces without opening the HTML report:
+
+```bash
+npx playwright trace open test-results/<project>/<test>/trace.zip
+npx playwright trace actions --grep="expect"
+npx playwright trace action 9
+npx playwright trace snapshot 9 --name after
+npx playwright trace close
+```
+
+For step-through debugging during a test run, use **`npx playwright test --debug=cli`** and attach with **`playwright-cli attach <session-id>`** (see `.agents/shared/playwright-cli/SKILL.md`, Debugging tests).
+
 ## Basic Usage
 
 ```bash

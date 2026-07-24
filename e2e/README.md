@@ -25,7 +25,7 @@ E2E_ENV=local npx playwright test
 
 **E2E conventions and runs:** `.agents/shared/openproject-e2e.md` (thin adapters: Cursor/Codex `.agents/skills/tests/SKILL.md`, Cursor `.cursor/rules/openproject-e2e.mdc`, Claude `.claude/skills/tests/SKILL.md`).
 
-**`playwright-cli`** (interactive only; not `npx playwright test`): `.agents/shared/playwright-cli/SKILL.md` via thin adapters in `.agents/skills/playwright-cli/SKILL.md` and `.claude/skills/playwright-cli/SKILL.md`; references live under `.agents/shared/playwright-cli/references/`.
+**`playwright-cli`** (interactive only; not `npx playwright test`): `.agents/shared/playwright-cli/SKILL.md` via thin adapters in `.agents/skills/playwright-cli/SKILL.md` and `.claude/skills/playwright-cli/SKILL.md`; references live under `.agents/shared/playwright-cli/references/`. For test debugging use `npx playwright test --debug=cli`; for trace analysis use `npx playwright trace …` (see tracing reference).
 
 ## CI
 
