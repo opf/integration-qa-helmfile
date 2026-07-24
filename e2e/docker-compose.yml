@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        PLAYWRIGHT_VERSION: ${PLAYWRIGHT_VERSION:-v1.58.2}
+        PLAYWRIGHT_VERSION: ${PLAYWRIGHT_VERSION:-v1.61.1}
     env_file:
       - path: .env.local
         required: false

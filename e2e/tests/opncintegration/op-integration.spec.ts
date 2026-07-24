@@ -96,85 +96,173 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     }
   });
 
-  test('Access OpenProject via Keycloak user authentication', async ({ page }) => {
-    const loginPage = new OpenProjectLoginPage(page);
-    await loginPage.navigateTo();
-    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
-    
-    const homePage = new OpenProjectHomePage(page);
-    await homePage.waitForOpenProjectUrl();
-    await homePage.waitForReady();
-    
-    const currentUrl = page.url();
-    expect(currentUrl).not.toContain('/login');
-    expect(currentUrl).toContain(testConfig.openproject.host);
-    
-    const isProfileButtonPresent = await homePage.verifyUserProfileButton('Alice Hansen');
-    expect(isProfileButtonPresent).toBe(true);
-    const userName = await homePage.getUserNameFromProfile();
-    expect(userName).toContain('Alice Hansen');
-  });
+  test(
+    'Access OpenProject via Keycloak user authentication',
+    squashTestCase(2160, { stepCount: 4 }),
+    async ({ page }) => {
+      const loginPage = new OpenProjectLoginPage(page);
+      let keycloakLoginPage: Awaited<ReturnType<OpenProjectLoginPage['clickKeycloakAuthButton']>>;
+
+      await test.step('Navigate to the OpenProject login page', async () => {
+        await loginPage.navigateTo();
+      });
+
+      await test.step('Click the Keycloak authentication button', async () => {
+        keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+      });
+
+      await test.step('Log in as test user', async () => {
+        await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      });
+
+      await test.step('Verify the user session on the OpenProject home page', async () => {
+        const homePage = new OpenProjectHomePage(page);
+        await homePage.waitForOpenProjectUrl();
+        await homePage.waitForReady();
+
+        const currentUrl = page.url();
+        expect(currentUrl).not.toContain('/login');
+        expect(currentUrl).toContain(testConfig.openproject.host);
+
+        const isProfileButtonPresent = await homePage.verifyUserProfileButton('Alice Hansen');
+        expect(isProfileButtonPresent).toBe(true);
+        const userName = await homePage.getUserNameFromProfile();
+        expect(userName).toContain('Alice Hansen');
+      });
+    }
+  );
   
-  test('Add Nextcloud file storage to Demo project', async ({ page }) => {
-    const loginPage = new OpenProjectLoginPage(page);
-    await loginPage.navigateTo();
-    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+  test(
+    'Add Nextcloud file storage to Demo project',
+    squashTestCase(2064, { stepCount: 6 }),
+    async ({ page }) => {
+      const loginPage = new OpenProjectLoginPage(page);
+      const storagesPage = new OpenProjectProjectStoragesPage(page);
 
-    const homePage = new OpenProjectHomePage(page);
-    await homePage.waitForReady();
+      // Prerequisites (Squash): login via Keycloak and ensure admin permissions.
+      await loginPage.navigateTo();
+      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      const homePage = new OpenProjectHomePage(page);
+      await homePage.waitForReady();
+      await ensureAliceAdminForCurrentSession(page, homePage);
 
-    await ensureAliceAdminForCurrentSession(page, homePage);
+      let storageAlreadyLinked = false;
 
-    await ensureProjectHasNextcloudStorage('demo-project', page);
+      await test.step('Open the project external file storages settings', async () => {
+        await storagesPage.navigateToProjectStorages('demo-project');
+        await expect(page).toHaveURL(
+          openProjectUrl('/projects/demo-project/settings/project_storages/external_file_storages')
+        );
+        storageAlreadyLinked = await storagesPage.hasNextcloudStorage();
+      });
 
-    const storagesPage = new OpenProjectProjectStoragesPage(page);
-    if (!(await storagesPage.hasNextcloudStorage())) {
-      await storagesPage.navigateToProjectStorages('demo-project');
+      await test.step('Click on New storage (+Storage)', async () => {
+        if (storageAlreadyLinked) {
+          await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toBeVisible();
+          return;
+        }
+        await storagesPage.openNewStorageForm();
+        await expect(storagesPage.getLocator('addFileStorageHeading').first()).toBeVisible();
+      });
+
+      await test.step("Click on Storage field's dropdown", async () => {
+        if (storageAlreadyLinked) {
+          await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toBeVisible();
+          return;
+        }
+        await storagesPage.openStorageDropdown();
+      });
+
+      await test.step('Choose a Nextcloud storage and click Continue', async () => {
+        if (storageAlreadyLinked) {
+          await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toBeVisible();
+          return;
+        }
+        await storagesPage.selectNextcloudStorageAndContinue();
+        await expect(storagesPage.getLocator('automaticFolderModeRadio')).toBeVisible();
+      });
+
+      await test.step(
+        'Ensure New folder with automatically managed permissions is selected and click Add',
+        async () => {
+          if (storageAlreadyLinked) {
+            await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toBeVisible();
+            return;
+          }
+          await storagesPage.selectAutomaticFolderModeAndAdd();
+          await expect(storagesPage.getLocator('storageCreationSuccessMessage')).toBeVisible();
+        }
+      );
+
+      await test.step('Verify the Nextcloud storage row in the file storages list', async () => {
+        if (!(await storagesPage.hasNextcloudStorage())) {
+          await storagesPage.navigateToProjectStorages('demo-project');
+        }
+        await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toContainText(/Nextcloud/i);
+      });
     }
-    await expect(page).toHaveURL(openProjectUrl('/projects/demo-project/settings/project_storages/external_file_storages'));
-    await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toContainText(/Nextcloud/i);
-  });
+  );
 
-  test('Upload a file from OP to NC using ampf', async ({ page }) => {
-    const uploadedFileName = 'op-to-nc-upload-test.md';
+  test(
+    'Upload a file from OP to NC using ampf',
+    squashTestCase(2068, { stepCount: 5 }),
+    async ({ page }) => {
+      const uploadedFileName = 'op-to-nc-upload-test.md';
+      const loginPage = new OpenProjectLoginPage(page);
+      const homePage = new OpenProjectHomePage(page);
 
-    const loginPage = new OpenProjectLoginPage(page);
-    await loginPage.navigateTo();
-    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      // Prerequisites (Squash): login, membership, healthy AMPF storage, clean prior link.
+      await loginPage.navigateTo();
+      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      await homePage.waitForReady();
+      await ensureAliceIsDemoProjectMember();
+      await ensureProjectHasNextcloudStorage('demo-project', page);
+      await waitForNextcloudStorageHealthy('demo-project');
+      await deleteWorkPackageFileLinksByName(2, uploadedFileName);
 
-    const homePage = new OpenProjectHomePage(page);
-    await homePage.waitForReady();
+      await test.step('Open the target work package Files tab', async () => {
+        await homePage.navigateToDemoProjectWorkPackageFiles(2);
+        await homePage.waitForDemoProjectWorkPackageFilesUrl();
+      });
 
-    await ensureAliceIsDemoProjectMember();
+      await test.step(
+        'Click Upload files in the Nextcloud section and select a file from the computer',
+        async () => {
+          await homePage.openFilesPickerWithUpload(uploadedFileName);
+          await homePage.waitForFilesPickerReady(uploadedFileName);
+          await expect(homePage.getLocator('filesPickerModal')).toBeVisible();
+        }
+      );
 
-    await ensureProjectHasNextcloudStorage('demo-project', page);
-    await waitForNextcloudStorageHealthy('demo-project');
-    await deleteWorkPackageFileLinksByName(2, uploadedFileName);
+      await test.step('Confirm the upload location (Choose location)', async () => {
+        await homePage.getLocator('filesPickerConfirmButton').click();
 
-    await homePage.navigateToDemoProjectWorkPackageFiles(2);
-    await homePage.waitForDemoProjectWorkPackageFilesUrl();
+        const existingFileModalTitle = homePage.getLocator('existingFileModalTitle');
+        if (await existingFileModalTitle.isVisible({ timeout: 5000 }).catch(() => false)) {
+          const replaceButton = homePage.getLocator('fileExistsReplaceButton').first();
+          await replaceButton.waitFor({ state: 'visible', timeout: 10000 });
+          await replaceButton.click();
+        }
+      });
 
-    await homePage.openFilesPickerWithUpload(uploadedFileName);
-    await homePage.waitForFilesPickerReady(uploadedFileName);
+      await test.step('Wait for the upload to finish', async () => {
+        const uploadSuccessMessage = homePage.getLocator('filesUploadSuccessMessage');
+        await uploadSuccessMessage.waitFor({ state: 'visible', timeout: 20000 });
+        await expect(uploadSuccessMessage).toContainText('Successfully created 1 file link.');
+      });
 
-    const chooseLocationButton = homePage.getLocator('filesPickerConfirmButton');
-    await chooseLocationButton.click();
-
-    // Handle "file already exists" modal if it appears
-    const existingFileModalTitle = homePage.getLocator('existingFileModalTitle');
-    if (await existingFileModalTitle.isVisible({ timeout: 5000 }).catch(() => false)) {
-      const replaceButton = homePage.getLocator('fileExistsReplaceButton').first();
-      await replaceButton.waitFor({ state: 'visible', timeout: 10000 });
-      await replaceButton.click();
+      await test.step(
+        'Verify the uploaded file appears in the Nextcloud section of the Files tab',
+        async () => {
+          const linkedFileItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
+          await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });
+          await expect(linkedFileItem).toContainText(uploadedFileName);
+        }
+      );
     }
-
-    const uploadSuccessMessage = homePage.getLocator('filesUploadSuccessMessage');
-    await uploadSuccessMessage.waitFor({ state: 'visible', timeout: 20000 });
-    await expect(uploadSuccessMessage).toContainText('Successfully created 1 file link.');
-  });
+  );
 
   test(
     'OpenProject Files tab lists linked Nextcloud items and available actions',
@@ -228,26 +316,48 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     }
   );
 
-  test('Copy ampf Demo project', async ({ page }) => {
-    const loginPage = new OpenProjectLoginPage(page);
-    await loginPage.navigateTo();
-    const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-    await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+  test(
+    'Copy AMPF Demo project and verify Nextcloud storage',
+    squashTestCase(2161, { stepCount: 5 }),
+    async ({ page }) => {
+      const loginPage = new OpenProjectLoginPage(page);
+      let homePage: OpenProjectHomePage;
 
-    const homePage = new OpenProjectHomePage(page);
-    await homePage.waitForReady();
-    await ensureAliceAdminForCurrentSession(page, homePage);
+      await test.step(
+        'Log in to OpenProject via Keycloak as a user with admin permissions',
+        async () => {
+          await loginPage.navigateTo();
+          const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+          await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
 
-    await homePage.copyDemoProjectViaUi('test');
+          homePage = new OpenProjectHomePage(page);
+          await homePage.waitForReady();
+          await ensureAliceAdminForCurrentSession(page, homePage);
+        }
+      );
 
-    await expect(page).toHaveURL(openProjectUrl('/projects/test'));
+      await test.step(
+        'Copy the existing project with Nextcloud storage via the UI to a new project',
+        async () => {
+          await homePage.copyDemoProjectViaUi('test');
+        }
+      );
 
-    await homePage.navigateToProjectStoragesExternal('test', 30000);
+      await test.step('Verify redirect to the copied project', async () => {
+        await expect(page).toHaveURL(openProjectUrl('/projects/test'));
+      });
 
-    const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
-    await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
-    await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
-  });
+      await test.step('Open external file storages settings for a copied project', async () => {
+        await homePage.navigateToProjectStoragesExternal('test', 30000);
+      });
+
+      await test.step('Verify the Nextcloud storage row', async () => {
+        const nextcloudStorageRow = homePage.getLocator('nextcloudStorageRow');
+        await nextcloudStorageRow.first().waitFor({ state: 'visible', timeout: 15000 });
+        await expect(nextcloudStorageRow.first()).toContainText(/Nextcloud/i);
+      });
+    }
+  );
 
   test.afterAll(async () => {
     // Clean up test data created during the test suite
