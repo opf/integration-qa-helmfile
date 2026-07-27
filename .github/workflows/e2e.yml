@@ -611,7 +611,7 @@ jobs:
           fi
 
           get() {
-            jq -r --arg k "$1" '.[$k] // "not-detected"' "${json}"
+            node -e "const d=JSON.parse(require('fs').readFileSync('${json}','utf8'));console.log(d[process.argv[1]]||'not-detected')" "$1"
           }
 
           {

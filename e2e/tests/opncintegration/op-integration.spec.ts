@@ -227,6 +227,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       await test.step('Open the target work package Files tab', async () => {
         await homePage.navigateToDemoProjectWorkPackageFiles(2);
         await homePage.waitForDemoProjectWorkPackageFilesUrl();
+        await homePage.waitForNextcloudFilesSectionConnected(2);
       });
 
       await test.step(
@@ -291,6 +292,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
       await test.step('Open the Files tab', async () => {
         await homePage.openWorkPackageFilesTab();
+        await homePage.waitForNextcloudFilesSectionConnected(workPackageId);
 
         const linkedFileItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
         await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getErrorMessage } from '../utils/error-utils';
-import { logError, logInfo, logWarn } from '../utils/logger';
+import { logDebug, logError, logInfo, logWarn } from '../utils/logger';
 import {
   SQUASH_AUTOMATED_REFERENCE_ANNOTATION,
   SQUASH_DATASET_NAME_ANNOTATION,
@@ -79,6 +79,10 @@ interface PublisherConfig {
 
 const defaultSquashTmUrl = 'https://squashtm.openproject.org/squash';
 const defaultAttachmentMaxBytes = 5 * 1024 * 1024;
+/** Soft ceiling for POST /import/results body; oversized payloads historically caused HTTP 413. */
+const defaultPayloadWarnBytes = 1 * 1024 * 1024;
+const maxFailureScreenshots = 1;
+
 const fetchMaxAttempts = 3;
 const fetchTimeoutMs = 30_000;
 const e2eRoot = path.resolve(__dirname, '..');
@@ -146,8 +150,20 @@ async function main(): Promise<void> {
 
   const payload = buildSquashPayload(testsForPayload, reportRunDir, attachmentPolicy);
   const outputPath = path.join(reportRunDir, 'squash-results.json');
+  // Pretty artifact for humans; POST uses compact JSON below.
   fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  const compactBody = JSON.stringify(payload);
+  const payloadBytes = Buffer.byteLength(compactBody, 'utf8');
+  const warnBytes =
+    parsePositiveInteger(process.env.SQUASH_TM_PAYLOAD_WARN_BYTES) ?? defaultPayloadWarnBytes;
   logInfo(`[Squash TM] Wrote payload: ${outputPath}`);
+  logInfo(`[Squash TM] Compact payload size: ${payloadBytes} bytes`);
+  if (payloadBytes > warnBytes) {
+    logWarn(
+      `[Squash TM] Compact payload (${payloadBytes} bytes) exceeds warn threshold ` +
+        `(${warnBytes} bytes); Squash/proxy may return HTTP 413.`,
+    );
+  }
   logInfo(`[Squash TM] Mapped test results: ${summarizeStatuses(payload.tests)}`);
 
   if (dryRun) {
@@ -162,7 +178,7 @@ async function main(): Promise<void> {
     await syncIterationTestPlan(config, collectedTests);
   }
 
-  await publishResults(config, payload);
+  await publishResults(config, payload, compactBody);
 }
 
 function findPlaywrightJsonReport(): string {
@@ -342,9 +358,13 @@ function summarizePlaywrightTest(
   const status = mapPlaywrightStatus(getString(lastResult.status), getString(testObject.status));
   const duration = results.reduce((sum, result) => sum + getNonNegativeNumber(result.duration), 0);
   const failureDetails = results.flatMap((result) => getFailureDetails(result));
-  const attachments = results.flatMap((result) =>
+  let attachments = results.flatMap((result) =>
     getResultAttachments(result, reportRunDir, attachmentPolicy),
   );
+
+  if (status === 'FAILURE') {
+    attachments = capFailureScreenshots(attachments, maxFailureScreenshots);
+  }
 
   return {
     status,
@@ -352,6 +372,31 @@ function summarizePlaywrightTest(
     failureDetails,
     attachments,
   };
+}
+
+function capFailureScreenshots(
+  attachments: SquashAttachment[],
+  maxScreenshots: number,
+): SquashAttachment[] {
+  let keptScreenshots = 0;
+  const capped: SquashAttachment[] = [];
+
+  for (const attachment of attachments) {
+    const extension = path.extname(attachment.name).replace('.', '').toLowerCase();
+    const isScreenshot = extension === 'png' || extension === 'jpg' || extension === 'jpeg';
+    if (isScreenshot) {
+      if (keptScreenshots >= maxScreenshots) {
+        logWarn(
+          `[Squash TM] Dropping extra FAILURE screenshot to limit payload size: ${attachment.name}`,
+        );
+        continue;
+      }
+      keptScreenshots += 1;
+    }
+    capped.push(attachment);
+  }
+
+  return capped;
 }
 
 function mapPlaywrightStatus(
@@ -531,17 +576,40 @@ async function prepareTestsForImport(
   const prepared: CollectedTest[] = [];
 
   for (const test of tests) {
-    const playwrightStepCount = test.testSteps.length;
+    let testSteps = [...test.testSteps];
+    let playwrightStepCount = testSteps.length;
+
+    logDebug(
+      `[Squash TM] ${test.reference}: playwrightStepCount=${playwrightStepCount}, ` +
+        `expectedStepCount=${test.expectedStepCount}`,
+    );
 
     if (playwrightStepCount === 0 && !test.expectedStepCount) {
       prepared.push(test);
       continue;
     }
 
+    // Squash requires test_steps.length === manual step count. On early FAIL/SKIP,
+    // Playwright only records steps that started — pad the rest as SKIPPED.
+    if (
+      test.expectedStepCount !== undefined &&
+      playwrightStepCount < test.expectedStepCount
+    ) {
+      const padCount = test.expectedStepCount - playwrightStepCount;
+      logWarn(
+        `[Squash TM] ${test.reference}: padding ${padCount} unfinished step(s) as SKIPPED ` +
+          `to match squash_step_count annotation (${test.expectedStepCount}).`,
+      );
+      for (let i = 0; i < padCount; i++) {
+        testSteps.push({ status: 'SKIPPED' });
+      }
+      playwrightStepCount = testSteps.length;
+    }
+
     if (test.expectedStepCount !== undefined && playwrightStepCount !== test.expectedStepCount) {
       const message =
         `[Squash TM] ${test.reference}: Playwright top-level test.step() count ` +
-        `(${playwrightStepCount}) does not match squash_step_count annotation ` +
+        `(${test.testSteps.length}) does not match squash_step_count annotation ` +
         `(${test.expectedStepCount}).`;
       if (strict) throw new Error(message);
       logWarn(`${message} Skipping test_steps for this test.`);
@@ -567,14 +635,14 @@ async function prepareTestsForImport(
     }
 
     if (playwrightStepCount === 0) {
-      prepared.push(test);
+      prepared.push({ ...test, testSteps });
       continue;
     }
 
     logInfo(
       `[Squash TM] ${test.reference}: importing ${playwrightStepCount} test step result(s).`,
     );
-    prepared.push(test);
+    prepared.push({ ...test, testSteps });
   }
 
   return prepared;
@@ -584,8 +652,9 @@ async function getSquashTestCaseStepCount(
   config: PublisherConfig,
   testCaseId: number,
 ): Promise<number | undefined> {
+  // Avoid brittle fields= filters that return HTTP 400 on some Squash versions.
   const response = await fetchWithRetry(
-    buildApiUrl(config.baseUrl, `test-cases/${testCaseId}?fields=id,steps[action]`),
+    buildApiUrl(config.baseUrl, `test-cases/${testCaseId}`),
     {
       headers: {
         Authorization: `Bearer ${config.apiToken}`,
@@ -596,7 +665,8 @@ async function getSquashTestCaseStepCount(
   const body = await response.text();
   if (!response.ok) {
     logWarn(
-      `[Squash TM] Could not read test case ${testCaseId} steps: HTTP ${response.status} ${body}`,
+      `[Squash TM] Could not read test case ${testCaseId} steps: HTTP ${response.status} ` +
+        `${body.slice(0, 200)}. Falling back to annotation step count only.`,
     );
     return undefined;
   }
@@ -917,8 +987,13 @@ async function addTestCaseToIteration(
   );
 }
 
-async function publishResults(config: PublisherConfig, payload: SquashPayload): Promise<void> {
+async function publishResults(
+  config: PublisherConfig,
+  payload: SquashPayload,
+  compactBody = JSON.stringify(payload),
+): Promise<void> {
   const url = buildApiUrl(config.baseUrl, `import/results/${config.iterationId}`);
+  logInfo(`[Squash TM] Publishing ${Buffer.byteLength(compactBody, 'utf8')} byte payload to ${url}`);
   const response = await fetchWithRetry(url, {
     method: 'POST',
     headers: {
@@ -926,7 +1001,7 @@ async function publishResults(config: PublisherConfig, payload: SquashPayload): 
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: compactBody,
   });
   const responseBody = await response.text();
 

@@ -256,6 +256,62 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     await this.copyDemoProjectTo(newIdentifier);
   }
 
+  /**
+   * Wait until the WP Files tab Nextcloud section is connected for the current user.
+   * API projectFolder health is not enough — UI can still show "No Nextcloud connection".
+   * Soft-reloads the Files URL inside the budget; does not use a fixed upfront sleep.
+   */
+  async waitForNextcloudFilesSectionConnected(
+    workPackageId: number,
+    options: { timeoutMs?: number } = {},
+  ): Promise<void> {
+    const timeoutMs = options.timeoutMs ?? 60_000;
+    const deadline = Date.now() + timeoutMs;
+    const noConnection = this.getLocator('filesTabNoConnectionError').first();
+    const uploadInput = this.getLocator('workPackageFilesUploadInput').first();
+    const dropBox = this.getLocator('workPackageFilesUploadDropBox').first();
+    let reloadCount = 0;
+    const maxReloads = 4;
+
+    while (Date.now() < deadline) {
+      const bannerVisible = await noConnection.isVisible().catch(() => false);
+      const uploadAttached = await uploadInput
+        .waitFor({ state: 'attached', timeout: 1500 })
+        .then(() => true)
+        .catch(() => false);
+      const dropBoxVisible = await dropBox.isVisible().catch(() => false);
+
+      if (!bannerVisible && (uploadAttached || dropBoxVisible)) {
+        // Debounce a second poll so a transient READY flash does not race ahead.
+        await this.page.waitForTimeout(500);
+        const stillBanner = await noConnection.isVisible().catch(() => false);
+        const stillUploadAttached = await uploadInput.count().then((n) => n > 0).catch(() => false);
+        const stillDropBox = await dropBox.isVisible().catch(() => false);
+        if (!stillBanner && (stillUploadAttached || stillDropBox)) {
+          logDebug('[OpenProject] Nextcloud Files section is connected');
+          return;
+        }
+      }
+
+      if (bannerVisible && reloadCount < maxReloads && Date.now() + 2000 < deadline) {
+        reloadCount += 1;
+        logDebug(
+          `[OpenProject] Files tab still shows No Nextcloud connection; soft-reloading (${reloadCount}/${maxReloads})`,
+        );
+        await this.navigateToDemoProjectWorkPackageFiles(workPackageId);
+        await this.waitForDemoProjectWorkPackageFilesUrl(15000).catch(() => undefined);
+        continue;
+      }
+
+      await this.page.waitForTimeout(1000);
+    }
+
+    throw new Error(
+      'API storage healthy but Files tab still shows No Nextcloud connection ' +
+        `(or upload control not ready) after ${timeoutMs}ms.`,
+    );
+  }
+
   async openFilesPickerWithUpload(uploadFileName: string): Promise<void> {
     const uploadInput = this.getLocator('workPackageFilesUploadInput');
     await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
@@ -270,7 +326,7 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     await this.getLocator('filesPickerModal').waitFor({ state: 'visible', timeout: 15000 });
   }
 
-  async waitForFilesPickerReady(fixtureFileName: string, maxAttempts = 12): Promise<void> {
+  async waitForFilesPickerReady(fixtureFileName: string, maxAttempts = 15): Promise<void> {
     const modal = this.getLocator('filesPickerModal');
     const noConnection = this.getLocator('filesPickerNoConnectionError');
     const confirmButton = this.getLocator('filesPickerConfirmButton');
@@ -280,6 +336,10 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
       await modal.waitFor({ state: 'visible', timeout: 15000 });
 
       if (await noConnection.isVisible({ timeout: 2000 }).catch(() => false)) {
+        logDebug(
+          `[OpenProject] Files picker shows No Nextcloud connection; retrying ` +
+            `(${attempt + 1}/${maxAttempts})`,
+        );
         if (await cancelButton.isVisible({ timeout: 1000 }).catch(() => false)) {
           await cancelButton.click();
         } else {
@@ -287,6 +347,7 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
         }
         await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
         if (attempt < maxAttempts - 1) {
+          await this.page.waitForTimeout(5000);
           await this.openFilesPickerWithUpload(fixtureFileName);
         }
         continue;

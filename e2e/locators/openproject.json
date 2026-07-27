@@ -175,9 +175,13 @@
       "by": "locator",
       "value": "button[data-test-selector='op-files-picker-modal--confirm']"
     },
+    "filesTabNoConnectionError": {
+      "by": "locator",
+      "value": "[data-test-selector='op-tab-content-file'] >> text=No Nextcloud connection, .work-packages--details >> text=No Nextcloud connection"
+    },
     "filesPickerNoConnectionError": {
-      "by": "getByText",
-      "value": "No Nextcloud connection"
+      "by": "locator",
+      "value": "[data-test-selector='op-files-picker-modal'] >> text=No Nextcloud connection"
     },
     "filesPickerCancelButton": {
       "by": "locator",
