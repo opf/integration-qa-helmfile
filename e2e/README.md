@@ -54,6 +54,6 @@ Manual workflow: `.github/workflows/e2e.yml` (deploy PullPreview, run Playwright
 | `SQUASH_TM_VALIDATE_STEP_COUNT` | Compare Playwright step count to Squash TM manual steps via API | `false` |
 | `SQUASH_TM_STRICT_STEP_COUNT` | Fail publish on step count mismatch | `false` |
 | `SQUASH_TM_DRY_RUN` | Write Squash payload without publishing | `false` |
-| `SQUASH_TM_TEST_ATTACHMENT_EXTENSIONS` | Allowed per-test attachment extensions for Squash payloads | `txt,html,xml,doc,png,jpg,jpeg,webm,zip` |
+| `SQUASH_TM_TEST_ATTACHMENT_EXTENSIONS` | Allowed per-test attachment extensions for Squash payloads | `txt,html,xml,doc,png,jpg,jpeg` (add `webm,zip` via env if needed) |
 
 Put variables in `.env.local` for local runs. Place `opnc-root-ca.crt` in the project root for self-signed CA.

@@ -5,33 +5,28 @@ import { resolveServiceNavigationUrl } from '../../utils/url-helpers';
 import { getErrorMessage } from '../../utils/error-utils';
 import { logDebug, logWarn } from '../../utils/logger';
 
+/** Cap individual dismiss actions so optional overlays cannot burn the full test timeout. */
+const DISMISS_ACTION_TIMEOUT_MS = 3000;
+
 export abstract class NextcloudBasePage extends BasePage {
   constructor(page: Page) {
     super(page, 'nextcloud.json');
   }
 
-  private async hasVisibleFirstRunWizardElement(): Promise<boolean> {
-    const locatorKeys = [
-      'firstRunWizardSkipButton',
-      'firstRunWizardIntroVideo',
-      'firstRunWizardCloseButton',
-      'firstRunWizardDialog',
-      'firstRunWizard',
-    ];
-
-    for (const key of locatorKeys) {
-      const isVisible = await this.getLocator(key).first().isVisible().catch(() => false);
-      if (isVisible) return true;
-    }
-
-    return false;
+  /**
+   * Only the scoped firstrunwizard root counts as present.
+   * Bare role=dialog / substring "Skip" matches caused false positives on OIDC settings.
+   */
+  private async isFirstRunWizardVisible(): Promise<boolean> {
+    return this.getLocator('firstRunWizard').first().isVisible().catch(() => false);
   }
 
   private async waitForFirstRunWizard(appearanceTimeout: number): Promise<boolean> {
-    const deadline = Date.now() + appearanceTimeout;
+    const cappedAppearance = Math.min(appearanceTimeout, 3000);
+    const deadline = Date.now() + cappedAppearance;
 
     while (Date.now() < deadline) {
-      if (await this.hasVisibleFirstRunWizardElement()) return true;
+      if (await this.isFirstRunWizardVisible()) return true;
       await this.page.waitForTimeout(250);
     }
 
@@ -51,46 +46,77 @@ export abstract class NextcloudBasePage extends BasePage {
     );
   }
 
+  /**
+   * Optionally dismiss Nextcloud's first-run wizard when `#firstrunwizard` is visible.
+   * Soft: never throws — false positives / dismiss failures must not fail the test.
+   */
   protected async dismissFirstRunWizardIfPresent(appearanceTimeout = 5000): Promise<boolean> {
-    const wizardAppeared = await this.waitForFirstRunWizard(appearanceTimeout);
-    if (!wizardAppeared) {
-      logDebug('[Nextcloud] First-run wizard not shown');
-      return false;
-    }
-
-    logDebug('[Nextcloud] First-run wizard detected, dismissing it');
-
     try {
-      const wizard = this.getLocator('firstRunWizardDialog').first();
+      const wizardAppeared = await this.waitForFirstRunWizard(appearanceTimeout);
+      if (!wizardAppeared) {
+        logDebug('[Nextcloud] First-run wizard not shown');
+        return false;
+      }
+
+      logDebug('[Nextcloud] First-run wizard detected, dismissing it');
+
+      const wizard = this.getLocator('firstRunWizard').first();
       const skipButton = this.getLocator('firstRunWizardSkipButton').first();
       const closeButton = this.getLocator('firstRunWizardCloseButton').first();
-      const skipVisible = await skipButton.waitFor({ state: 'visible', timeout: 5000 })
+
+      const skipVisible = await skipButton
+        .waitFor({ state: 'visible', timeout: DISMISS_ACTION_TIMEOUT_MS })
         .then(() => true)
         .catch(() => false);
 
       if (skipVisible) {
-        await skipButton.click({ timeout: 5000 }).catch((error: unknown) => {
-          logDebug('[Nextcloud] First-run wizard skip button was not clicked:', getErrorMessage(error));
+        await skipButton.click({ timeout: DISMISS_ACTION_TIMEOUT_MS }).catch((error: unknown) => {
+          logDebug(
+            '[Nextcloud] First-run wizard skip button was not clicked:',
+            getErrorMessage(error),
+          );
         });
       }
 
-      await closeButton.waitFor({ state: 'visible', timeout: 20000 });
-      const dismissRequest = this.page.waitForResponse((response) => {
-        return response.url().includes('/apps/firstrunwizard/wizard') &&
-          response.request().method() === 'DELETE';
-      }, { timeout: 10000 }).catch((error: unknown) => {
-        logDebug('[Nextcloud] First-run wizard dismiss request was not observed:', getErrorMessage(error));
-        return null;
-      });
-      await closeButton.click({ timeout: 5000 });
-      await dismissRequest;
-      await wizard.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {
-        return closeButton.waitFor({ state: 'hidden', timeout: 5000 });
+      const closeVisible = await closeButton
+        .waitFor({ state: 'visible', timeout: DISMISS_ACTION_TIMEOUT_MS })
+        .then(() => true)
+        .catch(() => false);
+
+      if (closeVisible) {
+        const dismissRequest = this.page
+          .waitForResponse(
+            (response) => {
+              return (
+                response.url().includes('/apps/firstrunwizard/wizard') &&
+                response.request().method() === 'DELETE'
+              );
+            },
+            { timeout: DISMISS_ACTION_TIMEOUT_MS },
+          )
+          .catch((error: unknown) => {
+            logDebug(
+              '[Nextcloud] First-run wizard dismiss request was not observed:',
+              getErrorMessage(error),
+            );
+            return null;
+          });
+        await closeButton.click({ timeout: DISMISS_ACTION_TIMEOUT_MS }).catch((error: unknown) => {
+          logDebug(
+            '[Nextcloud] First-run wizard close button was not clicked:',
+            getErrorMessage(error),
+          );
+        });
+        await dismissRequest;
+      }
+
+      await wizard.waitFor({ state: 'hidden', timeout: DISMISS_ACTION_TIMEOUT_MS }).catch(() => {
+        return closeButton.waitFor({ state: 'hidden', timeout: DISMISS_ACTION_TIMEOUT_MS });
       });
       return true;
     } catch (error: unknown) {
       logWarn('[Nextcloud] Failed to dismiss first-run wizard:', getErrorMessage(error));
-      throw error;
+      return false;
     }
   }
 

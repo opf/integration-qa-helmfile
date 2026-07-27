@@ -790,7 +790,7 @@ function getAttachmentPolicy(): AttachmentPolicy {
   );
   const testExtensions = parseExtensionSet(
     process.env.SQUASH_TM_TEST_ATTACHMENT_EXTENSIONS ||
-      'txt,html,xml,doc,png,jpg,jpeg,webm,zip',
+      'txt,html,xml,doc,png,jpg,jpeg',
   );
   const configuredMaxBytes = parsePositiveInteger(
     process.env.SQUASH_TM_ATTACHMENT_MAX_BYTES,
