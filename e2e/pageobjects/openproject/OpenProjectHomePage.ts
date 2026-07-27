@@ -1,4 +1,6 @@
 import type { Locator, Page, Response } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
 import { logDebug, logWarn } from '../../utils/logger';
 import { waitForProjectCreated } from '../../utils/openproject-api';
@@ -254,10 +256,17 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     await this.copyDemoProjectTo(newIdentifier);
   }
 
-  async openFilesPickerWithUpload(fixtureFileName: string): Promise<void> {
+  async openFilesPickerWithUpload(uploadFileName: string): Promise<void> {
     const uploadInput = this.getLocator('workPackageFilesUploadInput');
     await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
-    await uploadInput.setInputFiles(`fixtures/${fixtureFileName}`);
+    // Upload under the requested name using the shared fixture payload so suite-scoped
+    // unique filenames do not require a new on-disk file per run.
+    const fixturePath = resolve(process.cwd(), 'fixtures/op-to-nc-upload-test.md');
+    await uploadInput.setInputFiles({
+      name: uploadFileName,
+      mimeType: 'text/markdown',
+      buffer: readFileSync(fixturePath),
+    });
     await this.getLocator('filesPickerModal').waitFor({ state: 'visible', timeout: 15000 });
   }
 

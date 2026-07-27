@@ -106,10 +106,33 @@ export class OpenProjectProjectStoragesPage extends OpenProjectBasePage {
 
     const addButton = this.getLocator('addButton');
     await addButton.waitFor({ state: 'visible', timeout: 10000 });
-    await addButton.click();
 
-    const successMessage = this.getLocator('storageCreationSuccessMessage');
-    await successMessage.waitFor({ state: 'visible', timeout: 15000 });
+    // Flash text alone is unreliable: Primer Banner + #polite both say
+    // "Successful creation." and trip Playwright strict mode. Wait for the
+    // create POST, return URL, and durable storage row instead.
+    const createResponse = this.page.waitForResponse(
+      (response) => {
+        if (response.request().method() !== 'POST') {
+          return false;
+        }
+        if (!/project_storages/.test(response.url())) {
+          return false;
+        }
+        const status = response.status();
+        return status >= 200 && status < 400;
+      },
+      { timeout: 30000 }
+    );
+    await addButton.click();
+    await createResponse;
+
+    await this.page.waitForURL(
+      /\/projects\/[^/]+\/settings\/project_storages\/external_file_storages/,
+      { timeout: 15000 }
+    );
+    await this.getLocator('nextcloudStorageRow')
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 });
   }
 
   /**

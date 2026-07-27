@@ -152,8 +152,8 @@
       "value": "button[type='submit'].Button--primary:has-text('Add')"
     },
     "storageCreationSuccessMessage": {
-      "by": "getByText",
-      "value": "Successful creation."
+      "by": "locator",
+      "value": ".Banner-title:has-text('Successful creation.')"
     },
     "nextcloudStorageRow": {
       "by": "locator",
