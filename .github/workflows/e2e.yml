@@ -147,7 +147,32 @@ permissions:
   contents: read
 
 jobs:
+  resolve_playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Resolve Playwright version from lockfile
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(e2e/scripts/playwright-version.sh)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved Playwright version: ${version}"
+          {
+            echo "### Playwright version"
+            echo ""
+            echo "Lockfile \`@playwright/test\`: \`${version}\`"
+            echo "CI image: \`mcr.microsoft.com/playwright:v${version}-noble\`"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   deploy:
+    needs: resolve_playwright
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -594,11 +619,11 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   running_tests:
-    needs: deploy
-    if: always()
+    needs: [deploy, resolve_playwright]
+    if: always() && needs.resolve_playwright.result == 'success'
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      image: mcr.microsoft.com/playwright:v${{ needs.resolve_playwright.outputs.version }}-noble
     timeout-minutes: 90
     env:
       CI: true
@@ -607,7 +632,7 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-      PLAYWRIGHT_IMAGE_VERSION: "1.58.2"
+      PLAYWRIGHT_IMAGE_VERSION: ${{ needs.resolve_playwright.outputs.version }}
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
       OPENPROJECT_HOST: ${{ needs.deploy.outputs.openproject_host }}
@@ -644,7 +669,7 @@ jobs:
           installed_version="$(node -p "require('./node_modules/@playwright/test/package.json').version")"
           expected_version="${PLAYWRIGHT_IMAGE_VERSION#v}"
           if [[ "${installed_version}" != "${expected_version}" ]]; then
-            echo "::error::@playwright/test ${installed_version} does not match Playwright image version ${expected_version}. Update the workflow image and PLAYWRIGHT_IMAGE_VERSION together."
+            echo "::error::@playwright/test ${installed_version} does not match Playwright image version ${expected_version} (from package-lock). Check npm ci / lockfile integrity."
             exit 1
           fi
           npx playwright --version
