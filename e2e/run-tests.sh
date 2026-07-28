@@ -7,16 +7,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-get_playwright_version() {
-  if [ -f package-lock.json ]; then
-    sed -n '/"node_modules\/@playwright\/test"/,/}/p' package-lock.json \
-      | grep '"version"' \
-      | head -1 \
-      | sed 's/.*"version": "\([^"]*\)".*/\1/'
-  fi
-}
-PW_VERSION="$(get_playwright_version)"
-PLAYWRIGHT_VERSION="${PLAYWRIGHT_VERSION:-v${PW_VERSION:-1.58.2}}"
+PW_VERSION="$("${SCRIPT_DIR}/scripts/playwright-version.sh")"
+PLAYWRIGHT_VERSION="${PLAYWRIGHT_VERSION:-v${PW_VERSION}}"
 export PLAYWRIGHT_VERSION
 
 echo "E2E_ENV=${E2E_ENV:-local} | image=${PLAYWRIGHT_VERSION} | platform=$(uname -s)/$(uname -m)"

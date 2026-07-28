@@ -37,6 +37,9 @@ const ALICE_IDENTIFIERS = [
   return Boolean(identifier) && all.indexOf(identifier) === index;
 });
 
+/** Suite-scoped unique upload name so OP links + NC WebDAV cleanup do not collide across runs. */
+const uploadedFileName = `op-to-nc-upload-${Date.now()}.md`;
+
 let aliceWasAdminBeforeSuite = false;
 let aliceAdminElevatedBySuite = false;
 
@@ -191,7 +194,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
             return;
           }
           await storagesPage.selectAutomaticFolderModeAndAdd();
-          await expect(storagesPage.getLocator('storageCreationSuccessMessage')).toBeVisible();
+          await expect(storagesPage.getLocator('nextcloudStorageRow').first()).toBeVisible();
         }
       );
 
@@ -208,7 +211,6 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     'Upload a file from OP to NC using ampf',
     squashTestCase(2068, { stepCount: 5 }),
     async ({ page }) => {
-      const uploadedFileName = 'op-to-nc-upload-test.md';
       const loginPage = new OpenProjectLoginPage(page);
       const homePage = new OpenProjectHomePage(page);
 
@@ -225,6 +227,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       await test.step('Open the target work package Files tab', async () => {
         await homePage.navigateToDemoProjectWorkPackageFiles(2);
         await homePage.waitForDemoProjectWorkPackageFilesUrl();
+        await homePage.waitForNextcloudFilesSectionConnected(2);
       });
 
       await test.step(
@@ -269,7 +272,6 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     squashTestCase(2148, { stepCount: 4 }),
     async ({ page }) => {
       const workPackageId = 2;
-      const uploadedFileName = 'op-to-nc-upload-test.md';
       let homePage = new OpenProjectHomePage(page);
 
       await test.step('Login to OpenProject as the test user', async () => {
@@ -290,6 +292,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
       await test.step('Open the Files tab', async () => {
         await homePage.openWorkPackageFilesTab();
+        await homePage.waitForNextcloudFilesSectionConnected(workPackageId);
 
         const linkedFileItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
         await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });
@@ -360,9 +363,8 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   );
 
   test.afterAll(async () => {
-    // Clean up test data created during the test suite
     try {
-      const deletedLinks = await deleteWorkPackageFileLinksByName(2, 'op-to-nc-upload-test.md');
+      const deletedLinks = await deleteWorkPackageFileLinksByName(2, uploadedFileName);
       logInfo('[Cleanup] Deleted uploaded test file links:', deletedLinks);
     } catch (err) {
       logWarn('[Cleanup] Failed to delete uploaded test file links:', err);
@@ -370,7 +372,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
 
     try {
       await deleteUploadedTestFile(
-        'op-to-nc-upload-test.md',
+        uploadedFileName,
         'Demo project (1)',
         ALICE_USER
       );

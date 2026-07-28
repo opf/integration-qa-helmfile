@@ -127,8 +127,8 @@ try {
   - `OpenProjectProjectStoragesPage.navigateTo(identifier)`, `addNextcloudStorage()`, `hasNextcloudStorage()` – project storages UI.
 - When adding new cross-test flows:
   - Prefer page objects for UI flows; use test-helpers only for API or orchestration.
-- After UI actions that should succeed, verify the expected UI feedback:
-  - Example: after adding Nextcloud storage from OpenProject, wait for the success banner (`storageCreationSuccessMessage` locator, text `"Successful creation."`).
+- After UI actions that should succeed, verify the expected durable UI state (not only transient flash copy):
+  - Example: after adding Nextcloud storage from OpenProject, wait for the create POST / return to the storages list and assert `nextcloudStorageRow`. Prefer Banner-scoped locators (e.g. `.Banner-title`) if asserting flash text — bare `getByText('Successful creation.')` matches both the Banner and `#polite` and trips Playwright strict mode.
 
 ## OpenProject/Nextcloud Integration Notes
 

@@ -25,7 +25,7 @@ customConfigsSecrets:
       value: admin
 extraEnvVars:
   - name: EXTENSION_OPENPROJECT_VERSION
-    value: {{ .Values.xwiki.extensions.openproject.version | default "1.2.0-rc-7" | quote }}
+    value: {{ .Values.xwiki.extensions.openproject.version | default "1.2.0" | quote }}
   - name: OPENPROJECT_HOST
     value: https://{{ .Values.openproject.host }}
   - name: OPENPROJECT_CLIENT_ID

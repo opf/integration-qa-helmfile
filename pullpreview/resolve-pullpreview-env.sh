@@ -155,7 +155,6 @@ with open(sys.argv[1], encoding="utf-8") as handle:
 opnc = data.get("opnc-integration", {}) or {}
 op = data.get("openproject", {}) or {}
 nc = data.get("nextcloud", {}) or {}
-kc = data.get("keycloak", {}) or {}
 xw = data.get("xwiki", {}) or {}
 
 values = {}
@@ -184,10 +183,6 @@ if not nc_branch:
             break
 if nc_branch:
     values["NEXTCLOUD_BRANCH"] = str(nc_branch)
-
-kc_version = (kc.get("image") or {}).get("tag")
-if kc_version:
-    values["KEYCLOAK_VERSION"] = str(kc_version)
 
 for app in (opnc.get("nextcloud") or {}).get("enableApps") or []:
     if app.get("name") != "integration_openproject":

@@ -53,7 +53,7 @@ opnc-integration:
 xwiki:
   fullnameOverride: xwiki
   image:
-    tag: "18.3.0"
+    tag: "17.10.10"
   probes:
     readiness:
       initialDelaySeconds: 120

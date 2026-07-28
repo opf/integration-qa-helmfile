@@ -21,7 +21,11 @@ interface KeycloakClient {
 
 interface NextcloudUserResponse {
   ocs?: {
-    data?: { id?: string };
+    data?: {
+      id?: string | number;
+      userid?: string | number;
+      'display-name'?: string;
+    };
   };
 }
 
@@ -151,13 +155,27 @@ async function getKeycloakTokenForUser(
   return data.access_token;
 }
 
+function extractNextcloudUserId(data: NextcloudUserResponse): string | undefined {
+  const raw = data.ocs?.data?.id ?? data.ocs?.data?.userid;
+  if (raw === undefined || raw === null || raw === '') {
+    return undefined;
+  }
+  return String(raw);
+}
+
+/**
+ * Resolve the WebDAV path user segment for a Nextcloud account.
+ * Prefer OCS /cloud/user id; fall back to the Keycloak/test username when OCS
+ * omits id (common with OIDC bearer tokens that still authenticate WebDAV).
+ */
 async function resolveNextcloudUserId(
   ncHost: string,
-  bearerToken: string
+  bearerToken: string,
+  fallbackUsername: string
 ): Promise<string> {
   const dispatcher = getDispatcher();
   const response = await fetch(
-    `https://${ncHost}/ocs/v1.php/cloud/user`,
+    `https://${ncHost}/ocs/v1.php/cloud/user?format=json`,
     {
       headers: {
         authorization: `Bearer ${bearerToken}`,
@@ -169,16 +187,37 @@ async function resolveNextcloudUserId(
   );
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(
-      `Nextcloud user resolution failed: HTTP ${response.status} ${response.statusText} - ${text}`
+    logWarn(
+      'Nextcloud user resolution failed (HTTP %s); falling back to username %s: %s',
+      response.status,
+      fallbackUsername,
+      text
     );
+    return fallbackUsername;
   }
-  const data = (await response.json()) as NextcloudUserResponse;
-  const userId = data.ocs?.data?.id;
-  if (!userId) {
-    throw new Error('Nextcloud user response missing id');
+
+  let data: NextcloudUserResponse;
+  try {
+    data = (await response.json()) as NextcloudUserResponse;
+  } catch (error: unknown) {
+    logWarn(
+      'Nextcloud user response was not JSON; falling back to username %s: %s',
+      fallbackUsername,
+      getErrorMessage(error)
+    );
+    return fallbackUsername;
   }
-  return userId;
+
+  const userId = extractNextcloudUserId(data);
+  if (userId) {
+    return userId;
+  }
+
+  logWarn(
+    'Nextcloud user response missing id/userid; falling back to username %s',
+    fallbackUsername
+  );
+  return fallbackUsername;
 }
 
 function encodeWebDavPath(segment: string): string {
@@ -258,8 +297,8 @@ export async function deleteNextcloudFile(
   const ncHost = hosts.nextcloud;
 
   const bearerToken = await getKeycloakTokenForUser(kcHost, user);
-  const userId = await resolveNextcloudUserId(ncHost, bearerToken);
-  
+  const userId = await resolveNextcloudUserId(ncHost, bearerToken, user.username);
+
   // Check if file exists before attempting deletion (idempotency check)
   const exists = await fileExists(ncHost, userId, filePath, bearerToken);
   if (!exists) {

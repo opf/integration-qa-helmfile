@@ -152,8 +152,8 @@
       "value": "button[type='submit'].Button--primary:has-text('Add')"
     },
     "storageCreationSuccessMessage": {
-      "by": "getByText",
-      "value": "Successful creation."
+      "by": "locator",
+      "value": ".Banner-title:has-text('Successful creation.')"
     },
     "nextcloudStorageRow": {
       "by": "locator",
@@ -175,9 +175,13 @@
       "by": "locator",
       "value": "button[data-test-selector='op-files-picker-modal--confirm']"
     },
+    "filesTabNoConnectionError": {
+      "by": "locator",
+      "value": "[data-test-selector='op-tab-content-file'] >> text=No Nextcloud connection, .work-packages--details >> text=No Nextcloud connection"
+    },
     "filesPickerNoConnectionError": {
-      "by": "getByText",
-      "value": "No Nextcloud connection"
+      "by": "locator",
+      "value": "[data-test-selector='op-files-picker-modal'] >> text=No Nextcloud connection"
     },
     "filesPickerCancelButton": {
       "by": "locator",
@@ -232,7 +236,7 @@
     },
     "viewAllProjectsButton": {
       "by": "locator",
-      "value": "a.button.-highlight-inverted[title='View all projects']"
+      "value": "#projects-wrapper a[data-test-selector='op-menu--item-action'][title='Projects'][href$='/projects']"
     },
     "demoProjectRow": {
       "by": "locator",

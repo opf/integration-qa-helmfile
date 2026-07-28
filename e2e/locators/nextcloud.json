@@ -29,25 +29,23 @@
     },
     "firstRunWizard": {
       "by": "locator",
-      "value": "#firstrunwizard, .first-run-wizard[role='dialog']"
+      "value": "#firstrunwizard.first-run-wizard[role='dialog'], .first-run-wizard[role='dialog']"
     },
     "firstRunWizardDialog": {
-      "by": "getByRole",
-      "value": {
-        "role": "dialog"
-      }
+      "by": "locator",
+      "value": "#firstrunwizard.first-run-wizard[role='dialog'], .first-run-wizard[role='dialog']"
     },
     "firstRunWizardIntroVideo": {
       "by": "locator",
-      "value": "video[poster*='nextcloudHub'], video:has(source[src*='nextcloudHub'])"
+      "value": ".first-run-wizard[role='dialog'] video[poster*='nextcloudHub'], .first-run-wizard[role='dialog'] video:has(source[src*='nextcloudHub'])"
     },
     "firstRunWizardSkipButton": {
       "by": "locator",
-      "value": "#firstrunwizard button:has-text('Skip'), .first-run-wizard[role='dialog'] button:has-text('Skip'), button[class*='introAnimation__skipButton']:has-text('Skip')"
+      "value": ".first-run-wizard[role='dialog'] button:has-text('Skip'), .first-run-wizard[role='dialog'] button[class*='introAnimation__skipButton']"
     },
     "firstRunWizardCloseButton": {
       "by": "locator",
-      "value": "#firstrunwizard button[aria-label='Close'], .first-run-wizard[role='dialog'] button[aria-label='Close'], [role='dialog'] button[aria-label='Close']"
+      "value": ".first-run-wizard[role='dialog'] button[aria-label='Close']"
     },
     "profileIcon": {
       "by": "locator",
