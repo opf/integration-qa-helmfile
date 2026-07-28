@@ -37,6 +37,7 @@ This file is the canonical always-on project guidance for AI coding agents. Code
 - Cursor already loads `.agents/skills/`, so do not duplicate skills under `.cursor/skills/`.
 - Cursor path-scoped rules can stay under `.cursor/rules/` when glob activation is useful, but rule bodies should point to canonical files instead of copying their contents.
 - If a skill or rule needs detailed reference material, put the source under `.agents/shared/` and point adapters to it.
+- Playwright MCP is optional Cursor user/global setup (not shipped as `.cursor/mcp.json`). CLI exploration uses the playwright-cli skill; routing: `.agents/shared/playwright-test-authoring.md`.
 
 ## Editing Standards
 

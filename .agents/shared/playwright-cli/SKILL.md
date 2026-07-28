@@ -15,6 +15,10 @@ Canonical source for:
 
 When working in this repository, `playwright-cli` is for **interactive exploration**: navigating apps, snapshots, optional tracing/video, and discovering resilient selector strategies. The committed Playwright project lives under `e2e/`. **Committed code** (specs, page objects, locators) must follow [`.agents/shared/openproject-e2e.md`](../openproject-e2e.md): JSON locators in `locators/`, page objects with `getLocator`, no inline selectors in `tests/`, and the logging/error conventions documented there. Generated TypeScript lines from the CLI are inputs for locator keys and page methods, not copy-paste test bodies.
 
+When to prefer CLI vs escalate to Playwright MCP: [`.agents/shared/playwright-test-authoring.md`](../playwright-test-authoring.md).
+
+When working under `e2e/`, this repo’s CLI config is [`.playwright/cli.config.json`](../../../e2e/.playwright/cli.config.json) (pass `--config=.playwright/cli.config.json` if not picked up automatically).
+
 ## Quick start
 
 ```bash
