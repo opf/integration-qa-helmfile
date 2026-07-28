@@ -236,7 +236,7 @@
     },
     "viewAllProjectsButton": {
       "by": "locator",
-      "value": "a.button.-highlight-inverted[title='View all projects']"
+      "value": "#projects-wrapper a[data-test-selector='op-menu--item-action'][title='Projects'][href$='/projects']"
     },
     "demoProjectRow": {
       "by": "locator",

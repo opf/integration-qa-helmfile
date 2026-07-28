@@ -363,7 +363,6 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   );
 
   test.afterAll(async () => {
-    // Clean up test data created during the test suite
     try {
       const deletedLinks = await deleteWorkPackageFileLinksByName(2, uploadedFileName);
       logInfo('[Cleanup] Deleted uploaded test file links:', deletedLinks);
