@@ -3,7 +3,7 @@ run-name: >-
   ${{
     github.event.inputs.skip_tests == 'true'
       && format(
-        'Setup: {0} - {1} - {2} - {3} - {4} - {5} - ent: {6}{7}',
+        'Setup: {0} - {1} - {2} - {3} - {4} - {5} - ent: {6}',
         github.event.inputs.setupMethod,
         format(
           'OP v.{0}{1}',
@@ -17,18 +17,17 @@ run-name: >-
         ),
         format(
           'Xwiki v.{0}',
-          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '18.4.1'
+          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.10'
         ),
         github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
         format(
           'xwiki ext v.{0}',
-          github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.2.0-rc-7'
+          github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.2.0'
         ),
-        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate',
-        github.event.inputs.keycloak_version != '' && format(' - KC v.{0}', github.event.inputs.keycloak_version) || ''
+        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate'
       )
       || format(
-        'e2e - {0} - {1} - {2} - {3} - {4} - ent: {5}{6}',
+        'e2e - {0} - {1} - {2} - {3} - {4} - ent: {5}',
         github.event.inputs.suite,
         github.event.inputs.setupMethod,
         format(
@@ -42,8 +41,7 @@ run-name: >-
           github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
         ),
         github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
-        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate',
-        github.event.inputs.keycloak_version != '' && format(' - kc {0}', github.event.inputs.keycloak_version) || ''
+        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate'
       )
   }}
 
@@ -108,10 +106,6 @@ on:
         description: "Optional Nextcloud git source branch override"
         required: false
         type: string
-      keycloak_version:
-        description: "Keycloak image tag (empty = 26.2.5)"
-        required: false
-        type: string
       integration_openproject_version:
         description: "integration_openproject app version"
         required: false
@@ -123,12 +117,12 @@ on:
       xwiki_version:
         description: "XWiki image tag"
         required: false
-        default: "18.4.1"
+        default: "17.10.10"
         type: string
       xwiki_extension_openproject_version:
         description: "XWiki openproject extension version"
         required: false
-        default: "1.2.0-rc-7"
+        default: "1.2.0"
         type: string
       wiki_enhancements:
         description: "Enable OpenProject wiki_enhancements feature flag (XWiki)"
@@ -171,7 +165,7 @@ jobs:
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  # Batched OP/NC/IO/KC/XWiki pin validation (not one job per product).
+  # Batched OP/NC/IO/XWiki pin validation (not one job per product).
   # Playwright stays a separate prior job only because container.image must bind from needs.*.outputs.
   resolve_deploy_inputs:
     runs-on: ubuntu-latest
@@ -181,7 +175,6 @@ jobs:
       openproject_branch: ${{ steps.validate.outputs.openproject_branch }}
       nextcloud_version: ${{ steps.validate.outputs.nextcloud_version }}
       nextcloud_branch: ${{ steps.validate.outputs.nextcloud_branch }}
-      keycloak_version: ${{ steps.validate.outputs.keycloak_version }}
       integration_openproject_version: ${{ steps.validate.outputs.integration_openproject_version }}
       integration_openproject_branch: ${{ steps.validate.outputs.integration_openproject_branch }}
       effective_xwiki_version: ${{ steps.validate.outputs.effective_xwiki_version }}
@@ -195,7 +188,6 @@ jobs:
         env:
           IN_OP_VER: ${{ github.event.inputs.openproject_version }}
           IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
-          IN_KC_VER: ${{ github.event.inputs.keycloak_version }}
           IN_XWIKI_VER: ${{ github.event.inputs.xwiki_version }}
           IN_IO_VER: ${{ github.event.inputs.integration_openproject_version }}
           IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_openproject_version }}
@@ -335,7 +327,6 @@ jobs:
           OPENPROJECT_BRANCH: ${{ github.event.inputs.openproject_branch }}
           NEXTCLOUD_VERSION: ${{ github.event.inputs.nextcloud_version }}
           NEXTCLOUD_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
-          KEYCLOAK_VERSION: ${{ github.event.inputs.keycloak_version }}
           INTEGRATION_OPENPROJECT_VERSION: ${{ needs.resolve_deploy_inputs.outputs.integration_openproject_version }}
           INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ needs.resolve_deploy_inputs.outputs.integration_openproject_branch }}
           XWIKI_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_xwiki_version }}
@@ -599,7 +590,6 @@ jobs:
           IN_IO_VER: ${{ github.event.inputs.integration_openproject_version }}
           IN_OP_VER: ${{ github.event.inputs.openproject_version }}
           IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
-          IN_KC_VER: ${{ github.event.inputs.keycloak_version }}
           IN_XWIKI_VER: ${{ github.event.inputs.xwiki_version }}
           IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_openproject_version }}
         run: |
@@ -660,20 +650,15 @@ jobs:
           if [[ -n "${IN_IO_BRANCH:-}" ]]; then
             echo "- integration_openproject git branch: \`${IN_IO_BRANCH}\`" >> "${GITHUB_STEP_SUMMARY}"
           fi
-          if [[ -n "${IN_KC_VER:-}" ]]; then
-            echo "- Keycloak image tag (workflow input): \`${IN_KC_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "- Keycloak image tag: \`26.2.5\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
-          fi
           if [[ -n "${IN_XWIKI_VER:-}" ]]; then
             echo "- XWiki image tag: \`${IN_XWIKI_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "- XWiki image tag: \`18.4.1\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- XWiki image tag: \`17.10.10\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
           fi
           if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
             echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"
           else
-            echo "- XWiki OpenProject extension version: \`1.2.0-rc-7\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- XWiki OpenProject extension version: \`1.2.0\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
           fi
           echo "" >> "${GITHUB_STEP_SUMMARY}"
 

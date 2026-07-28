@@ -1,7 +1,6 @@
 {{- $setupMethod := trim (env "INTEGRATION_SETUP_METHOD") | default "sso-external" -}}
 {{- $openprojectVersion := trim (env "OPENPROJECT_VERSION") -}}
 {{- $nextcloudVersion := trim (env "NEXTCLOUD_VERSION") -}}
-{{- $keycloakVersion := trim (env "KEYCLOAK_VERSION") -}}
 {{- $integrationAppVersion := trim (env "INTEGRATION_APP_VERSION") -}}
 {{- $integrationOpenProjectVersion := trim (env "INTEGRATION_OPENPROJECT_VERSION") -}}
 {{- $integrationOpenProjectGitBranch := trim (env "INTEGRATION_OPENPROJECT_GIT_BRANCH") -}}
@@ -12,7 +11,7 @@
 {{- $wikiEnhancements := eq (trim (env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true")) "true" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
-{{- $xwikiImageTag := $xwikiVersion | default "18.3.0" -}}
+{{- $xwikiImageTag := $xwikiVersion | default "17.10.10" -}}
 {{- $openprojectSourcePath := "/home/app/openproject" -}}
 opnc-integration:
   integrationSetupMethod: {{ $setupMethod | quote }}
@@ -186,10 +185,6 @@ nextcloud:
             key: enable-apps
 
 keycloak:
-{{- if $keycloakVersion }}
-  image:
-    tag: {{ $keycloakVersion | quote }}
-{{- end }}
   extraEnvVars:
     - name: KEYCLOAK_HOSTNAME
       value: "keycloak.{{ pullpreview_public_dns }}"
@@ -234,7 +229,7 @@ xwiki:
         value: admin
   extraEnvVars:
     - name: EXTENSION_OPENPROJECT_VERSION
-      value: {{ $xwikiExtensionOpenProjectVersion | default "1.2.0-rc-7" | quote }}
+      value: {{ $xwikiExtensionOpenProjectVersion | default "1.2.0" | quote }}
     - name: OPENPROJECT_HOST
       value: "https://{{ pullpreview_public_dns }}"
     - name: OPENPROJECT_CLIENT_ID

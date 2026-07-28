@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validate and resolve deploy image tags / git branches before PullPreview.
-# Env in: IN_OP_VER, IN_NC_VER, IN_KC_VER, IN_XWIKI_VER, IN_IO_VER, IN_XWIKI_EXT,
+# Env in: IN_OP_VER, IN_NC_VER, IN_XWIKI_VER, IN_IO_VER, IN_XWIKI_EXT,
 #         IN_OP_BRANCH, IN_NC_BRANCH, IN_IO_BRANCH
 # Writes effective pins to GITHUB_OUTPUT and a per-product GITHUB_STEP_SUMMARY.
 #
@@ -51,7 +51,6 @@ validate_version_token() {
 
 validate_image_tag "openproject_version" "${IN_OP_VER:-}"
 validate_image_tag "nextcloud_version" "${IN_NC_VER:-}"
-validate_image_tag "keycloak_version" "${IN_KC_VER:-}"
 validate_image_tag "xwiki_version" "${IN_XWIKI_VER:-}"
 validate_version_token "integration_openproject_version" "${IN_IO_VER:-}"
 validate_version_token "xwiki_extension_openproject_version" "${IN_XWIKI_EXT:-}"
@@ -166,16 +165,14 @@ display_or_default() {
 
 effective_op_ver="${IN_OP_VER:-17}"
 effective_nc_ver="${IN_NC_VER:-32}"
-effective_kc_ver="${IN_KC_VER:-26.2.5}"
-effective_xwiki_ver="${IN_XWIKI_VER:-18.4.1}"
-effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0-rc-7}"
+effective_xwiki_ver="${IN_XWIKI_VER:-17.10.10}"
+effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0}"
 
 check_branch_exists "openproject_branch" "https://github.com/opf/openproject.git" "${IN_OP_BRANCH:-}"
 check_branch_exists "nextcloud_branch" "https://github.com/nextcloud/server.git" "${IN_NC_BRANCH:-}"
 check_branch_exists "integration_openproject_branch" "https://github.com/nextcloud/integration_openproject.git" "${IN_IO_BRANCH:-}"
 check_image_exists "openproject_version" "docker.io/openproject/openproject:${effective_op_ver}"
 check_image_exists "nextcloud_version" "docker.io/library/nextcloud:${effective_nc_ver}"
-check_image_exists "keycloak_version" "docker.io/bitnamilegacy/keycloak:${effective_kc_ver}"
 check_image_exists "xwiki_version" "docker.io/library/xwiki:${effective_xwiki_ver}"
 resolve_integration_openproject_source
 
@@ -184,7 +181,6 @@ resolve_integration_openproject_source
   echo "openproject_branch=${IN_OP_BRANCH:-}"
   echo "nextcloud_version=${effective_nc_ver}"
   echo "nextcloud_branch=${IN_NC_BRANCH:-}"
-  echo "keycloak_version=${effective_kc_ver}"
   echo "integration_openproject_version=${effective_io_ver}"
   echo "integration_openproject_branch=${effective_io_branch}"
   echo "effective_xwiki_version=${effective_xwiki_ver}"
@@ -202,7 +198,6 @@ fi
 
 op_requested="$(display_or_default "${IN_OP_VER:-}" "${effective_op_ver}")"
 nc_requested="$(display_or_default "${IN_NC_VER:-}" "${effective_nc_ver}")"
-kc_requested="$(display_or_default "${IN_KC_VER:-}" "${effective_kc_ver}")"
 xw_requested="$(display_or_default "${IN_XWIKI_VER:-}" "${effective_xwiki_ver}")"
 xw_ext_requested="$(display_or_default "${IN_XWIKI_EXT:-}" "${effective_xwiki_ext}")"
 
@@ -220,7 +215,6 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     if [[ -n "${IN_NC_BRANCH:-}" ]]; then
       echo "| Nextcloud branch | \`${IN_NC_BRANCH}\` | \`${IN_NC_BRANCH}\` |"
     fi
-    echo "| Keycloak | \`${kc_requested}\` | \`${effective_kc_ver}\` |"
     echo "| integration_openproject | \`${requested_io}\` | \`${resolved_io}\` |"
     echo "| XWiki | \`${xw_requested}\` | \`${effective_xwiki_ver}\` |"
     echo "| XWiki OP extension | \`${xw_ext_requested}\` | \`${effective_xwiki_ext}\` |"
