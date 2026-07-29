@@ -233,6 +233,8 @@ test(
 
 ## Optional: Playwright CLI
 
+For when to use CLI vs Playwright MCP while authoring tests, see [`.agents/shared/playwright-test-authoring.md`](playwright-test-authoring.md).
+
 The `playwright-cli` tool is for **interactive** exploration against a live site: snapshots, optional tracing or video outside the normal `npx playwright test` run, and discovering selector strategies. Output lines that look like Playwright API calls are **hints** for locator design, not something to paste into this repo’s specs.
 
 - **Install / run:** use `playwright-cli` if installed globally; otherwise `npx playwright-cli` (see `.agents/shared/playwright-cli/SKILL.md` under "Local installation").

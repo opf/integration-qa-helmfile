@@ -1,0 +1,21 @@
+---
+description: Route Playwright CLI vs MCP when authoring E2E tests (locators, page objects, specs)
+globs:
+  - e2e/tests/**/*.ts
+  - e2e/pageobjects/**/*.ts
+  - e2e/locators/**/*.json
+alwaysApply: false
+---
+
+# Playwright Test Authoring
+
+Canonical source: `.agents/shared/playwright-test-authoring.md`. Read it for the full procedure. Conventions: `.agents/shared/openproject-e2e.md`.
+
+Load-bearing (even if you skip the full shared read):
+
+- Default CLI + playwright-cli skill; MCP only with a named stockout.
+- Exclusive claim: do not run CLI and MCP in parallel on the same page.
+- Land selectors in `e2e/locators/*.json` → page objects via `getLocator` — never raw `page.*` in specs.
+- Cap ≤3 fix loops total across both tools.
+- Before finish, self-grep: forbid raw `page.getBy*` / `page.locator` in `e2e/tests/`, and any `pages/` paths.
+- Full routing + failure stories: `.agents/shared/playwright-test-authoring.md`.
