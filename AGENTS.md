@@ -46,3 +46,5 @@ This file is the canonical always-on project guidance for AI coding agents. Code
 - Keep documentation and comments concise; add comments only for non-obvious logic.
 - Do not commit generated Playwright reports, traces, videos, local `.env` files, or local override files.
 - Never revert unrelated local changes.
+
+- test
