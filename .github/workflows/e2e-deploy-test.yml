@@ -1,0 +1,538 @@
+name: E2E Deploy and Test (Reusable)
+run-name: >-
+  ${{ inputs.run_label }}
+
+on:
+  workflow_call:
+    inputs:
+      openproject_version:
+        required: true
+        type: string
+      openproject_branch:
+        required: false
+        type: string
+        default: ''
+      nextcloud_version:
+        required: true
+        type: string
+      integration_openproject_version:
+        required: false
+        type: string
+        default: ''
+      integration_openproject_branch:
+        required: false
+        type: string
+        default: ''
+      squash_iteration_id:
+        required: true
+        type: string
+      squash_sync_test_plan:
+        required: false
+        type: boolean
+        default: true
+      preview_label:
+        required: true
+        type: string
+      run_label:
+        required: false
+        type: string
+        default: 'e2e-scheduled'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  resolve_playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Resolve Playwright version from lockfile
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(e2e/scripts/playwright-version.sh)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved Playwright version: ${version}"
+          {
+            echo "### Playwright version"
+            echo ""
+            echo "Lockfile \`@playwright/test\`: \`${version}\`"
+            echo "CI image: \`mcr.microsoft.com/playwright:v${version}-noble\`"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  deploy:
+    needs: [resolve_playwright]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CI: true
+      HEADLESS: true
+      SKIP_SETUP_JOB_CHECK: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+    outputs:
+      live: ${{ steps.publish.outputs.live }}
+      preview_name: ${{ steps.publish.outputs.preview_name }}
+      tests_should_run: ${{ steps.publish.outputs.tests_should_run }}
+      openproject_host: ${{ steps.publish.outputs.openproject_host }}
+      openproject_url: ${{ steps.publish.outputs.openproject_url }}
+      nextcloud_host: ${{ steps.publish.outputs.nextcloud_host }}
+      keycloak_host: ${{ steps.publish.outputs.keycloak_host }}
+      xwiki_host: ${{ steps.publish.outputs.xwiki_host }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Require Hetzner secrets
+        env:
+          SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
+          SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SECRET_HCLOUD:-}" ]]; then
+            echo "::error::Secret HCLOUD_TOKEN is not set or empty."
+            exit 1
+          fi
+          if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
+            echo "::error::Secret HETZNER_CA_KEY is not set or empty."
+            exit 1
+          fi
+
+      - name: Record run start time (Europe/Berlin)
+        env:
+          SQUASH_ITERATION_ID: ${{ inputs.squash_iteration_id }}
+        run: |
+          set -euo pipefail
+          ts="$(TZ=Europe/Berlin date '+%d %b %Y %H:%M:%S')"
+          squash_url="https://squashtm.openproject.org/squash/campaign-workspace/iteration/${SQUASH_ITERATION_ID}/dashboard"
+          {
+            echo "### E2E scheduled run (deploy)"
+            echo ""
+            echo "**Started (Europe/Berlin):** ${ts}"
+            echo "**Label:** ${{ inputs.run_label }}"
+            echo "**OP:** ${{ inputs.openproject_version }}${{ inputs.openproject_branch && format(' (branch: {0})', inputs.openproject_branch) || '' }}"
+            echo "**NC:** ${{ inputs.nextcloud_version }}"
+            echo "**Squash:** [iteration ${SQUASH_ITERATION_ID}](${squash_url})"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice::E2E scheduled deploy started (Europe/Berlin): ${ts}"
+
+      - name: Resolve enterprise token
+        id: enterprise_token
+        env:
+          ENTERPRISE_TOKEN_TIER: corporate
+          TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+        run: .github/scripts/resolve-enterprise-token.sh
+
+      - name: Validate deploy inputs
+        id: validate
+        env:
+          IN_OP_VER: ${{ inputs.openproject_version }}
+          IN_NC_VER: ${{ inputs.nextcloud_version }}
+          IN_XWIKI_ENABLED: "false"
+          IN_XWIKI_VER: ""
+          IN_IO_VER: ${{ inputs.integration_openproject_version }}
+          IN_XWIKI_EXT: ""
+          IN_OP_BRANCH: ${{ inputs.openproject_branch }}
+          IN_NC_BRANCH: ""
+          IN_IO_BRANCH: ${{ inputs.integration_openproject_branch }}
+        run: .github/scripts/validate-deploy-inputs.sh
+
+      - name: Resolve preview name
+        id: resolve
+        env:
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          PREVIEW_LABEL: ${{ inputs.preview_label }}
+        run: |
+          set -euo pipefail
+          preview_name="${PREVIEW_LABEL}-${RUN_ID}-${RUN_ATTEMPT}"
+          delim="EOF_$(openssl rand -hex 8)"
+          printf 'preview_name<<%s\n%s\n%s\n' "${delim}" "${preview_name}" "${delim}" >> "$GITHUB_OUTPUT"
+
+      - name: PullPreview up
+        id: pullpreview_up
+        if: success()
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+        with:
+          provider: hetzner
+          label: ${{ steps.resolve.outputs.preview_name }}
+          force_action: up
+          region: fsn1
+          image: ubuntu-24.04
+          instance_type: cpx42
+          dns: my.opf.run
+          max_domain_length: "40"
+          deployment_target: helm
+          chart: ./charts/pullpreview-stack
+          chart_values: pullpreview/stack-values.yaml.gotmpl
+          pre_script: pullpreview/pre-script-helm-deps-e2e.sh
+          proxy_tls: traefik:80
+          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
+          ttl: 2h
+        env:
+          PULLPREVIEW_LOGGER_LEVEL: ERROR
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
+          INTEGRATION_SETUP_METHOD: sso-external
+          OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
+          OPENPROJECT_BRANCH: ${{ inputs.openproject_branch }}
+          NEXTCLOUD_VERSION: ${{ inputs.nextcloud_version }}
+          NEXTCLOUD_BRANCH: ""
+          INTEGRATION_OPENPROJECT_VERSION: ${{ steps.validate.outputs.integration_openproject_version }}
+          INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ steps.validate.outputs.integration_openproject_branch }}
+          XWIKI_VERSION: "17.10.10"
+          XWIKI_EXTENSION_OPENPROJECT_VERSION: "1.2.0"
+          OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: "false"
+          XWIKI_ENABLED: "false"
+          PULLPREVIEW_VERIFY_XWIKI_FROM_OP_POD: "false"
+
+      - name: Strip SSH lines from PullPreview summary
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        run: |
+          set -euo pipefail
+          [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || exit 0
+          [[ -f "${GITHUB_STEP_SUMMARY}" ]] || exit 0
+          sed -i -E '/^- SSH (Username|IP|Command):/d' "${GITHUB_STEP_SUMMARY}"
+
+      - name: Deploy preview summary
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        env:
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          PULLPREVIEW_OUTCOME: ${{ steps.pullpreview_up.outcome }}
+          PULLPREVIEW_LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+          SKIP_XWIKI: "true"
+        run: .github/scripts/deploy-preview-summary.sh
+
+      - name: Preview endpoint checks
+        id: validate_urls
+        uses: ./.github/actions/preview-endpoint-checks
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        with:
+          preview-url: ${{ steps.pullpreview_up.outputs.url }}
+          skip-xwiki: 'true'
+
+      - name: Export hosts for Playwright
+        id: export_hosts
+        if: success() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome == 'success'
+        env:
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+        run: |
+          set -euo pipefail
+          preview_url="${PREVIEW_URL}"
+          preview_host="$(.github/scripts/preview-parse-host.sh)"
+
+          if [[ "${preview_url}" == *:443 ]]; then
+            preview_url="${preview_url%:443}"
+          fi
+
+          {
+            echo "OPENPROJECT_HOST=${preview_host}"
+            echo "NEXTCLOUD_HOST=nextcloud.${preview_host}"
+            echo "KEYCLOAK_HOST=keycloak.${preview_host}"
+            echo "XWIKI_HOST="
+            echo "OPENPROJECT_URL=${preview_url}"
+            echo "E2E_ENV=pullpreview"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "### PullPreview endpoints"
+            echo ""
+            echo "- Preview name: \`${PREVIEW_NAME}\`"
+            echo "- OpenProject: ${preview_url}"
+            echo "- Nextcloud: https://nextcloud.${preview_host}"
+            echo "- Keycloak: https://keycloak.${preview_host}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish deploy outputs
+        id: publish
+        if: always()
+        env:
+          LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          VALIDATE_OUTCOME: ${{ steps.validate_urls.outcome }}
+        run: |
+          set -euo pipefail
+          tests_should_run=false
+          if [[ "${LIVE}" == "true" ]] && [[ "${VALIDATE_OUTCOME}" == "success" ]]; then
+            tests_should_run=true
+          fi
+          {
+            echo "live=${LIVE:-}"
+            echo "preview_name=${PREVIEW_NAME}"
+            echo "tests_should_run=${tests_should_run}"
+            echo "openproject_host=${OPENPROJECT_HOST:-}"
+            echo "openproject_url=${OPENPROJECT_URL:-}"
+            echo "nextcloud_host=${NEXTCLOUD_HOST:-}"
+            echo "keycloak_host=${KEYCLOAK_HOST:-}"
+            echo "xwiki_host="
+          } >> "$GITHUB_OUTPUT"
+
+  running_tests:
+    needs: [deploy, resolve_playwright]
+    if: always() && needs.resolve_playwright.result == 'success'
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.resolve_playwright.outputs.version }}-noble
+    timeout-minutes: 90
+    env:
+      CI: true
+      HEADLESS: true
+      SKIP_SETUP_JOB_CHECK: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      PLAYWRIGHT_IMAGE_VERSION: ${{ needs.resolve_playwright.outputs.version }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+      OPENPROJECT_HOST: ${{ needs.deploy.outputs.openproject_host }}
+      NEXTCLOUD_HOST: ${{ needs.deploy.outputs.nextcloud_host }}
+      KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
+      XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
+      OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
+      E2E_ENV: pullpreview
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Record test phase start
+        if: needs.deploy.outputs.tests_should_run == 'true'
+        env:
+          SQUASH_ITERATION_ID: ${{ inputs.squash_iteration_id }}
+        run: |
+          set -euo pipefail
+          squash_url="https://squashtm.openproject.org/squash/campaign-workspace/iteration/${SQUASH_ITERATION_ID}/dashboard"
+          {
+            echo "### E2E scheduled run (tests)"
+            echo ""
+            echo "**Deploy job:** ${{ needs.deploy.result }} | live=${{ needs.deploy.outputs.live }} | tests_should_run=${{ needs.deploy.outputs.tests_should_run }}"
+            echo "**Squash:** [iteration ${SQUASH_ITERATION_ID}](${squash_url})"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Install dependencies
+        if: needs.deploy.outputs.tests_should_run == 'true'
+        working-directory: e2e
+        run: npm ci
+
+      - name: Verify Playwright browser availability
+        if: needs.deploy.outputs.tests_should_run == 'true'
+        working-directory: e2e
+        run: |
+          set -euo pipefail
+          installed_version="$(node -p "require('./node_modules/@playwright/test/package.json').version")"
+          expected_version="${PLAYWRIGHT_IMAGE_VERSION#v}"
+          if [[ "${installed_version}" != "${expected_version}" ]]; then
+            echo "::error::@playwright/test ${installed_version} does not match Playwright image version ${expected_version} (from package-lock). Check npm ci / lockfile integrity."
+            exit 1
+          fi
+          npx playwright --version
+          node <<'NODE'
+          const { chromium } = require('@playwright/test');
+
+          (async () => {
+            const browser = await chromium.launch();
+            await browser.close();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Run Playwright tests
+        id: tests
+        if: needs.deploy.outputs.tests_should_run == 'true'
+        continue-on-error: true
+        working-directory: e2e
+        env:
+          SETUP_METHOD: sso-external
+        run: |
+          set -uo pipefail
+          args=(npx playwright test)
+          echo "Running: ${args[*]}"
+          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST}"
+          _test_start=$(date +%s)
+          set +e
+          "${args[@]}"
+          _test_status=$?
+          set -e
+          echo "TIMING_TESTS=$(( $(date +%s) - _test_start ))" >> "$GITHUB_ENV"
+          exit "${_test_status}"
+
+      - name: Publish Playwright results to Squash TM
+        if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
+        working-directory: e2e
+        env:
+          SQUASH_TM_API_TOKEN: ${{ secrets.SQUASH_TM_API_TOKEN }}
+          SQUASH_TM_ITERATION_ID: ${{ inputs.squash_iteration_id }}
+          SQUASH_TM_SYNC_TEST_PLAN: ${{ inputs.squash_sync_test_plan && 'true' || 'false' }}
+          SQUASH_TM_IMPORT_STEPS: "true"
+          SQUASH_TM_VALIDATE_STEP_COUNT: "true"
+          SQUASH_TM_SKIP_MISSING_AUTH: "true"
+        run: |
+          _sq_start=$(date +%s)
+          npm run squash:publish
+          echo "TIMING_SQUASH=$(( $(date +%s) - _sq_start ))" >> "$GITHUB_ENV"
+
+      - name: Upload Squash TM payload
+        if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: squash-results-${{ inputs.preview_label }}
+          path: e2e/playwright-report/**/squash-results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Add detected versions to summary
+        if: always() && needs.deploy.outputs.live == 'true'
+        working-directory: e2e
+        env:
+          SQUASH_ITERATION_ID: ${{ inputs.squash_iteration_id }}
+          IN_OP_VER: ${{ inputs.openproject_version }}
+          IN_OP_BRANCH: ${{ inputs.openproject_branch }}
+          IN_NC_VER: ${{ inputs.nextcloud_version }}
+          IN_IO_VER: ${{ inputs.integration_openproject_version }}
+        run: |
+          set -euo pipefail
+
+          json="test-results/e2e-env.json"
+          if [[ ! -f "${json}" ]]; then
+            echo "::warning::Version file not found at ${json}; skipping detected versions in summary."
+          fi
+
+          get() {
+            node -e "const d=JSON.parse(require('fs').readFileSync('${json}','utf8'));console.log(d[process.argv[1]]||'not-detected')" "$1"
+          }
+
+          {
+            echo "### Versions"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ -f "${json}" ]]; then
+            op="$(get OPENPROJECT_VERSION)"
+            nc="$(get NEXTCLOUD_VERSION)"
+            nc_api="$(get NEXTCLOUD_API_VERSION)"
+            integration_app="$(get INTEGRATION_APP_VERSION)"
+            team_folders="$(get NEXTCLOUD_TEAM_FOLDERS_VERSION)"
+            keycloak="$(get KEYCLOAK_VERSION)"
+            {
+              printf '%s\n' "- OpenProject (detected): \`${op}\`"
+              printf '%s\n' "- Nextcloud (detected): \`${nc}\`"
+              printf '%s\n' "- Nextcloud API: \`${nc_api}\`"
+              printf '%s\n' "- Integration app (integration_openproject): \`${integration_app}\`"
+              printf '%s\n' "- Team Folders: \`${team_folders}\`"
+              printf '%s\n' "- Keycloak: \`${keycloak}\`"
+              echo ""
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          squash_url="https://squashtm.openproject.org/squash/campaign-workspace/iteration/${SQUASH_ITERATION_ID}/dashboard"
+          {
+            echo "#### Workflow inputs"
+            echo ""
+            echo "- OpenProject image tag: \`${IN_OP_VER}\`"
+            if [[ -n "${IN_OP_BRANCH}" ]]; then
+              echo "- OpenProject git source branch: \`${IN_OP_BRANCH}\`"
+            fi
+            echo "- Nextcloud image tag: \`${IN_NC_VER}\`"
+            if [[ -n "${IN_IO_VER}" ]]; then
+              echo "- integration_openproject app version: \`${IN_IO_VER}\`"
+            fi
+            echo "- Squash: [iteration ${SQUASH_ITERATION_ID}](${squash_url})"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload Playwright report
+        if: always() && needs.deploy.outputs.live == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report-${{ inputs.preview_label }}
+          path: e2e/playwright-report
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload e2e test results
+        if: always() && needs.deploy.outputs.live == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-test-results-${{ inputs.preview_label }}
+          path: e2e/test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Test phase timing summary
+        if: always() && needs.deploy.outputs.live == 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "### Test phase timings"
+            echo ""
+            echo "| Phase | Seconds |"
+            echo "|---|---|"
+            echo "| Playwright run | ${TIMING_TESTS:-n/a} |"
+            echo "| Squash publish | ${TIMING_SQUASH:-n/a} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Trigger PullPreview teardown
+        if: >-
+          always() &&
+          needs.deploy.outputs.preview_name != ''
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+        with:
+          provider: hetzner
+          label: ${{ needs.deploy.outputs.preview_name }}
+          force_action: down
+          deployment_target: helm
+        env:
+          PULLPREVIEW_LOGGER_LEVEL: ERROR
+
+      - name: Final status
+        if: always()
+        env:
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          PREVIEW_LIVE: ${{ needs.deploy.outputs.live }}
+          TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "${PREVIEW_LIVE}" != "true" ]]; then
+            if [[ "${DEPLOY_RESULT}" == "failure" ]]; then
+              echo "::error::Deploy job failed before the preview was ready; see the **deploy** job logs."
+            else
+              echo "::error::PullPreview did not become live."
+            fi
+            exit 1
+          fi
+          if [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
+            echo "::error::Preview was live but URL validation or host export did not complete; tests were not run."
+            exit 1
+          fi
+          case "${TESTS_OUTCOME}" in
+            success) exit 0 ;;
+            failure)
+              echo "::error::Playwright tests failed. Preview was torn down."
+              exit 1
+              ;;
+            skipped)
+              echo "::error::Playwright tests did not run (earlier step failed or was skipped)."
+              exit 1
+              ;;
+            *)
+              echo "::error::Unexpected Playwright step outcome: ${TESTS_OUTCOME}"
+              exit 1
+              ;;
+          esac

@@ -5,6 +5,10 @@ inputs:
   preview-url:
     description: PullPreview deployment URL (e.g. https://example.my.opf.run)
     required: true
+  skip-xwiki:
+    description: Skip XWiki endpoint checks (set true when XWiki is not deployed)
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -60,6 +64,7 @@ runs:
 
     - name: Check XWiki
       id: check_xwiki
+      if: inputs.skip-xwiki != 'true'
       shell: bash
       continue-on-error: true
       env:
@@ -71,6 +76,7 @@ runs:
 
     - name: Check XWiki metadata
       id: check_xwiki_metadata
+      if: inputs.skip-xwiki != 'true'
       shell: bash
       continue-on-error: true
       env:
@@ -87,10 +93,15 @@ runs:
         CHECK_KC: ${{ steps.check_keycloak.outcome }}
         CHECK_XW: ${{ steps.check_xwiki.outcome }}
         CHECK_XW_META: ${{ steps.check_xwiki_metadata.outcome }}
+        SKIP_XWIKI: ${{ inputs.skip-xwiki }}
       run: |
         set -euo pipefail
+        entries=("OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}")
+        if [[ "${SKIP_XWIKI}" != "true" ]]; then
+          entries+=("XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}")
+        fi
         failed=false
-        for entry in "OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}" "XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}"; do
+        for entry in "${entries[@]}"; do
           name="${entry%%:*}"
           outcome="${entry#*:}"
           if [[ "${outcome}" == "failure" ]]; then

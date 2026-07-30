@@ -32,7 +32,9 @@ if [[ -n "${preview_url}" ]]; then
     echo "- OpenProject: ${preview_url}"
     echo "- Nextcloud: https://nextcloud.${preview_host}"
     echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
-    echo "- XWiki: https://xwiki.${preview_host}"
+    if [[ "${SKIP_XWIKI:-false}" != "true" ]]; then
+      echo "- XWiki: https://xwiki.${preview_host}"
+    fi
   } >> "${summary_file}"
 else
   echo "_Preview URL not available (deploy did not become live). Check **PullPreview up** logs for diagnostics and SSH heartbeats._" >> "${summary_file}"

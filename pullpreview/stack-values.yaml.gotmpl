@@ -9,6 +9,7 @@
 {{- $xwikiVersion := trim (env "XWIKI_VERSION") -}}
 {{- $xwikiExtensionOpenProjectVersion := trim (env "XWIKI_EXTENSION_OPENPROJECT_VERSION") -}}
 {{- $wikiEnhancements := eq (trim (env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true")) "true" -}}
+{{- $xwikiEnabled := eq (trim (env "XWIKI_ENABLED" | default "true")) "true" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
 {{- $xwikiImageTag := $xwikiVersion | default "17.10.10" -}}
@@ -21,7 +22,7 @@ opnc-integration:
   keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
   xwikiHost: "xwiki.{{ pullpreview_public_dns }}"
   xwiki:
-    enabled: true
+    enabled: {{ $xwikiEnabled }}
   openproject:
     dockerTag: {{ $openprojectImageTag | quote }}
 {{- if $openprojectBranch }}
@@ -79,7 +80,9 @@ opnc-integration:
 openproject:
   previewMode: true
   previewIngressAliasHosts:
+{{- if $xwikiEnabled }}
     - "xwiki.{{ pullpreview_public_dns }}"
+{{- end }}
   image:
     tag: {{ $openprojectImageTag | quote }}
   openproject:

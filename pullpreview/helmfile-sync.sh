@@ -167,7 +167,7 @@ if [[ "${setup_rc}" -ne 0 ]]; then
   exit "${setup_rc}"
 fi
 
-if [[ "${PULLPREVIEW_VERIFY_XWIKI_FROM_OP_POD:-true}" == "true" && -n "${PULLPREVIEW_PUBLIC_DNS:-}" ]]; then
+if [[ "${PULLPREVIEW_VERIFY_XWIKI_FROM_OP_POD:-true}" == "true" && "${XWIKI_ENABLED:-true}" == "true" && -n "${PULLPREVIEW_PUBLIC_DNS:-}" ]]; then
   verify_started_at="$(date +%s)"
   set +e
   pullpreview/verify-xwiki-from-op-pod.sh "${namespace}" "${PULLPREVIEW_PUBLIC_DNS}"

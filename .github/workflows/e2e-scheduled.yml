@@ -1,0 +1,92 @@
+name: E2E Scheduled
+
+on:
+  schedule:
+    - cron: "0 6 * * 1,3"
+    - cron: "20 6 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which matrix to run
+        type: choice
+        options: [dev, rc, all]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-scheduled
+  cancel-in-progress: false
+
+jobs:
+  dev_nc34:
+    name: "OP dev + NC 34"
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+      (inputs.target == 'dev' || inputs.target == 'all')) ||
+      github.event.schedule == '0 6 * * 1,3'
+    uses: ./.github/workflows/e2e-deploy-test.yml
+    secrets: inherit
+    with:
+      openproject_version: dev-slim
+      nextcloud_version: "34"
+      integration_openproject_version: "3.1.1"
+      squash_iteration_id: "7"
+      preview_label: sched-dev
+      run_label: "OP dev + NC 34"
+
+  rc_nc34:
+    name: "OP release/17.7 + NC 34"
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+      (inputs.target == 'rc' || inputs.target == 'all')) ||
+      github.event.schedule == '20 6 * * 1-5'
+    uses: ./.github/workflows/e2e-deploy-test.yml
+    secrets: inherit
+    with:
+      openproject_version: 17.7-rc
+      openproject_branch: release/17.7
+      nextcloud_version: "34"
+      integration_openproject_version: "3.1.1"
+      squash_iteration_id: "8"
+      preview_label: sched-rc-nc34
+      run_label: "OP release/17.7 + NC 34"
+
+  rc_nc33:
+    name: "OP release/17.7 + NC 33"
+    needs: [rc_nc34]
+    if: >-
+      always() &&
+      ((github.event_name == 'workflow_dispatch' &&
+      (inputs.target == 'rc' || inputs.target == 'all')) ||
+      github.event.schedule == '20 6 * * 1-5')
+    uses: ./.github/workflows/e2e-deploy-test.yml
+    secrets: inherit
+    with:
+      openproject_version: 17.7-rc
+      openproject_branch: release/17.7
+      nextcloud_version: "33"
+      integration_openproject_version: "3.1.1"
+      squash_iteration_id: "9"
+      preview_label: sched-rc-nc33
+      run_label: "OP release/17.7 + NC 33"
+
+  rc_nc32:
+    name: "OP release/17.7 + NC 32"
+    needs: [rc_nc33]
+    if: >-
+      always() &&
+      ((github.event_name == 'workflow_dispatch' &&
+      (inputs.target == 'rc' || inputs.target == 'all')) ||
+      github.event.schedule == '20 6 * * 1-5')
+    uses: ./.github/workflows/e2e-deploy-test.yml
+    secrets: inherit
+    with:
+      openproject_version: 17.7-rc
+      openproject_branch: release/17.7
+      nextcloud_version: "32"
+      integration_openproject_version: "2.11.4"
+      squash_iteration_id: "10"
+      preview_label: sched-rc-nc32
+      run_label: "OP release/17.7 + NC 32"

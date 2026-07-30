@@ -10,6 +10,7 @@
 {{- $xwikiVersion := env "XWIKI_VERSION" | default "17.10.10" -}}
 {{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.2.0" -}}
 {{- $wikiEnhancements := env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true" -}}
+{{- $xwikiEnabled := env "XWIKI_ENABLED" | default "true" -}}
 previewMode: true
 
 integration:
@@ -95,7 +96,7 @@ persistence:
   accessMode: ReadWriteOnce
 
 xwiki:
-  enabled: true
+  enabled: {{ eq $xwikiEnabled "true" }}
   host: {{ printf "xwiki.%s" $publicDns | quote }}
   version: {{ $xwikiVersion | quote }}
   extensions:
