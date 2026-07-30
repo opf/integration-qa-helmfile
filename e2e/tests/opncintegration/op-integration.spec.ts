@@ -18,11 +18,11 @@ import {
   ensureUserIsAdmin,
   ensureUserIsProjectMember,
   waitForNextcloudStorageHealthy,
-  waitForUploadedTestFile,
 } from '../../utils/test-helpers';
 import {
   deleteWorkPackageFileLinksByName,
   findOpenProjectUser,
+  listWorkPackageFileLinks,
   setUserAdmin,
 } from '../../utils/openproject-api';
 import type { EnsureAdminResult } from '../../utils/openproject-api';
@@ -39,11 +39,54 @@ const ALICE_IDENTIFIERS = [
 });
 
 const uploadedFileName = `op-to-nc-upload-${Date.now()}.md`;
-const keepBothUploadedFileName = uploadedFileName.replace(/(\.[^.]+)$/, ' (2)$1');
+// Product contract: Nextcloud "Keep both" renames to `stem (N).ext` (observed N=2).
+const keepBothSiblingPattern = (() => {
+  const dot = uploadedFileName.lastIndexOf('.');
+  const stem = dot > 0 ? uploadedFileName.slice(0, dot) : uploadedFileName;
+  const ext = dot > 0 ? uploadedFileName.slice(dot) : '';
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`${escape(stem)} \\(\\d+\\)${escape(ext)}`);
+})();
 const ampProjectFolder = 'Demo project (1)';
+const replacedFileBody = Buffer.from(
+  `## collision-replace-marker\nReplaced body ${Date.now()}\n`,
+  'utf8'
+);
 
 let aliceWasAdminBeforeSuite = false;
 let aliceAdminElevatedBySuite = false;
+
+// ponytail: only discovers siblings via OP file links; NC-only orphans without a link are not cleaned — upgrade: WebDAV list under AMPF folder.
+async function cleanupCollisionArtifacts(): Promise<void> {
+  const names = new Set<string>([uploadedFileName]);
+  try {
+    const links = await listWorkPackageFileLinks(2);
+    for (const link of links) {
+      const name = link.originData?.name ?? link._links.self.title;
+      if (name && keepBothSiblingPattern.test(name)) {
+        names.add(name);
+      }
+    }
+  } catch (err: unknown) {
+    logWarn('[Cleanup] Failed to list work package file links:', err);
+  }
+
+  for (const name of names) {
+    try {
+      const deletedLinks = await deleteWorkPackageFileLinksByName(2, name);
+      logInfo(`[Cleanup] Deleted file links for ${name}:`, deletedLinks);
+    } catch (err: unknown) {
+      logWarn(`[Cleanup] Failed to delete file links for ${name}:`, err);
+    }
+
+    try {
+      await deleteUploadedTestFile(name, ampProjectFolder, ALICE_USER);
+      logInfo(`[Cleanup] Deleted ${name} from ${ampProjectFolder}`);
+    } catch (err: unknown) {
+      logWarn(`[Cleanup] Failed to delete ${name} from Nextcloud:`, err);
+    }
+  }
+}
 
 async function withAliceIdentifier<T>(
   action: (identifier: string) => Promise<T>
@@ -240,14 +283,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       );
 
       await test.step('Confirm the upload location (Choose location)', async () => {
-        await homePage.getLocator('filesPickerConfirmButton').click();
-
-        const existingFileModalTitle = homePage.getLocator('existingFileModalTitle');
-        if (await existingFileModalTitle.isVisible({ timeout: 5000 }).catch(() => false)) {
-          const replaceButton = homePage.getLocator('fileExistsReplaceButton').first();
-          await replaceButton.waitFor({ state: 'visible', timeout: 10000 });
-          await replaceButton.click();
-        }
+        await homePage.confirmFilesPickerOptionalReplace();
       });
 
       await test.step('Wait for the upload to finish', async () => {
@@ -332,8 +368,11 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       await ensureAliceIsDemoProjectMember();
       await ensureProjectHasNextcloudStorage('demo-project', page);
       await waitForNextcloudStorageHealthy('demo-project');
-      // Seed from TC 2068 must be on NC before Choose location, or OP skips the collision modal.
-      await waitForUploadedTestFile(uploadedFileName, ampProjectFolder, ALICE_USER);
+      await cleanupCollisionArtifacts();
+      await homePage.navigateToDemoProjectWorkPackageFiles(2);
+      await homePage.waitForDemoProjectWorkPackageFilesUrl();
+      await homePage.waitForNextcloudFilesSectionConnected(2);
+      await homePage.seedAmpfUpload(uploadedFileName);
 
       await test.step('Open target work package Files tab in OpenProject', async () => {
         await homePage.navigateToDemoProjectWorkPackageFiles(2);
@@ -347,7 +386,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       await test.step(
         'Click "Upload files" and select a file with an already existing name',
         async () => {
-          await homePage.openFilesPickerWithUpload(uploadedFileName);
+          await homePage.openFilesPickerWithUpload(uploadedFileName, replacedFileBody);
           await homePage.waitForFilesPickerReady(uploadedFileName);
           await expect(homePage.getLocator('filesPickerModal')).toBeVisible();
         }
@@ -358,11 +397,20 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       });
 
       await test.step('Click "Replace"', async () => {
-        await homePage.getLocator('fileExistsReplaceButton').first().click();
+        await homePage.chooseFileCollisionAction('replace');
         await expect(homePage.getLocator('existingFileModalTitle')).toBeHidden({ timeout: 20000 });
-        const linkedFileItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
-        await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });
-        await expect(linkedFileItem).toContainText(uploadedFileName);
+        await expect
+          .poll(() => homePage.countLinkedWorkPackageFiles(uploadedFileName), { timeout: 15000 })
+          .toBe(1);
+        await expect
+          .poll(
+            async () =>
+              (await homePage.downloadLinkedWorkPackageFileText(uploadedFileName)).includes(
+                'collision-replace-marker'
+              ),
+            { timeout: 20000 }
+          )
+          .toBe(true);
       });
     }
   );
@@ -380,7 +428,11 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       await ensureAliceIsDemoProjectMember();
       await ensureProjectHasNextcloudStorage('demo-project', page);
       await waitForNextcloudStorageHealthy('demo-project');
-      await waitForUploadedTestFile(uploadedFileName, ampProjectFolder, ALICE_USER);
+      await cleanupCollisionArtifacts();
+      await homePage.navigateToDemoProjectWorkPackageFiles(2);
+      await homePage.waitForDemoProjectWorkPackageFilesUrl();
+      await homePage.waitForNextcloudFilesSectionConnected(2);
+      await homePage.seedAmpfUpload(uploadedFileName);
 
       await test.step('Open target work package Files tab in OpenProject', async () => {
         await homePage.navigateToDemoProjectWorkPackageFiles(2);
@@ -405,16 +457,16 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       });
 
       await test.step('Click "Keep both"', async () => {
-        await homePage.getLocator('fileExistsKeepBothButton').first().click();
+        await homePage.chooseFileCollisionAction('keepBoth');
         const uploadSuccessMessage = homePage.getLocator('filesUploadSuccessMessage');
         await uploadSuccessMessage.waitFor({ state: 'visible', timeout: 20000 });
         await expect(uploadSuccessMessage).toContainText('Successfully created 1 file link.');
         const originalItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
         await originalItem.waitFor({ state: 'visible', timeout: 15000 });
         await expect(originalItem).toContainText(uploadedFileName);
-        const keepBothItem = homePage.getLinkedWorkPackageFileItem(keepBothUploadedFileName);
-        await keepBothItem.waitFor({ state: 'visible', timeout: 15000 });
-        await expect(keepBothItem).toContainText(keepBothUploadedFileName);
+        const siblingItem = homePage.getLinkedWorkPackageFileItemMatching(keepBothSiblingPattern);
+        await siblingItem.waitFor({ state: 'visible', timeout: 15000 });
+        await expect(siblingItem).toContainText(keepBothSiblingPattern);
       });
     }
   );
@@ -463,21 +515,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   );
 
   test.afterAll(async () => {
-    for (const fileName of [uploadedFileName, keepBothUploadedFileName]) {
-      try {
-        const deletedLinks = await deleteWorkPackageFileLinksByName(2, fileName);
-        logInfo(`[Cleanup] Deleted file links for ${fileName}:`, deletedLinks);
-      } catch (err) {
-        logWarn(`[Cleanup] Failed to delete file links for ${fileName}:`, err);
-      }
-
-      try {
-        await deleteUploadedTestFile(fileName, ampProjectFolder, ALICE_USER);
-        logInfo(`[Cleanup] Deleted ${fileName} from Demo project (1)`);
-      } catch (err) {
-        logWarn(`[Cleanup] Failed to delete ${fileName} from Nextcloud:`, err);
-      }
-    }
+    await cleanupCollisionArtifacts();
 
     try {
       const deleted = await deleteProject('test');
@@ -486,7 +524,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
       } else {
         logInfo('[Cleanup] Project "test" not found (already deleted or never created)');
       }
-    } catch (err) {
+    } catch (err: unknown) {
       logWarn('[Cleanup] Failed to delete project "test":', err);
     }
 
@@ -500,7 +538,7 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
           await setUserAdmin(user.id, false);
         });
         logInfo('[Cleanup] Revoked admin permissions from Alice');
-      } catch (err) {
+      } catch (err: unknown) {
         logWarn('[Cleanup] Failed to revoke admin permissions from Alice:', err);
       }
     }
