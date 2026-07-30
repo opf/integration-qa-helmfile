@@ -202,6 +202,10 @@ for env_var in xw.get("extraEnvVars") or []:
         values["XWIKI_EXTENSION_OPENPROJECT_VERSION"] = str(env_var["value"])
         break
 
+xw_enabled = (opnc.get("xwiki") or {}).get("enabled")
+if xw_enabled is not None:
+    values["XWIKI_ENABLED"] = "true" if xw_enabled else "false"
+
 op_env = (op.get("environment") or {})
 wiki_enh = op_env.get("OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS_ACTIVE")
 if str(wiki_enh).strip().lower() == "true":

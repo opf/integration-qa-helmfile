@@ -173,7 +173,9 @@ check_branch_exists "nextcloud_branch" "https://github.com/nextcloud/server.git"
 check_branch_exists "integration_openproject_branch" "https://github.com/nextcloud/integration_openproject.git" "${IN_IO_BRANCH:-}"
 check_image_exists "openproject_version" "docker.io/openproject/openproject:${effective_op_ver}"
 check_image_exists "nextcloud_version" "docker.io/library/nextcloud:${effective_nc_ver}"
-check_image_exists "xwiki_version" "docker.io/library/xwiki:${effective_xwiki_ver}"
+if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
+  check_image_exists "xwiki_version" "docker.io/library/xwiki:${effective_xwiki_ver}"
+fi
 resolve_integration_openproject_source
 
 {
@@ -216,8 +218,10 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
       echo "| Nextcloud branch | \`${IN_NC_BRANCH}\` | \`${IN_NC_BRANCH}\` |"
     fi
     echo "| integration_openproject | \`${requested_io}\` | \`${resolved_io}\` |"
-    echo "| XWiki | \`${xw_requested}\` | \`${effective_xwiki_ver}\` |"
-    echo "| XWiki OP extension | \`${xw_ext_requested}\` | \`${effective_xwiki_ext}\` |"
+    if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
+      echo "| XWiki | \`${xw_requested}\` | \`${effective_xwiki_ver}\` |"
+      echo "| XWiki OP extension | \`${xw_ext_requested}\` | \`${effective_xwiki_ext}\` |"
+    fi
     echo ""
   } >> "${GITHUB_STEP_SUMMARY}"
 fi
