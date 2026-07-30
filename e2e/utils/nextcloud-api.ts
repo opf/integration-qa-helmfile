@@ -308,3 +308,16 @@ export async function deleteNextcloudFile(
   
   await deleteFile(ncHost, userId, filePath, bearerToken);
 }
+
+/**
+ * Whether a path exists in the user's Nextcloud WebDAV space.
+ */
+export async function nextcloudFileExists(
+  filePath: string,
+  user: TestUser
+): Promise<boolean> {
+  const hosts = resolveHosts(resolveEnvName());
+  const bearerToken = await getKeycloakTokenForUser(hosts.keycloak, user);
+  const userId = await resolveNextcloudUserId(hosts.nextcloud, bearerToken, user.username);
+  return fileExists(hosts.nextcloud, userId, filePath, bearerToken);
+}

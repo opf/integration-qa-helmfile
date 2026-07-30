@@ -367,6 +367,35 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     }
   }
 
+  /**
+   * Confirm files-picker location and require the name-collision modal.
+   * Fails fast if the upload succeeds without collision (known PullPreview flake).
+   */
+  async confirmFilesPickerExpectingCollision(timeoutMs = 20000): Promise<void> {
+    const confirmButton = this.getLocator('filesPickerConfirmButton');
+    const collisionModal = this.getLocator('existingFileModalTitle');
+    const uploadSuccess = this.getLocator('filesUploadSuccessMessage');
+
+    await confirmButton.click();
+
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (await collisionModal.isVisible().catch(() => false)) {
+        return;
+      }
+      if (await uploadSuccess.isVisible().catch(() => false)) {
+        throw new Error(
+          'Expected "This file already exists" collision modal, but upload completed without collision.'
+        );
+      }
+      await this.page.waitForTimeout(250);
+    }
+
+    throw new Error(
+      `Timed out after ${timeoutMs}ms waiting for collision modal (upload success toast also absent).`
+    );
+  }
+
   async openWorkPackageFilesTab(timeout: number = 15000): Promise<void> {
     const filesTab = this.getLocator('filesMenuItem');
     await filesTab.waitFor({ state: 'visible', timeout });

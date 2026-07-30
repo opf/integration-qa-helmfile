@@ -11,9 +11,11 @@ import {
   waitForNextcloudStorageHealthy,
   ensureUserIsProjectMember,
 } from './openproject-api';
-import { deleteNextcloudFile } from './nextcloud-api';
+import { deleteNextcloudFile, nextcloudFileExists } from './nextcloud-api';
 import { OpenProjectProjectStoragesPage } from '../pageobjects/openproject';
 import type { TestUser } from './test-users';
+import { logDebug } from './logger';
+import { getErrorMessage } from './error-utils';
 
 export {
   ensureUserIsAdmin,
@@ -114,4 +116,35 @@ export async function deleteUploadedTestFile(
 ): Promise<void> {
   const filePath = `OpenProject/${projectFolder}/${fileName}`;
   await deleteNextcloudFile(filePath, user);
+}
+
+/**
+ * Poll until the AMPF-managed upload is visible via WebDAV (collision seed readiness).
+ */
+export async function waitForUploadedTestFile(
+  fileName: string,
+  projectFolder: string,
+  user: TestUser,
+  options: { timeoutMs?: number; pollIntervalMs?: number } = {}
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 30_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 1_000;
+  const filePath = `OpenProject/${projectFolder}/${fileName}`;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      if (await nextcloudFileExists(filePath, user)) {
+        logDebug('[Nextcloud] Upload seed present via WebDAV:', filePath);
+        return;
+      }
+    } catch (error: unknown) {
+      logDebug('[Nextcloud] WebDAV seed check failed:', getErrorMessage(error));
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `Timed out waiting for Nextcloud file via WebDAV: ${filePath}`
+  );
 }
