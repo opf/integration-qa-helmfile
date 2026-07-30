@@ -312,16 +312,16 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     );
   }
 
-  async openFilesPickerWithUpload(uploadFileName: string): Promise<void> {
+  async openFilesPickerWithUpload(uploadFileName: string, buffer?: Buffer): Promise<void> {
     const uploadInput = this.getLocator('workPackageFilesUploadInput');
     await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
-    // Upload under the requested name using the shared fixture payload so suite-scoped
+    // Upload under the requested name; default payload is the shared fixture so suite-scoped
     // unique filenames do not require a new on-disk file per run.
     const fixturePath = resolve(process.cwd(), 'fixtures/op-to-nc-upload-test.md');
     await uploadInput.setInputFiles({
       name: uploadFileName,
       mimeType: 'text/markdown',
-      buffer: readFileSync(fixturePath),
+      buffer: buffer ?? readFileSync(fixturePath),
     });
     await this.getLocator('filesPickerModal').waitFor({ state: 'visible', timeout: 15000 });
   }
@@ -367,6 +367,61 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     }
   }
 
+  /** Confirm location; if a name-collision modal appears, click Replace (2068 / seed path). */
+  async confirmFilesPickerOptionalReplace(): Promise<void> {
+    await this.getLocator('filesPickerConfirmButton').click();
+    const existingFileModalTitle = this.getLocator('existingFileModalTitle');
+    if (await existingFileModalTitle.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await this.chooseFileCollisionAction('replace');
+    }
+  }
+
+  /**
+   * Confirm files-picker location and require the name-collision modal.
+   * Fails fast if the upload succeeds without collision.
+   */
+  async confirmFilesPickerExpectingCollision(timeoutMs = 20000): Promise<void> {
+    const confirmButton = this.getLocator('filesPickerConfirmButton');
+    const collisionModal = this.getLocator('existingFileModalTitle');
+    const uploadSuccess = this.getLocator('filesUploadSuccessMessage');
+
+    await confirmButton.click();
+
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (await collisionModal.isVisible().catch(() => false)) {
+        return;
+      }
+      if (await uploadSuccess.isVisible().catch(() => false)) {
+        throw new Error(
+          'Expected "This file already exists" collision modal, but upload completed without collision.'
+        );
+      }
+      await this.page.waitForTimeout(250);
+    }
+
+    throw new Error(
+      `Timed out after ${timeoutMs}ms waiting for collision modal (upload success toast also absent).`
+    );
+  }
+
+  async chooseFileCollisionAction(action: 'replace' | 'keepBoth'): Promise<void> {
+    await this.getLocator('existingFileModal').waitFor({ state: 'visible', timeout: 10000 });
+    const key = action === 'replace' ? 'fileExistsReplaceButton' : 'fileExistsKeepBothButton';
+    await this.getLocator(key).click();
+  }
+
+  /** UI seed: upload via AMPF, Replace on collision if needed, wait until linked. */
+  async seedAmpfUpload(fileName: string, buffer?: Buffer): Promise<void> {
+    await this.openFilesPickerWithUpload(fileName, buffer);
+    await this.waitForFilesPickerReady(fileName);
+    await this.confirmFilesPickerOptionalReplace();
+    const uploadSuccessMessage = this.getLocator('filesUploadSuccessMessage');
+    await uploadSuccessMessage.waitFor({ state: 'visible', timeout: 20000 });
+    const linkedFileItem = this.getLinkedWorkPackageFileItem(fileName);
+    await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
   async openWorkPackageFilesTab(timeout: number = 15000): Promise<void> {
     const filesTab = this.getLocator('filesMenuItem');
     await filesTab.waitFor({ state: 'visible', timeout });
@@ -378,6 +433,14 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
 
   getLinkedWorkPackageFileItem(fileName: string): Locator {
     return this.getLocator('workPackageLinkedFileItem').filter({ hasText: fileName }).first();
+  }
+
+  countLinkedWorkPackageFiles(fileName: string): Promise<number> {
+    return this.getLocator('workPackageLinkedFileItem').filter({ hasText: fileName }).count();
+  }
+
+  getLinkedWorkPackageFileItemMatching(pattern: RegExp): Locator {
+    return this.getLocator('workPackageLinkedFileItem').filter({ hasText: pattern }).first();
   }
 
   async hoverLinkedWorkPackageFile(fileName: string): Promise<Locator> {
@@ -397,6 +460,25 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
 
   getLinkedWorkPackageFileRemoveLinkAction(fileName: string): Locator {
     return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileRemoveLinkAction');
+  }
+
+  async downloadLinkedWorkPackageFileText(fileName: string): Promise<string> {
+    await this.hoverLinkedWorkPackageFile(fileName);
+    const downloadAction = this.getLinkedWorkPackageFileDownloadAction(fileName);
+    await downloadAction.waitFor({ state: 'visible', timeout: 10000 });
+    const [download] = await Promise.all([
+      this.page.waitForEvent('download', { timeout: 20000 }),
+      downloadAction.click(),
+    ]);
+    const stream = await download.createReadStream();
+    if (!stream) {
+      throw new Error(`Download for ${fileName} produced no stream`);
+    }
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks).toString('utf8');
   }
 
   private getLinkedWorkPackageFileAction(fileName: string, locatorKey: string): Locator {

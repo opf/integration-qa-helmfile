@@ -262,9 +262,23 @@
       "by": "locator",
       "value": ".spot-modal--header-title:has-text('This file already exists')"
     },
-    "fileExistsReplaceButton": {
+    "existingFileModal": {
       "by": "locator",
-      "value": ".spot-modal .spot-action-bar--right .button.-primary:has-text('Replace')"
+      "value": ".spot-modal:has(.spot-modal--header-title:has-text('This file already exists'))"
+    },
+    "fileExistsReplaceButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Replace"
+      }
+    },
+    "fileExistsKeepBothButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Keep both"
+      }
     },
     "languageSelectionModal": {
       "by": "locator",
