@@ -37,8 +37,8 @@ const ALICE_IDENTIFIERS = [
   return Boolean(identifier) && all.indexOf(identifier) === index;
 });
 
-/** Suite-scoped unique upload name so OP links + NC WebDAV cleanup do not collide across runs. */
 const uploadedFileName = `op-to-nc-upload-${Date.now()}.md`;
+const keepBothUploadedFileName = uploadedFileName.replace(/(\.[^.]+)$/, ' (2)$1');
 
 let aliceWasAdminBeforeSuite = false;
 let aliceAdminElevatedBySuite = false;
@@ -213,8 +213,6 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
     async ({ page }) => {
       const loginPage = new OpenProjectLoginPage(page);
       const homePage = new OpenProjectHomePage(page);
-
-      // Prerequisites (Squash): login, membership, healthy AMPF storage, clean prior link.
       await loginPage.navigateTo();
       const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
       await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
@@ -320,6 +318,99 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   );
 
   test(
+    'File Upload Name Collision - Replace Existing File',
+    squashTestCase(2163, { stepCount: 4 }),
+    async ({ page }) => {
+      const loginPage = new OpenProjectLoginPage(page);
+      const homePage = new OpenProjectHomePage(page);
+      await loginPage.navigateTo();
+      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      await homePage.waitForReady();
+      await ensureAliceIsDemoProjectMember();
+      await ensureProjectHasNextcloudStorage('demo-project', page);
+      await waitForNextcloudStorageHealthy('demo-project');
+
+      await test.step('Open target work package Files tab in OpenProject', async () => {
+        await homePage.navigateToDemoProjectWorkPackageFiles(2);
+        await homePage.waitForDemoProjectWorkPackageFilesUrl();
+        await homePage.waitForNextcloudFilesSectionConnected(2);
+      });
+
+      await test.step(
+        'Click "Upload files" and select a file with an already existing name',
+        async () => {
+          await homePage.openFilesPickerWithUpload(uploadedFileName);
+          await homePage.waitForFilesPickerReady(uploadedFileName);
+          await expect(homePage.getLocator('filesPickerModal')).toBeVisible();
+        }
+      );
+
+      await test.step('Confirm upload location', async () => {
+        await homePage.getLocator('filesPickerConfirmButton').click();
+        await expect(homePage.getLocator('existingFileModalTitle')).toBeVisible({ timeout: 15000 });
+      });
+
+      await test.step('Click "Replace"', async () => {
+        await homePage.getLocator('fileExistsReplaceButton').first().click();
+        await expect(homePage.getLocator('existingFileModalTitle')).toBeHidden({ timeout: 20000 });
+        const linkedFileItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
+        await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });
+        await expect(linkedFileItem).toContainText(uploadedFileName);
+      });
+    }
+  );
+
+  test(
+    'File Upload Name Collision - Keep Both Files',
+    squashTestCase(2164, { stepCount: 4 }),
+    async ({ page }) => {
+      const loginPage = new OpenProjectLoginPage(page);
+      const homePage = new OpenProjectHomePage(page);
+      await loginPage.navigateTo();
+      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      await homePage.waitForReady();
+      await ensureAliceIsDemoProjectMember();
+      await ensureProjectHasNextcloudStorage('demo-project', page);
+      await waitForNextcloudStorageHealthy('demo-project');
+
+      await test.step('Open target work package Files tab in OpenProject', async () => {
+        await homePage.navigateToDemoProjectWorkPackageFiles(2);
+        await homePage.waitForDemoProjectWorkPackageFilesUrl();
+        await homePage.waitForNextcloudFilesSectionConnected(2);
+      });
+
+      await test.step(
+        'Click "Upload files" and select a file named as an already uploaded',
+        async () => {
+          await homePage.openFilesPickerWithUpload(uploadedFileName);
+          await homePage.waitForFilesPickerReady(uploadedFileName);
+          await expect(homePage.getLocator('filesPickerModal')).toBeVisible();
+        }
+      );
+
+      await test.step('Confirm upload location', async () => {
+        await homePage.getLocator('filesPickerConfirmButton').click();
+        await expect(homePage.getLocator('existingFileModalTitle')).toBeVisible({ timeout: 15000 });
+      });
+
+      await test.step('Click "Keep both"', async () => {
+        await homePage.getLocator('fileExistsKeepBothButton').first().click();
+        const uploadSuccessMessage = homePage.getLocator('filesUploadSuccessMessage');
+        await uploadSuccessMessage.waitFor({ state: 'visible', timeout: 20000 });
+        await expect(uploadSuccessMessage).toContainText('Successfully created 1 file link.');
+        const originalItem = homePage.getLinkedWorkPackageFileItem(uploadedFileName);
+        await originalItem.waitFor({ state: 'visible', timeout: 15000 });
+        await expect(originalItem).toContainText(uploadedFileName);
+        const keepBothItem = homePage.getLinkedWorkPackageFileItem(keepBothUploadedFileName);
+        await keepBothItem.waitFor({ state: 'visible', timeout: 15000 });
+        await expect(keepBothItem).toContainText(keepBothUploadedFileName);
+      });
+    }
+  );
+
+  test(
     'Copy AMPF Demo project and verify Nextcloud storage',
     squashTestCase(2161, { stepCount: 5 }),
     async ({ page }) => {
@@ -363,22 +454,20 @@ test.describe('SSO External - OpenProject Integration', integrationTags, () => {
   );
 
   test.afterAll(async () => {
-    try {
-      const deletedLinks = await deleteWorkPackageFileLinksByName(2, uploadedFileName);
-      logInfo('[Cleanup] Deleted uploaded test file links:', deletedLinks);
-    } catch (err) {
-      logWarn('[Cleanup] Failed to delete uploaded test file links:', err);
-    }
+    for (const fileName of [uploadedFileName, keepBothUploadedFileName]) {
+      try {
+        const deletedLinks = await deleteWorkPackageFileLinksByName(2, fileName);
+        logInfo(`[Cleanup] Deleted file links for ${fileName}:`, deletedLinks);
+      } catch (err) {
+        logWarn(`[Cleanup] Failed to delete file links for ${fileName}:`, err);
+      }
 
-    try {
-      await deleteUploadedTestFile(
-        uploadedFileName,
-        'Demo project (1)',
-        ALICE_USER
-      );
-      logInfo('[Cleanup] Deleted uploaded test file from Demo project (1)');
-    } catch (err) {
-      logWarn('[Cleanup] Failed to delete uploaded test file:', err);
+      try {
+        await deleteUploadedTestFile(fileName, 'Demo project (1)', ALICE_USER);
+        logInfo(`[Cleanup] Deleted ${fileName} from Demo project (1)`);
+      } catch (err) {
+        logWarn(`[Cleanup] Failed to delete ${fileName} from Nextcloud:`, err);
+      }
     }
 
     try {

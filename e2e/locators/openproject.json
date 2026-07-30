@@ -266,6 +266,10 @@
       "by": "locator",
       "value": ".spot-modal .spot-action-bar--right .button.-primary:has-text('Replace')"
     },
+    "fileExistsKeepBothButton": {
+      "by": "locator",
+      "value": ".spot-modal .spot-action-bar--right .button:has-text('Keep both')"
+    },
     "languageSelectionModal": {
       "by": "locator",
       "value": "[role='dialog']:has-text('Please select your language')"
