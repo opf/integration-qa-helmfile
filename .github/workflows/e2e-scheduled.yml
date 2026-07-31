@@ -9,7 +9,7 @@ run-name: >-
 on:
   schedule:
     - cron: "0 16 * * 1-5"
-    - cron: "30 11 31 7 *"
+    - cron: "30 12 31 7 *"
   workflow_dispatch:
     inputs:
       target:
