@@ -1,6 +1,4 @@
 name: E2E Deploy and Test (Reusable)
-run-name: >-
-  ${{ inputs.run_label }}
 
 on:
   workflow_call:
@@ -182,7 +180,7 @@ jobs:
           proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }}
           ttl: 2h
         env:
-          PULLPREVIEW_LOGGER_LEVEL: ERROR
+          PULLPREVIEW_LOGGER_LEVEL: INFO
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
           INTEGRATION_SETUP_METHOD: sso-external
           OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
@@ -196,6 +194,18 @@ jobs:
           OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: "false"
           XWIKI_ENABLED: "false"
           PULLPREVIEW_VERIFY_XWIKI_FROM_OP_POD: "false"
+
+      - name: Require PullPreview live
+        if: success()
+        env:
+          LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+        run: |
+          set -euo pipefail
+          if [[ "${LIVE}" != "true" ]] || [[ -z "${PREVIEW_URL:-}" ]]; then
+            echo "::error::PullPreview did not become live."
+            exit 1
+          fi
 
       - name: Strip SSH lines from PullPreview summary
         if: always() && steps.pullpreview_up.outcome != 'skipped'
