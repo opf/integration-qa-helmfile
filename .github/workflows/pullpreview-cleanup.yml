@@ -18,6 +18,7 @@ on:
           - e2e
           - setup
           - pr
+          - scheduled
           - all
       mode:
         description: "List or Teardown"
@@ -130,10 +131,14 @@ jobs:
               pr)
                 [[ "${label}" == "pullpreview" ]]
                 ;;
+              scheduled)
+                [[ "${label}" =~ ^sched- ]]
+                ;;
               all)
                 [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]] \
                   || [[ "${label}" =~ ^setup-[0-9]+-[0-9]+$ ]] \
-                  || [[ "${label}" == "pullpreview" ]]
+                  || [[ "${label}" == "pullpreview" ]] \
+                  || [[ "${label}" =~ ^sched- ]]
                 ;;
               *)
                 echo "::error::Unknown target: ${IN_TARGET}"
