@@ -1,4 +1,4 @@
-name: E2E Deploy and Test (Reusable)
+name: _E2E_deploy_job
 
 on:
   workflow_call:
