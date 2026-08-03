@@ -110,10 +110,15 @@ jobs:
       - name: Record run start time (Europe/Berlin)
         env:
           SQUASH_ITERATION_ID: ${{ inputs.squash_iteration_id }}
+          SETUP_METHOD: sso-external
         run: |
           set -euo pipefail
           ts="$(TZ=Europe/Berlin date '+%d %b %Y %H:%M:%S')"
           squash_url="https://squashtm.openproject.org/squash/campaign-workspace/iteration/${SQUASH_ITERATION_ID}/dashboard"
+          case "${SETUP_METHOD}" in
+            sso-external) auth_label="SSO-External" ;;
+            *) auth_label="${SETUP_METHOD}" ;;
+          esac
           {
             echo "### E2E scheduled run (deploy)"
             echo ""
@@ -121,6 +126,7 @@ jobs:
             echo "**Label:** ${{ inputs.run_label }}"
             echo "**OP:** ${{ inputs.openproject_version }}${{ inputs.openproject_branch && format(' (branch: {0})', inputs.openproject_branch) || '' }}"
             echo "**NC:** ${{ inputs.nextcloud_version }}"
+            echo "**Auth method:** ${auth_label}"
             echo "**Squash:** [iteration ${SQUASH_ITERATION_ID}](${squash_url})"
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
@@ -322,12 +328,19 @@ jobs:
         if: needs.deploy.outputs.tests_should_run == 'true'
         env:
           SQUASH_ITERATION_ID: ${{ inputs.squash_iteration_id }}
+          SETUP_METHOD: sso-external
         run: |
           set -euo pipefail
           squash_url="https://squashtm.openproject.org/squash/campaign-workspace/iteration/${SQUASH_ITERATION_ID}/dashboard"
+          case "${SETUP_METHOD}" in
+            sso-external) auth_label="SSO-External" ;;
+            *) auth_label="${SETUP_METHOD}" ;;
+          esac
           {
             echo "### E2E scheduled run (tests)"
             echo ""
+            echo "**Label:** ${{ inputs.run_label }}"
+            echo "**Auth method:** ${auth_label}"
             echo "**Deploy job:** ${{ needs.deploy.result }} | live=${{ needs.deploy.outputs.live }} | tests_should_run=${{ needs.deploy.outputs.tests_should_run }}"
             echo "**Squash:** [iteration ${SQUASH_ITERATION_ID}](${squash_url})"
             echo ""
