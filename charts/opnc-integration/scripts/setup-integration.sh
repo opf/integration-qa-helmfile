@@ -15,32 +15,6 @@ KEYCLOAK_WAIT_HOST_HEADER="${KEYCLOAK_WAIT_HOST_HEADER:-}"
 NEXTCLOUD_INTEGRATION_CHECK_URL="${NEXTCLOUD_INTEGRATION_CHECK_URL:-${NEXTCLOUD_WAIT_URL%/status.php}/index.php/apps/integration_openproject/check-admin-config}"
 NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER="${NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER:-$NEXTCLOUD_WAIT_HOST_HEADER}"
 
-has_integration_setup() {
-    local response
-    local setup_without_project_folder
-    local setup_with_project_folder
-    local curl_args=(-s -XGET -uadmin:admin -H 'Content-Type: application/json')
-
-    if [[ -n "$NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER" ]]; then
-        curl_args+=(-H "Host: $NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER")
-    fi
-    if ! response=$(curl "${curl_args[@]}" "$NEXTCLOUD_INTEGRATION_CHECK_URL"); then
-        return 1
-    fi
-    if ! setup_without_project_folder=$(echo "$response" | jq -er ".config_status_without_project_folder"); then
-        return 1
-    fi
-    if ! setup_with_project_folder=$(echo "$response" | jq -er ".project_folder_setup_status"); then
-        return 1
-    fi
-
-    if [[ "$setup_without_project_folder" == "true" || "$setup_with_project_folder" == "true" ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
 # waits 5 minutes for the server to be ready
 wait_for_server() {
     local url="$1"
