@@ -44,9 +44,9 @@ openproject:
     displayName: 'nextcloud'
     identifier: {{ .Values.integration.oidcClients.openprojectNC.id }}
     secret: {{ .Values.integration.oidcClients.openprojectNC.secret }}
-    authorizationEndpoint: /index.php/apps/oidc/authorize
-    tokenEndpoint: /index.php/apps/oidc/token
-    userinfoEndpoint: /index.php/apps/oidc/userinfo
+    authorizationEndpoint: /apps/oidc/authorize
+    tokenEndpoint: /apps/oidc/token
+    userinfoEndpoint: /apps/oidc/userinfo
     host: {{ .Values.nextcloud.host }}
     {{ end }}
 dbInit:
