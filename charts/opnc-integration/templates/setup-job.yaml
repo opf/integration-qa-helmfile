@@ -17,8 +17,30 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      {{- if .Values.xwiki.enabled }}
       initContainers:
+        - name: mcp-setup
+          image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - bundle
+            - exec
+            - rails
+            - runner
+            - /scripts/setup-mcp.rb
+          env:
+            - name: RAILS_ENV
+              value: "production"
+            - name: DATABASE_URL
+              value: {{ required "environment.DATABASE_URL is required for MCP setup" .Values.environment.DATABASE_URL | quote }}
+            - name: DATABASE_HOST
+              value: {{ .Values.environment.DATABASE_HOST | quote }}
+            - name: OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK
+              value: "true"
+          volumeMounts:
+            - name: setup-script
+              mountPath: /scripts/setup-mcp.rb
+              subPath: setup-mcp.rb
+      {{- if .Values.xwiki.enabled }}
         - name: xwiki-oauth-setup
           image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
           imagePullPolicy: IfNotPresent

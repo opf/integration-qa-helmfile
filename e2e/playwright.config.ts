@@ -88,7 +88,14 @@ export default defineConfig({
       fullyParallel: false,
       workers: 1,
       testMatch: '**/*.spec.ts',
-      testIgnore: ['**/kc-integration.spec.ts', '**/nc-integration.spec.ts'],
+      testIgnore: ['**/kc-integration.spec.ts', '**/nc-integration.spec.ts', '**/mcp/**/*.spec.ts'],
+    },
+    {
+      name: 'mcp-tests',
+      use: { ...devices['Desktop Chrome'] },
+      fullyParallel: false,
+      workers: 1,
+      testMatch: '**/mcp/**/*.spec.ts',
     },
   ],
 });

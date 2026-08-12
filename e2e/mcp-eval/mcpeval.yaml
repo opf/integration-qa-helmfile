@@ -1,0 +1,21 @@
+# mcp-eval configuration for OpenProject MCP server
+model:
+  provider: openai
+  name: Llama-3.3-70b-instruct
+  api_base: ${LLM_STACK_URL:-https://llm-stack.openproject-edge.eu/v1}
+  api_key: ${LLM_STACK_API_KEY}
+  temperature: 0.1
+  max_tokens: 1024
+
+servers:
+  openproject:
+    url: ${OPENPROJECT_URL:-https://openproject.test}/mcp
+    transport: streamable-http
+    headers:
+      Authorization: "Bearer ${MCP_BEARER_TOKEN}"
+      Content-Type: "application/json"
+
+reporting:
+  formats: ["json", "markdown", "html"]
+  output_dir: "./reports"
+  include_traces: true
