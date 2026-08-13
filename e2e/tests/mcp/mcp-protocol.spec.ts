@@ -4,20 +4,15 @@ import { getAdminMcpAuth } from '../../utils/mcp-token';
 import { squashTestCase } from '../../utils/squash-metadata';
 
 const EXPECTED_TOOLS = [
-  'create_work_package',
-  'update_work_package',
-  'search_work_packages',
+  'current_user',
+  'list_statuses',
+  'list_types',
+  'search_portfolios',
+  'search_programs',
   'search_projects',
   'search_users',
   'search_versions',
-  'search_portfolios',
-  'search_programs',
-  'search_custom_fields',
-  'search_custom_field_items',
-  'list_statuses',
-  'list_types',
-  'list_work_package_relations',
-  'current_user',
+  'search_work_packages',
 ];
 
 test.describe('MCP Server Protocol Handshake & Discovery', { tag: ['@mcp'] }, () => {

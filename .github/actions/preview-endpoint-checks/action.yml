@@ -9,6 +9,14 @@ inputs:
     description: Skip XWiki endpoint checks (set true when XWiki is not deployed)
     required: false
     default: 'false'
+  skip-nextcloud:
+    description: Skip Nextcloud endpoint checks (set true when Nextcloud is not deployed)
+    required: false
+    default: 'false'
+  skip-keycloak:
+    description: Skip Keycloak endpoint checks (set true when Keycloak is not deployed)
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -44,6 +52,7 @@ runs:
 
     - name: Check Nextcloud
       id: check_nextcloud
+      if: inputs.skip-nextcloud != 'true'
       shell: bash
       continue-on-error: true
       env:
@@ -54,6 +63,7 @@ runs:
 
     - name: Check Keycloak
       id: check_keycloak
+      if: inputs.skip-keycloak != 'true'
       shell: bash
       continue-on-error: true
       env:
@@ -94,9 +104,17 @@ runs:
         CHECK_XW: ${{ steps.check_xwiki.outcome }}
         CHECK_XW_META: ${{ steps.check_xwiki_metadata.outcome }}
         SKIP_XWIKI: ${{ inputs.skip-xwiki }}
+        SKIP_NEXTCLOUD: ${{ inputs.skip-nextcloud }}
+        SKIP_KEYCLOAK: ${{ inputs.skip-keycloak }}
       run: |
         set -euo pipefail
-        entries=("OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}")
+        entries=("OpenProject:${CHECK_OP}")
+        if [[ "${SKIP_NEXTCLOUD}" != "true" ]]; then
+          entries+=("Nextcloud:${CHECK_NC}")
+        fi
+        if [[ "${SKIP_KEYCLOAK}" != "true" ]]; then
+          entries+=("Keycloak:${CHECK_KC}")
+        fi
         if [[ "${SKIP_XWIKI}" != "true" ]]; then
           entries+=("XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}")
         fi

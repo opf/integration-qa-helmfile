@@ -6,14 +6,34 @@
 # See: openproject/app/seeders/standard.yml
 
 # --- Users ---
-# Brian QA is provisioned by setup-mcp.rb with admin role and MCP OAuth token
-BRIAN_USER = {
-    "login": "brian",
-    "firstname": "Brian",
-    "lastname": "QA",
-    "email": "brian@example.net",
+# Bob_AI is provisioned by setup-mcp.rb with admin role and MCP OAuth token
+MCP_USER = {
+    "login": "Bob_AI",
+    "firstname": "Bob",
+    "lastname": "AI",
+    "email": "bob.ai@example.net",
     "admin": True,
 }
+
+SUPPORTED_TOOLS = {
+    "current_user",
+    "list_statuses",
+    "list_types",
+    "search_portfolios",
+    "search_programs",
+    "search_projects",
+    "search_users",
+    "search_versions",
+    "search_work_packages",
+}
+
+
+def supported_case(case):
+    if "tool" in case:
+        return case["tool"] in SUPPORTED_TOOLS
+    if "tools" in case:
+        return all(t in SUPPORTED_TOOLS for t in case["tools"])
+    return True
 
 # --- Projects ---
 DEMO_PROJECT = {

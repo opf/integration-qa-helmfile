@@ -5,3 +5,11 @@
 # NOTE: the config structure must be the same as in the above config file.
 
 # Usage: copy 'override.yaml.example' to 'override.yaml'
+#
+# Local MCP / OpenProject-only example:
+#   integration:
+#     setupMethod: 'oauth2'
+#   openproject:
+#     standalone: true
+#   xwiki:
+#     enabled: false

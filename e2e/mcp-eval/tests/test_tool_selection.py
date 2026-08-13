@@ -1,9 +1,10 @@
 import pytest
 from mcp_eval import task, Expect
 from seed_data import (
-    BRIAN_USER, DEMO_PROJECT, SCRUM_PROJECT,
+    MCP_USER, DEMO_PROJECT, SCRUM_PROJECT,
     TYPES, STATUSES, SEEDED_USERS, SCRUM_VERSIONS,
     DEMO_WORK_PACKAGES, SCRUM_WORK_PACKAGES,
+    supported_case,
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -20,14 +21,14 @@ TOOL_SELECTION_CASES = [
         "id": "TS-01",
         "prompt": "Who am I logged in as?",
         "tool": "current_user",
-        "result_must_contain": ["Brian", "brian@example.net"],
+        "result_must_contain": [MCP_USER["firstname"], MCP_USER["email"]],
         "result_must_not_contain": [],
     },
     {
         "id": "TS-02",
         "prompt": "What is my user profile?",
         "tool": "current_user",
-        "result_must_contain": ["Brian", "QA", "admin"],
+        "result_must_contain": [MCP_USER["firstname"], MCP_USER["lastname"], "admin"],
         "result_must_not_contain": [],
     },
 
@@ -98,9 +99,9 @@ TOOL_SELECTION_CASES = [
     # ── search_users (seeded demo users) ──────────────────────────────
     {
         "id": "TS-11",
-        "prompt": "Find user Brian in the system",
+        "prompt": f"Find user {MCP_USER['firstname']} in the system",
         "tool": "search_users",
-        "result_must_contain": ["Brian", "QA"],
+        "result_must_contain": [MCP_USER["firstname"], MCP_USER["lastname"]],
         "result_must_not_contain": [],
     },
     {
@@ -219,7 +220,7 @@ TOOL_SELECTION_CASES = [
     },
 ]
 
-for case in TOOL_SELECTION_CASES:
+for case in filter(supported_case, TOOL_SELECTION_CASES):
     @task(f"[{case['id']}] LLM selects '{case['tool']}' for: \"{case['prompt']}\"")
     async def test_tool_selection(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])

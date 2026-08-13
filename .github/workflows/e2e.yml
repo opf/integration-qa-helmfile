@@ -67,6 +67,7 @@ on:
           - smoke
           - regression
           - integration
+          - mcp
           - custom
       custom_grep:
         description: "Custom --grep expression"
@@ -272,6 +273,7 @@ jobs:
               smoke) grep='@smoke' ;;
               regression) grep='@regression' ;;
               integration) grep='@integration' ;;
+              mcp) grep='@mcp' ;;
               custom) grep="${IN_CUSTOM_GREP}" ;;
               *)
                 echo "::error::Unknown suite: ${IN_SUITE}"

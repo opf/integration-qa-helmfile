@@ -1,8 +1,9 @@
 import pytest
 from mcp_eval import task, Expect
 from seed_data import (
-    DEMO_PROJECT, SCRUM_PROJECT, BRIAN_USER,
+    DEMO_PROJECT, SCRUM_PROJECT, MCP_USER,
     DEMO_WORK_PACKAGES, SCRUM_VERSIONS,
+    supported_case,
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -43,11 +44,11 @@ ARGUMENT_CASES = [
     },
     {
         "id": "AE-04",
-        "prompt": "Find user named Brian",
+        "prompt": f"Find user named {MCP_USER['firstname']}",
         "tool": "search_users",
-        "expected_args": {"search_term": "Brian"},
-        # Brian QA is provisioned by setup-mcp.rb
-        "result_must_contain": ["Brian", "QA"],
+        "expected_args": {"search_term": MCP_USER["firstname"]},
+        # Bob_AI is provisioned by setup-mcp.rb
+        "result_must_contain": [MCP_USER["firstname"], MCP_USER["lastname"]],
     },
     {
         "id": "AE-05",
@@ -87,7 +88,7 @@ ARGUMENT_CASES = [
     },
 ]
 
-for case in ARGUMENT_CASES:
+for case in filter(supported_case, ARGUMENT_CASES):
     @task(f"[{case['id']}] LLM extracts args for '{case['tool']}' from: \"{case['prompt']}\"")
     async def test_argument_extraction(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])

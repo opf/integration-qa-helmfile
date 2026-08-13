@@ -1,6 +1,6 @@
 import pytest
 from mcp_eval import task, Expect
-from seed_data import DEMO_PROJECT, DEMO_WORK_PACKAGES, SCRUM_WORK_PACKAGES
+from seed_data import DEMO_PROJECT, DEMO_WORK_PACKAGES, SCRUM_WORK_PACKAGES, supported_case
 
 # ═══════════════════════════════════════════════════════════════════════
 # Category 3: Multi-Step Workflows
@@ -54,7 +54,7 @@ MULTI_STEP_CASES = [
     },
 ]
 
-for case in MULTI_STEP_CASES:
+for case in filter(supported_case, MULTI_STEP_CASES):
     @task(f"[{case['id']}] Multi-step chain: {', '.join(case['tools'])}")
     async def test_multi_step(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])

@@ -16,7 +16,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
   });
 
   test(
-    'current_user tool returns authenticated admin profile',
+    'current_user tool returns authenticated Bob_AI profile',
     squashTestCase(3006, { stepCount: 2 }),
     async () => {
       let result: any;
@@ -31,12 +31,9 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
         expect(result.isError).toBeFalsy();
         expect(result.content).toBeDefined();
 
-        const textContent = (result.content as Array<{ type: string; text: string }>)
-          .filter((c) => c.type === 'text')
-          .map((c) => c.text)
-          .join('');
-
-        expect(textContent.toLowerCase()).toContain('admin');
+        const structured = result.structuredContent as { login?: string } | undefined;
+        const blob = JSON.stringify(result);
+        expect(structured?.login ?? blob).toContain('Bob_AI');
       });
     },
   );
@@ -175,9 +172,12 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
         expect(updateResult.isError).toBeFalsy();
       });
 
-      let resourceResult: any;
-      await test.step('Read resource mcp://work_package/{id}', async () => {
-        resourceResult = await client.readResource({ uri: `mcp://work_package/${wpId}` });
+      let resourceResult: Awaited<ReturnType<Client['readResource']>>;
+      await test.step('Read resource /api/v3/work_packages/{id}', async () => {
+        const origin = new URL((await client.listResources()).resources[0].uri).origin;
+        resourceResult = await client.readResource({
+          uri: `${origin}/api/v3/work_packages/${wpId}`,
+        });
       });
 
       await test.step('Verify resource text contains updated subject', async () => {

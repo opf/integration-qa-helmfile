@@ -1,5 +1,4 @@
-import { OP_ADMIN_USER } from './test-users';
-import { logInfo, logWarn } from './logger';
+import { logInfo } from './logger';
 
 export interface McpAuthOptions {
   token?: string;
@@ -13,7 +12,7 @@ export interface McpAuthOptions {
  * Priority:
  * 1. MCP_API_TOKEN env var → Bearer token (preferred for CI)
  * 2. OPENPROJECT_API_KEY env var → Basic apikey:<token>
- * 3. Fallback to OP_ADMIN_USER (note: plain admin:admin fails for /mcp unless global_basic_auth is enabled)
+ * 3. Fallback to seeded Bob_AI OAuth token (setup-mcp.rb / mcp.oauthToken)
  */
 export function getAdminMcpAuth(): McpAuthOptions {
   const apiToken = process.env.MCP_API_TOKEN;
@@ -28,8 +27,8 @@ export function getAdminMcpAuth(): McpAuthOptions {
     return { username: 'apikey', password: apiKey };
   }
 
-  logInfo('[MCP Auth] Falling back to seeded Brian user OAuth token');
+  logInfo('[MCP Auth] Falling back to seeded Bob_AI OAuth token');
   return {
-    token: process.env.MCP_OAUTH_TOKEN || 'brian_mcp_test_token_1234567890',
+    token: process.env.MCP_OAUTH_TOKEN || 'bob_ai_mcp_test_token_1234567890',
   };
 }

@@ -9,7 +9,7 @@ model:
 
 servers:
   openproject:
-    url: ${OPENPROJECT_URL:-https://openproject.test}/mcp
+    url: ${OPENPROJECT_URL:-https://openproject.test}/mcp/
     transport: streamable-http
     headers:
       Authorization: "Bearer ${MCP_BEARER_TOKEN}"

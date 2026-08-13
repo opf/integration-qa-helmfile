@@ -11,6 +11,9 @@
 {{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.2.0" -}}
 {{- $wikiEnhancements := env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true" -}}
 {{- $xwikiEnabled := env "XWIKI_ENABLED" | default "true" -}}
+{{- $profile := env "STACK_PROFILE" | default "full" -}}
+{{- $standalone := ne $profile "full" -}}
+{{- $keycloakEnabled := or (eq $profile "full") (eq $profile "op-keycloak") -}}
 previewMode: true
 
 integration:
@@ -30,7 +33,7 @@ openproject:
   fullnameOverride: openproject
   host: {{ $publicDns | quote }}
   assetHost: {{ printf "openproject-assets.%s" $publicDns | quote }}
-  standalone: false
+  standalone: {{ $standalone }}
   version: {{ $opVersion | quote }}
   gitSourceBranch: {{ $opBranch | quote }}
   localSourcePath: ''
@@ -76,6 +79,7 @@ nextcloud:
     password: nextcloud
 
 keycloak:
+  enabled: {{ $keycloakEnabled }}
   version: {{ $kcVersion | quote }}
   fullnameOverride: keycloak
   host: {{ printf "keycloak.%s" $publicDns | quote }}

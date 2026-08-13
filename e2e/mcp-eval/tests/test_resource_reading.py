@@ -1,6 +1,6 @@
 import pytest
 from mcp_eval import task, Expect
-from seed_data import BRIAN_USER, STATUSES, TYPES
+from seed_data import MCP_USER, STATUSES, TYPES
 
 # ═══════════════════════════════════════════════════════════════════════
 # Category 5: Resource Reading
@@ -17,8 +17,8 @@ RESOURCE_CASES = [
         "id": "RR-01",
         "prompt": "Read my user profile from the MCP resource",
         "uri": "mcp://current_user",
-        # Brian is the authenticated user (setup-mcp.rb)
-        "result_must_contain": ["Brian", "brian@example.net", "admin"],
+        # Bob_AI is the authenticated user (setup-mcp.rb)
+        "result_must_contain": [MCP_USER["firstname"], MCP_USER["email"], "admin"],
     },
     {
         "id": "RR-02",
