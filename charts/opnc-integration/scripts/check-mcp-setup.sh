@@ -18,6 +18,8 @@ grep -q 'brian_mcp_test_token' "$SCRIPT" && fail "setup-mcp.rb must not use old 
 grep -q 'Token::API' "$SCRIPT" && fail "setup-mcp.rb must not provision unused Token::API" || true
 grep -q 'Doorkeeper::Application' "$SCRIPT" || fail "setup-mcp.rb must provision a Doorkeeper application for MCP tokens"
 grep -q 'application_id' "$SCRIPT" || fail "setup-mcp.rb must set application_id on the OAuth token"
+grep -q 'update_column' "$SCRIPT" || fail "setup-mcp.rb must update_column the hashed token (bypass token= hashing)"
+grep -E '\.token[[:space:]]*=' "$SCRIPT" && fail "setup-mcp.rb must not assign to token= (Doorkeeper hashes the setter)" || true
 pass "setup-mcp.rb Bob_AI contract"
 
 RENDER="$(mktemp)"

@@ -71,14 +71,16 @@ oauth_app.update!(scopes: "mcp") unless oauth_app.scopes.to_s.split.include?("mc
 puts "[INFO] Provisioned Doorkeeper application 'MCP E2E' (ID: #{oauth_app.id})"
 
 raw_oauth_token = ENV.fetch("MCP_OAUTH_TOKEN", "bob_ai_mcp_test_token_1234567890")
-hashed_token = Doorkeeper::AccessToken.secret_strategy.transform_secret(raw_oauth_token)
-
 oauth_token = Doorkeeper::AccessToken.find_or_initialize_by(resource_owner_id: bob.id, scopes: "mcp")
 oauth_token.application_id = oauth_app.id
-oauth_token.token = hashed_token
 oauth_token.expires_in = 86400 * 365
 oauth_token.revoked_at = nil
 oauth_token.save!
+# Write the hash via update_column: token= hashes again (same as setup-xwiki-oauth.rb).
+oauth_token.update_column(
+  :token,
+  Doorkeeper::AccessToken.secret_strategy.transform_secret(raw_oauth_token)
+)
 puts "[INFO] Provisioned OAuth Token for 'Bob_AI' with 'mcp' scope"
 
 exit 0
