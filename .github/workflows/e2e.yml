@@ -391,22 +391,24 @@ jobs:
             local curl_exit=0
             echo "::group::Diagnostics: ${url}"
             set +e
+            # Keep stderr: -S prints the TLS/connect reason (curl 35, etc.).
             status="$(
               /usr/bin/curl -skS -o /dev/null \
                 --connect-timeout 10 \
                 --write-out '%{http_code}' \
-                "${url}" 2>/dev/null
+                "${url}"
             )"
             curl_exit=$?
             set -e
             if [[ "${curl_exit}" -eq 0 ]]; then
               echo "HTTP status: ${status}"
             else
-              echo "curl exit: ${curl_exit}"
+              echo "curl exit: ${curl_exit} HTTP status: ${status}"
             fi
             echo "::endgroup::"
           }
 
+          dump "https://${preview_host}/"
           if [[ "${IN_SUITE}" == "mcp" ]]; then
             dump "https://${preview_host}/mcp"
           fi
@@ -728,7 +730,8 @@ jobs:
           elif [[ "${TESTS_SHOULD_RUN}" == "true" ]] && [[ "${outcome}" != "success" ]]; then
             should_teardown=false
           elif [[ "${LIVE}" == "true" ]] && [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
-            should_teardown=true
+            # URL validation / host export failed: keep the preview (same as a Playwright failure).
+            should_teardown=false
           fi
           echo "should_teardown=${should_teardown}" >> "$GITHUB_OUTPUT"
           echo "tests_effective_outcome=${outcome}" >> "$GITHUB_OUTPUT"
@@ -754,7 +757,7 @@ jobs:
           needs.deploy.outputs.live == 'true' &&
           needs.deploy.outputs.preview_name != '' &&
           steps.policy.outputs.should_teardown == 'false' &&
-          (github.event.inputs.skip_tests == 'true' || (needs.deploy.outputs.tests_should_run == 'true' && steps.tests.outcome == 'failure'))
+          (github.event.inputs.skip_tests == 'true' || needs.deploy.outputs.tests_should_run != 'true' || steps.tests.outcome == 'failure')
         env:
           PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
           OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
@@ -762,11 +765,15 @@ jobs:
           KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
           XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
           SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
+          TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
         run: |
           set -euo pipefail
           if [[ "${SKIP_TESTS}" == "true" ]]; then
             cleanup_target="setup"
             reason="Setup-only deploy (skip_tests)."
+          elif [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
+            cleanup_target="e2e"
+            reason="URL validation failed; preview kept for 24h (TTL), then auto-expires."
           else
             cleanup_target="e2e"
             reason="Playwright tests failed; preview kept for 24h (TTL), then auto-expires."
@@ -777,10 +784,18 @@ jobs:
             echo "${reason}"
             echo ""
             echo "- Preview label: \`${PREVIEW_NAME}\`"
-            echo "- OpenProject: ${OPENPROJECT_URL}"
-            echo "- Nextcloud: https://${NEXTCLOUD_HOST}"
-            echo "- Keycloak: https://${KEYCLOAK_HOST}"
-            echo "- XWiki: https://${XWIKI_HOST}"
+            if [[ -n "${OPENPROJECT_URL}" ]]; then
+              echo "- OpenProject: ${OPENPROJECT_URL}"
+            fi
+            if [[ -n "${NEXTCLOUD_HOST}" ]]; then
+              echo "- Nextcloud: https://${NEXTCLOUD_HOST}"
+            fi
+            if [[ -n "${KEYCLOAK_HOST}" ]]; then
+              echo "- Keycloak: https://${KEYCLOAK_HOST}"
+            fi
+            if [[ -n "${XWIKI_HOST}" ]]; then
+              echo "- XWiki: https://${XWIKI_HOST}"
+            fi
             echo ""
             echo "To tear down later, run workflow **PullPreview Cleanup**:"
             echo "- \`target=${cleanup_target}\`"
@@ -846,7 +861,7 @@ jobs:
             exit 0
           fi
           if [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
-            echo "::error::Preview was live but URL validation or host export did not complete; tests were not run."
+            echo "::error::Preview was live but URL validation or host export did not complete; tests were not run. Preview kept for debugging; tear down via **PullPreview Cleanup** (target=e2e)."
             exit 1
           fi
           case "${TESTS_OUTCOME}" in
