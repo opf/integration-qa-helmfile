@@ -249,6 +249,7 @@ jobs:
         env:
           IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
           IN_SUITE: ${{ github.event.inputs.suite }}
+          IN_SETUP: ${{ github.event.inputs.setupMethod }}
           IN_CUSTOM_GREP: ${{ github.event.inputs.custom_grep }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
@@ -299,6 +300,7 @@ jobs:
           {
             printf 'grep<<%s\n%s\n%s\n' "${delim}" "${grep}" "${delim}"
             printf 'preview_name<<%s\n%s\n%s\n' "${delim}" "${preview_name}" "${delim}"
+            .github/scripts/resolve-stack-topology.sh "${IN_SUITE}" "${IN_SETUP}"
           } >> "$GITHUB_OUTPUT"
 
       - name: PullPreview up
@@ -319,7 +321,7 @@ jobs:
           chart_values: pullpreview/stack-values.yaml.gotmpl
           pre_script: pullpreview/pre-script-helm-deps-e2e.sh
           proxy_tls: traefik:80
-          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }},xwiki.{{ pullpreview_public_dns }}
+          proxy_tls_hosts: ${{ steps.resolve.outputs.proxy_tls_hosts }}
           ttl: ${{ github.event.inputs.skip_tests == 'true' && '72h' || '24h' }}
         env:
           PULLPREVIEW_LOGGER_LEVEL: ERROR
@@ -334,6 +336,8 @@ jobs:
           XWIKI_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_xwiki_version }}
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_xwiki_extension_version }}
           OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.wiki_enhancements }}
+          XWIKI_ENABLED: ${{ steps.resolve.outputs.xwiki_enabled }}
+          STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
 
       - name: Strip SSH lines from PullPreview summary
         if: >-
@@ -355,6 +359,9 @@ jobs:
           PULLPREVIEW_LIVE: ${{ steps.pullpreview_up.outputs.live }}
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
           IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
+          SKIP_NEXTCLOUD: ${{ steps.resolve.outputs.skip_nextcloud }}
+          SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
+          SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
         run: .github/scripts/deploy-preview-summary.sh
 
       - name: Preview endpoint checks
@@ -364,11 +371,16 @@ jobs:
         continue-on-error: true
         with:
           preview-url: ${{ steps.pullpreview_up.outputs.url }}
+          skip-xwiki: ${{ steps.resolve.outputs.skip_xwiki }}
+          skip-nextcloud: ${{ steps.resolve.outputs.skip_nextcloud }}
+          skip-keycloak: ${{ steps.resolve.outputs.skip_keycloak }}
 
       - name: Diagnostics (on URL validation failure)
         if: always() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome != 'success'
         env:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+          SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
+          IN_SUITE: ${{ github.event.inputs.suite }}
         run: |
           set -euo pipefail
           preview_host="$(.github/scripts/preview-parse-host.sh)"
@@ -395,11 +407,17 @@ jobs:
             echo "::endgroup::"
           }
 
-          dump "https://xwiki.${preview_host}/"
-          dump "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution"
-          dump "https://xwiki.${preview_host}/bin/view/Main/"
-          dump "https://xwiki.${preview_host}/rest/openproject/metadata"
-          dump "https://xwiki.${preview_host}/rest/wikis/xwiki"
+          if [[ "${IN_SUITE}" == "mcp" ]]; then
+            dump "https://${preview_host}/mcp"
+          fi
+
+          if [[ "${SKIP_XWIKI}" != "true" ]]; then
+            dump "https://xwiki.${preview_host}/"
+            dump "https://xwiki.${preview_host}/bin/distribution/XWiki/Distribution"
+            dump "https://xwiki.${preview_host}/bin/view/Main/"
+            dump "https://xwiki.${preview_host}/rest/openproject/metadata"
+            dump "https://xwiki.${preview_host}/rest/wikis/xwiki"
+          fi
 
       - name: Export hosts for Playwright
         id: export_hosts
@@ -407,6 +425,9 @@ jobs:
         env:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
           PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          SKIP_NEXTCLOUD: ${{ steps.resolve.outputs.skip_nextcloud }}
+          SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
+          SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
         run: |
           set -euo pipefail
           preview_url="${PREVIEW_URL}"
@@ -418,21 +439,33 @@ jobs:
 
           {
             echo "OPENPROJECT_HOST=${preview_host}"
-            echo "NEXTCLOUD_HOST=nextcloud.${preview_host}"
-            echo "KEYCLOAK_HOST=keycloak.${preview_host}"
-            echo "XWIKI_HOST=xwiki.${preview_host}"
             echo "OPENPROJECT_URL=${preview_url}"
             echo "E2E_ENV=pullpreview"
           } >> "$GITHUB_ENV"
+          if [[ "${SKIP_NEXTCLOUD:-false}" != "true" ]]; then
+            echo "NEXTCLOUD_HOST=nextcloud.${preview_host}" >> "$GITHUB_ENV"
+          fi
+          if [[ "${SKIP_KEYCLOAK:-false}" != "true" ]]; then
+            echo "KEYCLOAK_HOST=keycloak.${preview_host}" >> "$GITHUB_ENV"
+          fi
+          if [[ "${SKIP_XWIKI:-false}" != "true" ]]; then
+            echo "XWIKI_HOST=xwiki.${preview_host}" >> "$GITHUB_ENV"
+          fi
 
           {
             echo "### PullPreview endpoints"
             echo ""
             echo "- Preview name: \`${PREVIEW_NAME}\`"
             echo "- OpenProject: ${preview_url}"
-            echo "- Nextcloud: https://nextcloud.${preview_host}"
-            echo "- Keycloak: https://keycloak.${preview_host}"
-            echo "- XWiki: https://xwiki.${preview_host}"
+            if [[ "${SKIP_NEXTCLOUD:-false}" != "true" ]]; then
+              echo "- Nextcloud: https://nextcloud.${preview_host}"
+            fi
+            if [[ "${SKIP_KEYCLOAK:-false}" != "true" ]]; then
+              echo "- Keycloak: https://keycloak.${preview_host}"
+            fi
+            if [[ "${SKIP_XWIKI:-false}" != "true" ]]; then
+              echo "- XWiki: https://xwiki.${preview_host}"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish deploy outputs

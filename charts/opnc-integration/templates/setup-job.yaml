@@ -6,7 +6,8 @@ kind: Job
 metadata:
   name: setup-job
 spec:
-  backoffLimit: 10
+  backoffLimit: {{ .Values.setupJob.backoffLimit | default 2 }}
+  activeDeadlineSeconds: {{ .Values.setupJob.activeDeadlineSeconds | default 780 }}
   {{- if not $standalone }}
   podFailurePolicy:
     rules:

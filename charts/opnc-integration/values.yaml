@@ -16,6 +16,11 @@ renderScope: bootstrap
 setupJob:
   enabled: true
   defer: false
+  # Transient pod crashes get backoffLimit retries; activeDeadlineSeconds is the
+  # wall-clock ceiling across all attempts (must stay below opnc-setup-job helmfile
+  # timeout 900s and PULLPREVIEW_SETUP_JOB_TIMEOUT in helmfile-sync.sh).
+  backoffLimit: 2
+  activeDeadlineSeconds: 780
 
 openprojectHost: openproject.test
 openprojectAssetHost: openproject-assets.test

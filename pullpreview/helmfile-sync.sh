@@ -155,7 +155,7 @@ fi
 
 setup_started_at="$(date +%s)"
 set +e
-pullpreview/wait-setup-job.sh "${namespace}" "${PULLPREVIEW_SETUP_JOB_TIMEOUT:-10m}"
+pullpreview/wait-setup-job.sh "${namespace}" "${PULLPREVIEW_SETUP_JOB_TIMEOUT:-14m}"
 setup_rc=$?
 set -e
 record_pp_timing "wait-setup-job" "${setup_started_at}"
