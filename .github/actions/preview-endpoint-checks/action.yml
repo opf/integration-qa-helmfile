@@ -35,6 +35,35 @@ runs:
           echo ""
         } >> "${GITHUB_STEP_SUMMARY}"
 
+    - name: Wait for TLS readiness
+      shell: bash
+      env:
+        PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+      run: |
+        set -euo pipefail
+        # Caddy's on-demand ACME can take 2-5 minutes after first TLS handshake.
+        # Wait for a valid TLS connection before checking individual services.
+        max_attempts=30
+        sleep_seconds=10
+        echo "Waiting for TLS certificate on ${PREVIEW_HOST} (up to $((max_attempts * sleep_seconds))s)..."
+        for attempt in $(seq 1 "${max_attempts}"); do
+          set +e
+          /usr/bin/curl -sk -o /dev/null --connect-timeout 10 "https://${PREVIEW_HOST}/" 2>/dev/null
+          curl_exit=$?
+          set -e
+          if [[ "${curl_exit}" -eq 0 ]]; then
+            echo "TLS ready after attempt ${attempt}/${max_attempts}"
+            break
+          fi
+          if [[ "${curl_exit}" -ne 35 ]] && [[ "${curl_exit}" -ne 60 ]]; then
+            # Non-TLS error (connection refused, timeout, etc.) — proceed to checks
+            echo "Non-TLS curl error (exit ${curl_exit}) at attempt ${attempt}; proceeding to checks."
+            break
+          fi
+          echo "TLS not ready (curl exit ${curl_exit}), attempt ${attempt}/${max_attempts}..."
+          sleep "${sleep_seconds}"
+        done
+
     - name: Check OpenProject
       id: check_openproject
       shell: bash

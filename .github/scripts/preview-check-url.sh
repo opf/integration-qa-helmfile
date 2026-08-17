@@ -6,7 +6,7 @@ set -euo pipefail
 name="${1:?service name required}"
 url="${2:?url required}"
 expected_status="${3:?expected HTTP status required}"
-attempts="${4:-12}"
+attempts="${4:-18}"
 sleep_seconds="${5:-10}"
 follow_redirects="${6:-false}"
 
