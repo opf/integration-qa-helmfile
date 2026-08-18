@@ -65,13 +65,13 @@ fi
 if [[ "${ok}" != "true" ]]; then
   echo "::group::Debug: status check for ${name}"
   set +e
-  status="$(fetch_http_status)"
+  debug_output="$(/usr/bin/curl "${curl_status_args[@]}" "${url}" 2>&1)"
   curl_exit=$?
   set -e
   if [[ "${curl_exit}" -eq 0 ]]; then
-    echo "${name}: ${status}"
+    echo "${name}: HTTP ${debug_output}"
   else
-    echo "${name}: curl-exit-${curl_exit}"
+    echo "${name}: curl-exit-${curl_exit}: ${debug_output}"
   fi
   echo "::endgroup::"
   echo "::error::${name} endpoint was not ready: ${url} expected HTTP ${expected_status}, last result ${status}"

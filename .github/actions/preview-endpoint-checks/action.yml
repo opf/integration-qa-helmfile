@@ -39,30 +39,60 @@ runs:
       shell: bash
       env:
         PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        SKIP_NEXTCLOUD: ${{ inputs.skip-nextcloud }}
+        SKIP_KEYCLOAK: ${{ inputs.skip-keycloak }}
+        SKIP_XWIKI: ${{ inputs.skip-xwiki }}
       run: |
         set -euo pipefail
-        # Caddy's on-demand ACME can take 2-5 minutes after first TLS handshake.
-        # Wait for a valid TLS connection before checking individual services.
+        # Caddy's on-demand ACME provisions certificates upon receiving the first
+        # TLS handshake with a given SNI. Warm up the main host and all active subdomains.
+        targets=("https://${PREVIEW_HOST}/")
+        if [[ "${SKIP_KEYCLOAK}" != "true" ]]; then
+          targets+=("https://keycloak.${PREVIEW_HOST}/")
+        fi
+        if [[ "${SKIP_NEXTCLOUD}" != "true" ]]; then
+          targets+=("https://nextcloud.${PREVIEW_HOST}/")
+        fi
+        if [[ "${SKIP_XWIKI}" != "true" ]]; then
+          targets+=("https://xwiki.${PREVIEW_HOST}/")
+        fi
+
         max_attempts=30
         sleep_seconds=10
-        echo "Waiting for TLS certificate on ${PREVIEW_HOST} (up to $((max_attempts * sleep_seconds))s)..."
+        echo "Waiting for TLS readiness on ${#targets[@]} endpoint(s) (up to $((max_attempts * sleep_seconds))s):"
+        for t in "${targets[@]}"; do echo "  - ${t}"; done
+
+        pending_targets=("${targets[@]}")
         for attempt in $(seq 1 "${max_attempts}"); do
-          set +e
-          /usr/bin/curl -sk -o /dev/null --connect-timeout 10 "https://${PREVIEW_HOST}/" 2>/dev/null
-          curl_exit=$?
-          set -e
-          if [[ "${curl_exit}" -eq 0 ]]; then
-            echo "TLS ready after attempt ${attempt}/${max_attempts}"
+          next_pending=()
+          for url in "${pending_targets[@]}"; do
+            set +e
+            /usr/bin/curl -skS -o /dev/null --connect-timeout 10 "${url}" 2>/dev/null
+            curl_exit=$?
+            set -e
+            if [[ "${curl_exit}" -eq 0 ]]; then
+              echo "TLS ready: ${url} (attempt ${attempt}/${max_attempts})"
+            else
+              next_pending+=("${url}")
+            fi
+          done
+          pending_targets=()
+          if [[ "${#next_pending[@]}" -gt 0 ]]; then
+            pending_targets=("${next_pending[@]}")
+          fi
+          if [[ "${#pending_targets[@]}" -eq 0 ]]; then
+            echo "All TLS endpoints ready after attempt ${attempt}/${max_attempts}."
             break
           fi
-          if [[ "${curl_exit}" -ne 35 ]] && [[ "${curl_exit}" -ne 60 ]]; then
-            # Non-TLS error (connection refused, timeout, etc.) — proceed to checks
-            echo "Non-TLS curl error (exit ${curl_exit}) at attempt ${attempt}; proceeding to checks."
-            break
-          fi
-          echo "TLS not ready (curl exit ${curl_exit}), attempt ${attempt}/${max_attempts}..."
+          echo "TLS pending on ${#pending_targets[@]} endpoint(s), attempt ${attempt}/${max_attempts}..."
           sleep "${sleep_seconds}"
         done
+
+        if [[ "${#pending_targets[@]}" -gt 0 ]]; then
+          echo "::error::TLS handshake failed on ${#pending_targets[@]} endpoint(s) after $((max_attempts * sleep_seconds))s: ${pending_targets[*]}"
+          echo "Check Caddy ACME logs on the PullPreview instance (e.g. Let's Encrypt rate limits or DNS issue)."
+          exit 1
+        fi
 
     - name: Check OpenProject
       id: check_openproject
