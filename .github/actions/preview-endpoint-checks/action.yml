@@ -63,16 +63,18 @@ runs:
         for t in "${targets[@]}"; do echo "  - ${t}"; done
 
         pending_targets=("${targets[@]}")
+        declare -A last_errors=()
         for attempt in $(seq 1 "${max_attempts}"); do
           next_pending=()
           for url in "${pending_targets[@]}"; do
             set +e
-            /usr/bin/curl -skS -o /dev/null --connect-timeout 10 "${url}" 2>/dev/null
+            curl_err="$(/usr/bin/curl -skS -o /dev/null --connect-timeout 10 "${url}" 2>&1)"
             curl_exit=$?
             set -e
             if [[ "${curl_exit}" -eq 0 ]]; then
               echo "TLS ready: ${url} (attempt ${attempt}/${max_attempts})"
             else
+              last_errors["${url}"]="curl-exit-${curl_exit}: ${curl_err}"
               next_pending+=("${url}")
             fi
           done
@@ -90,7 +92,24 @@ runs:
 
         if [[ "${#pending_targets[@]}" -gt 0 ]]; then
           echo "::error::TLS handshake failed on ${#pending_targets[@]} endpoint(s) after $((max_attempts * sleep_seconds))s: ${pending_targets[*]}"
-          echo "Check Caddy ACME logs on the PullPreview instance (e.g. Let's Encrypt rate limits or DNS issue)."
+          summary_file="${GITHUB_STEP_SUMMARY:-}"
+          if [[ -n "${summary_file}" ]]; then
+            {
+              echo "#### TLS readiness failure"
+              echo ""
+              echo "Caddy was unable to complete TLS handshakes within $((max_attempts * sleep_seconds))s. Possible causes: Let's Encrypt rate limits on \`opf.run\` or ACME challenge failure."
+              echo ""
+              echo "| Endpoint | Last Error |"
+              echo "|---|---|"
+              for url in "${pending_targets[@]}"; do
+                echo "| \`${url}\` | \`${last_errors[${url}]:-unknown}\` |"
+              done
+              echo ""
+            } >> "${summary_file}"
+          fi
+          for url in "${pending_targets[@]}"; do
+            echo "  - ${url}: ${last_errors[${url}]:-unknown}"
+          done
           exit 1
         fi
 

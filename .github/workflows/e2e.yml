@@ -324,7 +324,7 @@ jobs:
           proxy_tls_hosts: ${{ steps.resolve.outputs.proxy_tls_hosts }}
           ttl: ${{ github.event.inputs.skip_tests == 'true' && '72h' || '24h' }}
         env:
-          PULLPREVIEW_LOGGER_LEVEL: ERROR
+          PULLPREVIEW_LOGGER_LEVEL: INFO
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
           INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
           OPENPROJECT_VERSION: ${{ github.event.inputs.openproject_version }}

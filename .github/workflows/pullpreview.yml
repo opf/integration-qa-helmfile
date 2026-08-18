@@ -119,7 +119,7 @@ jobs:
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
           INTEGRATION_SETUP_METHOD: ${{ steps.resolve_setup_method.outputs.method }}
-          PULLPREVIEW_LOGGER_LEVEL: ERROR
+          PULLPREVIEW_LOGGER_LEVEL: INFO
 
       - name: Strip SSH lines from PullPreview summary
         if: always() && steps.pullpreview.outcome != 'skipped'

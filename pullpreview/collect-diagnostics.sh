@@ -80,5 +80,11 @@ collect_diagnostics() {
     kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --previous --tail=200 2>&1 | redact_stream || true
   fi
 
+  if kubectl get deployment pullpreview-caddy -n "${namespace}" >/dev/null 2>&1; then
+    echo "[pullpreview] pullpreview-caddy logs:"
+    kubectl logs -n "${namespace}" deploy/pullpreview-caddy --tail=200 2>&1 | redact_stream || true
+    kubectl describe deployment pullpreview-caddy -n "${namespace}" 2>&1 | redact_stream || true
+  fi
+
   echo "::endgroup::"
 }
