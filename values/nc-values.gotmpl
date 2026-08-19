@@ -61,6 +61,10 @@ nextcloud:
       value: {{ .Values.keycloak.providerName }}
     - name: OIDC_KEYCLOAK_DISCOVERY_URL
       value: https://{{ .Values.keycloak.host }}/realms/{{ .Values.keycloak.realm.name }}/.well-known/openid-configuration
+    {{- if .Values.previewMode | default false }}
+    - name: OIDC_KEYCLOAK_WAIT_URL
+      value: http://{{ .Values.keycloak.fullnameOverride }}:8080/realms/{{ .Values.keycloak.realm.name }}/.well-known/openid-configuration
+    {{- end }}
     - name: NEXTCLOUD_ENABLE_APPS
       valueFrom:
         configMapKeyRef:

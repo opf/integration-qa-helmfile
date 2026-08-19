@@ -24,17 +24,22 @@ wait_for_url() {
     local url="$1"
     local max_retry=60
     local retry=1
+    local curl_err=""
+    local curl_exit=0
 
     while [[ $retry -le $max_retry ]]; do
-        if curl -sf "$url" >/dev/null 2>&1; then
+        # -sS keeps curl quiet but still emits the error text we capture on failure.
+        if curl_err=$(curl -sSf "$url" 2>&1 >/dev/null); then
             return 0
+        else
+            curl_exit=$?
         fi
         echo "[INFO] Waiting for '$url' to be ready... (Retry $retry/$max_retry)"
         sleep 5
         ((retry++))
     done
 
-    echo "[ERROR] Timeout waiting for '$url'"
+    echo "[ERROR] Timeout waiting for '$url' (last curl exit ${curl_exit}): ${curl_err}"
     return 1
 }
 
@@ -121,15 +126,21 @@ else
 fi
 # allow local remote servers
 run_occ config:system:set allow_local_remote_servers --value 1
-# Keycloak must be reachable before configuring the OIDC provider.
-wait_for_url "$OIDC_KEYCLOAK_DISCOVERY_URL"
+# Keycloak must be reachable before configuring the OIDC provider. In preview,
+# OIDC_KEYCLOAK_WAIT_URL points at the in-cluster Keycloak service so the wait and
+# the provider registration do not depend on public HTTPS (Caddy/ACME), which is
+# not reachable over hairpin from inside the pod. The discovery document still
+# advertises the public issuer via KEYCLOAK_HOSTNAME, so the stored provider is
+# unchanged. Local/dev leaves it unset and keeps using the public URL + CA mount.
+OIDC_DISCOVERY_URL="${OIDC_KEYCLOAK_WAIT_URL:-$OIDC_KEYCLOAK_DISCOVERY_URL}"
+wait_for_url "$OIDC_DISCOVERY_URL"
 # setup user_oidc app
 run_occ config:app:set --value=1 user_oidc store_login_token
 run_occ config:system:set user_oidc --type boolean --value="true" oidc_provider_bearer_validation
 run_occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" \
     -c "$OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID" \
     -s "$OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET" \
-    -d "$OIDC_KEYCLOAK_DISCOVERY_URL" \
+    -d "$OIDC_DISCOVERY_URL" \
     -o "openid profile email api_v3"
 run_occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" --check-bearer 1
 run_occ config:app:set oidc refresh_expire_time --value "never"
