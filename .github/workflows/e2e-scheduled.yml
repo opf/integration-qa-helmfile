@@ -2,20 +2,14 @@ name: E2E Scheduled
 run-name: >-
   ${{
     github.event_name == 'schedule'
-      && 'E2E Scheduled · redispatch (all)'
-      || format('E2E Scheduled · target={0}', inputs.target)
+      && 'E2E Scheduled · OP dev + NC 34'
+      || 'E2E Scheduled · manual'
   }}
 
 on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
-    inputs:
-      target:
-        description: Which matrix to run
-        type: choice
-        options: [dev, rc, all]
-        default: all
 
 permissions:
   contents: read
@@ -41,8 +35,7 @@ jobs:
           set -euo pipefail
           gh workflow run e2e-scheduled.yml \
             --repo "${GITHUB_REPOSITORY}" \
-            --ref "${GITHUB_REF_NAME}" \
-            -f "target=all"
+            --ref "${GITHUB_REF_NAME}"
 
   cleanup_stale:
     name: "Teardown stale scheduled previews"
@@ -88,8 +81,7 @@ jobs:
     if: >-
       always() &&
       needs.cleanup_stale.result == 'success' &&
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'dev' || inputs.target == 'all')
+      github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/e2e-deploy-test.yml
     secrets: inherit
     with:
@@ -99,97 +91,3 @@ jobs:
       squash_iteration_id: "7"
       preview_label: sched-dev-nc34
       run_label: "OP dev + NC 34"
-
-  dev_nc33:
-    name: "OP dev + NC 33"
-    needs: [dev_nc34]
-    if: >-
-      always() &&
-      needs.dev_nc34.result != 'cancelled' &&
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'dev' || inputs.target == 'all')
-    uses: ./.github/workflows/e2e-deploy-test.yml
-    secrets: inherit
-    with:
-      openproject_version: dev-slim
-      nextcloud_version: "33"
-      integration_openproject_version: "3.1.1"
-      squash_iteration_id: "11"
-      preview_label: sched-dev-nc33
-      run_label: "OP dev + NC 33"
-
-  dev_nc32:
-    name: "OP dev + NC 32"
-    needs: [dev_nc33]
-    if: >-
-      always() &&
-      needs.dev_nc33.result != 'cancelled' &&
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'dev' || inputs.target == 'all')
-    uses: ./.github/workflows/e2e-deploy-test.yml
-    secrets: inherit
-    with:
-      openproject_version: dev-slim
-      nextcloud_version: "32"
-      integration_openproject_version: "2.11.4"
-      squash_iteration_id: "12"
-      preview_label: sched-dev-nc32
-      run_label: "OP dev + NC 32"
-
-  rc_nc34:
-    name: "OP release/17.7 + NC 34"
-    needs: [cleanup_stale, dev_nc32]
-    if: >-
-      always() &&
-      needs.cleanup_stale.result == 'success' &&
-      needs.dev_nc32.result != 'cancelled' &&
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'rc' || inputs.target == 'all')
-    uses: ./.github/workflows/e2e-deploy-test.yml
-    secrets: inherit
-    with:
-      openproject_version: 17.7-rc
-      openproject_branch: release/17.7
-      nextcloud_version: "34"
-      integration_openproject_version: "3.1.1"
-      squash_iteration_id: "8"
-      preview_label: sched-rc-nc34
-      run_label: "OP release/17.7 + NC 34"
-
-  rc_nc33:
-    name: "OP release/17.7 + NC 33"
-    needs: [rc_nc34]
-    if: >-
-      always() &&
-      needs.rc_nc34.result != 'cancelled' &&
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'rc' || inputs.target == 'all')
-    uses: ./.github/workflows/e2e-deploy-test.yml
-    secrets: inherit
-    with:
-      openproject_version: 17.7-rc
-      openproject_branch: release/17.7
-      nextcloud_version: "33"
-      integration_openproject_version: "3.1.1"
-      squash_iteration_id: "9"
-      preview_label: sched-rc-nc33
-      run_label: "OP release/17.7 + NC 33"
-
-  rc_nc32:
-    name: "OP release/17.7 + NC 32"
-    needs: [rc_nc33]
-    if: >-
-      always() &&
-      needs.rc_nc33.result != 'cancelled' &&
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'rc' || inputs.target == 'all')
-    uses: ./.github/workflows/e2e-deploy-test.yml
-    secrets: inherit
-    with:
-      openproject_version: 17.7-rc
-      openproject_branch: release/17.7
-      nextcloud_version: "32"
-      integration_openproject_version: "2.11.4"
-      squash_iteration_id: "10"
-      preview_label: sched-rc-nc32
-      run_label: "OP release/17.7 + NC 32"

@@ -33,10 +33,6 @@ export OP_HOST="https://$OPENPROJECT_HOST"
 export OP_ADMIN_USERNAME='admin'
 export OP_ADMIN_PASSWORD='admin'
 export OP_STORAGE_NAME='nextcloud'
-# for old script
-export OPENPROJECT_HOST="https://$OPENPROJECT_HOST"
-export NEXTCLOUD_HOST="https://$NEXTCLOUD_HOST"
-export OPENPROJECT_STORAGE_NAME='nextcloud'
 
 has_integration_setup() {
     local response
@@ -138,6 +134,9 @@ if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
         exit 1
     fi
 
+    OPENPROJECT_HOST="https://$OPENPROJECT_HOST" \
+    NEXTCLOUD_HOST="https://$NEXTCLOUD_HOST" \
+    OPENPROJECT_STORAGE_NAME='nextcloud' \
     bash integration_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
