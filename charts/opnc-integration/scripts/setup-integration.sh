@@ -32,33 +32,6 @@ export OP_ADMIN_USERNAME='admin'
 export OP_ADMIN_PASSWORD='admin'
 export OP_STORAGE_NAME='nextcloud'
 
-has_integration_setup() {
-    local response
-    local curl_args=(-s -u"${NC_ADMIN_USERNAME}:${NC_ADMIN_PASSWORD}")
-
-    if [[ -n "$NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER" ]]; then
-        curl_args+=(-H "Host: $NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER")
-    fi
-    if ! response=$(curl "${curl_args[@]}" "$NEXTCLOUD_INTEGRATION_CHECK_URL"); then
-        return 1
-    fi
-
-    local base_status="" folder_status=""
-    base_status=$(echo "$response" | jq -r '.config_status_without_project_folder' 2>/dev/null || true)
-    if [[ "$base_status" != "true" ]]; then
-        return 1
-    fi
-
-    if [[ "${SETUP_PROJECT_FOLDER}" == "true" ]]; then
-        folder_status=$(echo "$response" | jq -r '.project_folder_setup_status' 2>/dev/null || true)
-        if [[ "$folder_status" != "true" ]]; then
-            return 1
-        fi
-    fi
-
-    return 0
-}
-
 # waits 5 minutes for the server to be ready
 wait_for_server() {
     local url="$1"
@@ -108,11 +81,6 @@ echo "[INFO] Nextcloud is ready."
 echo "[INFO] Waiting for OpenProject to be ready..."
 wait_for_server "$OPENPROJECT_WAIT_URL" "$OPENPROJECT_WAIT_HOST_HEADER"
 echo "[INFO] OpenProject is ready."
-
-if has_integration_setup; then
-    echo "[INFO] Integration app is already set up. Skipping integration setup."
-    exit 0
-fi
 
 SCRIPT_URL="https://raw.githubusercontent.com/nextcloud/integration_openproject/master"
 
