@@ -170,7 +170,7 @@ nextcloud:
   fullnameOverride: nextcloud
 
   image:
-    tag: "32"
+    tag: "34"
 
   persistence:
     storageClassName: local-path

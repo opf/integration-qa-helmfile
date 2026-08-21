@@ -10,10 +10,10 @@ dependencies:
     version: 0.1.0
     repository: file://../opnc-integration
   - name: openproject
-    version: 11.4.2
+    version: 13.10.1
     repository: file://../openproject
   - name: nextcloud
-    version: ~7.0.0
+    version: ~9.2.5
     repository: https://nextcloud.github.io/helm
   - name: xwiki
     version: ~1.6.7
@@ -22,5 +22,5 @@ dependencies:
     version: ~24.7.5
     repository: https://charts.bitnami.com/bitnami
   - name: traefik
-    version: ~39.0.5
+    version: ~41.2.0
     repository: https://traefik.github.io/charts

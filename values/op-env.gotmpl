@@ -31,8 +31,9 @@ environment:
 
   {{ else if eq .Values.integration.setupMethod "sso-nextcloud" }}
   OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_ISSUER: https://{{ .Values.nextcloud.host }}
-  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_JWKS__URI: https://{{ .Values.nextcloud.host }}/remote.php/apps/oidc/jwks
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_JWKS__URI: https://{{ .Values.nextcloud.host }}/apps/oidc/jwks
   OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_POST__LOGOUT__REDIRECT__URI: https://{{ .Values.openproject.host }}/
+  OPENPROJECT_OPENID__CONNECT_NEXTCLOUD_GRANT__TYPES__SUPPORTED: "authorization_code implicit refresh_token"
   {{ end }}
 
   {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}

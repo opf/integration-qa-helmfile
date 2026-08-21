@@ -2,7 +2,9 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ include "common.names.fullname" . }}-seeder-{{ .Release.Revision }}
+  namespace: {{ include "common.names.namespace" . | quote }}
   labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: seeder
   {{- if or .Values.seederJob.annotations .Values.commonAnnotations }}
   {{- $annotations := include "common.tplvalues.merge" ( dict "values" ( list .Values.seederJob.annotations .Values.commonAnnotations ) "context" . ) }}
   annotations: {{- include "common.tplvalues.render" ( dict "value" $annotations "context" $) | nindent 4 }}
@@ -16,11 +18,13 @@ spec:
       labels:
         {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 8 }}
         openproject/process: seeder
+        app.kubernetes.io/component: seeder
       {{- with .Values.seederJob.annotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      serviceAccountName: {{ include "common.names.fullname" . }}
       {{- include "openproject.imagePullSecrets" . | indent 6 }}
       {{- include "openproject.podSecurityContext" . | indent 6 }}
       {{- with .Values.affinity }}
@@ -37,6 +41,11 @@ spec:
       {{- end }}
       volumes:
         {{- include "openproject.tmpVolumeSpec" . | indent 8 }}
+        {{- if .Values.egress.tls.rootCA.fileName }}
+        - name: ca-pemstore
+          configMap:
+            name: "{{- .Values.egress.tls.rootCA.configMap }}"
+        {{- end }}
         {{- if .Values.persistence.enabled }}
         - name: "data"
           persistentVolumeClaim:
@@ -44,6 +53,7 @@ spec:
         {{- end }}
         {{- include "openproject.extraVolumes" . | indent 8 }}
       initContainers:
+        {{- include "openproject.tmpVolumeInitContainer" . | indent 8 }}
         - name: check-db-ready
           image: "{{ .Values.dbInit.image.registry }}/{{ .Values.dbInit.image.repository }}:{{ .Values.dbInit.image.tag }}"
           imagePullPolicy: {{ .Values.dbInit.image.imagePullPolicy }}
@@ -56,8 +66,13 @@ spec:
             {{- include "openproject.envFrom" . | nindent 12 }}
           env:
             {{- include "openproject.env" . | nindent 12 }}
+          {{- if .Values.dbInit.resources }}
           resources:
             {{- toYaml .Values.dbInit.resources | nindent 12 }}
+          {{- else if ne .Values.dbInit.resourcesPreset "none" }}
+          resources:
+            {{- include "common.resources.preset" (dict "type" .Values.dbInit.resourcesPreset) | nindent 12 }}
+          {{- end }}
           volumeMounts:
             {{- include "openproject.tmpVolumeMounts" . | indent 12 }}
           {{- include "openproject.containerSecurityContext" . | indent 10 }}
@@ -72,13 +87,24 @@ spec:
             {{- include "openproject.envFrom" . | nindent 12 }}
           env:
             {{- include "openproject.env" . | nindent 12 }}
+          {{- if .Values.seederJob.resources }}
           resources:
             {{- toYaml .Values.seederJob.resources | nindent 12 }}
+          {{- else if ne .Values.seederJob.resourcesPreset "none" }}
+          resources:
+            {{- include "common.resources.preset" (dict "type" .Values.seederJob.resourcesPreset) | nindent 12 }}
+          {{- end }}
           volumeMounts:
             {{- include "openproject.tmpVolumeMounts" . | indent 12 }}
             {{- if .Values.persistence.enabled }}
             - name: "data"
               mountPath: "/var/openproject/assets"
+            {{- end }}
+            {{- if .Values.egress.tls.rootCA.fileName }}
+            - name: ca-pemstore
+              mountPath: /etc/ssl/certs/custom-ca.pem
+              subPath: {{ .Values.egress.tls.rootCA.fileName }}
+              readOnly: false
             {{- end }}
             {{- include "openproject.extraVolumeMounts" . | indent 12 }}
           {{- include "openproject.containerSecurityContext" . | indent 10 }}

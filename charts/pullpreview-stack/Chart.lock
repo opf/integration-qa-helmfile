@@ -4,10 +4,10 @@ dependencies:
   version: 0.1.0
 - name: openproject
   repository: file://../openproject
-  version: 11.4.2
+  version: 13.10.1
 - name: nextcloud
   repository: https://nextcloud.github.io/helm
-  version: 7.0.4
+  version: 9.2.6
 - name: xwiki
   repository: file://../xwiki
   version: 1.6.7
@@ -16,6 +16,6 @@ dependencies:
   version: 24.7.7
 - name: traefik
   repository: https://traefik.github.io/charts
-  version: 39.0.9
-digest: sha256:f915f255f0e1ed4064353af9ba4b7268137a324ebbccbb802bf9b75265855469
-generated: "2026-05-06T12:29:32.649175+03:00"
+  version: 41.2.0
+digest: sha256:55d077911bd4fedbf6fd6279f798eaa99a2b1e7d5642e39177fab90fddbf9447
+generated: "2026-08-20T14:30:42.63861947+05:45"

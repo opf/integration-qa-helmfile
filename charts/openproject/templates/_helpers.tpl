@@ -6,6 +6,30 @@ Returns the OpenProject image to be used including the respective registry and i
 {{- end -}}
 
 {{/*
+Returns the Hocuspocus image to be used including registry, tag and optional digest.
+
+If a sha256 digest is provided, we render `image:tag@sha256:digest` (tag is kept for traceability).
+*/}}
+{{- define "openproject.hocuspocus.image" -}}
+{{- $img := .Values.hocuspocus.image -}}
+{{- $registry := required "hocuspocus.image.registry is required" $img.registry -}}
+{{- $repository := required "hocuspocus.image.repository is required" $img.repository -}}
+{{- $tag := required "hocuspocus.image.tag is required" ($img.tag | toString) -}}
+{{- if $img.sha256 -}}
+{{ $registry }}/{{ $repository }}:{{ $tag }}@sha256:{{ $img.sha256 }}
+{{- else -}}
+{{ $registry }}/{{ $repository }}:{{ $tag }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Returns the Hocuspocus imagePullPolicy with a safe fallback.
+*/}}
+{{- define "openproject.hocuspocus.imagePullPolicy" -}}
+{{- default .Values.image.imagePullPolicy .Values.hocuspocus.image.imagePullPolicy -}}
+{{- end -}}
+
+{{/*
 Returns the OpenProject image pull secrets, if any are defined
 */}}
 {{- define "openproject.imagePullSecrets" -}}
@@ -71,8 +95,47 @@ securityContext:
 {{- if ne .Values.openproject.useTmpVolumes nil -}}
   {{- .Values.openproject.useTmpVolumes -}}
 {{- else -}}
-  {{- (not .Values.develop) -}}
+  {{- .Values.containerSecurityContext.readOnlyRootFilesystem -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "openproject.fixTmpVolumePermissions" -}}
+{{- if and (eq (include "openproject.useTmpVolumes" .) "true") .Values.openproject.tmpVolumesPermissionFix -}}
+  {{- true -}}
+{{- else -}}
+  {{- false -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Init container that prepares a sticky-bit tmp directory for Ruby's Dir.tmpdir.
+
+Some CSI drivers mount the tmp volume world-writable without the sticky bit,
+which Ruby rejects ("could not find a temporary directory"). We create an
+owned subdirectory and set the sticky bit on it as the non-root app user, so
+no elevated privileges are required (unlike chmod'ing the mount point itself).
+TMPDIR is pointed at this directory in "openproject.env".
+*/}}
+{{- define "openproject.tmpVolumeInitContainer" -}}
+{{- if eq (include "openproject.fixTmpVolumePermissions" .) "true" }}
+- name: prepare-tmpdir
+  {{- include "openproject.containerSecurityContext" . | indent 2 }}
+  image: {{ include "openproject.image" . }}
+  imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+  command:
+    - sh
+    - -c
+    - mkdir -p /tmp/ruby && chmod 1777 /tmp/ruby
+  {{- if .Values.appInit.resources }}
+  resources:
+    {{- toYaml .Values.appInit.resources | nindent 4 }}
+  {{- else if ne .Values.appInit.resourcesPreset "none" }}
+  resources:
+    {{- include "common.resources.preset" (dict "type" .Values.appInit.resourcesPreset) | nindent 4 }}
+  {{- end }}
+  volumeMounts:
+    {{- include "openproject.tmpVolumeMounts" . | indent 4 }}
+{{- end }}
 {{- end -}}
 
 {{- define "openproject.tmpVolumeMounts" -}}
@@ -176,6 +239,10 @@ securityContext:
 {{- end }}
 
 {{- define "openproject.env" -}}
+{{- if eq (include "openproject.fixTmpVolumePermissions" .) "true" }}
+- name: TMPDIR
+  value: /tmp/ruby
+{{- end }}
 {{- if .Values.metrics.enabled }}
 - name: OPENPROJECT_METRICS_ENABLED
   value: "true"
@@ -200,6 +267,50 @@ securityContext:
       name: {{ include "common.names.dependency.fullname" (dict "chartName" "postgresql" "chartValues" .Values.postgresql "context" $) }}
       key: {{ .Values.postgresql.auth.secretKeys.userPasswordKey }}
 {{- end }}
+{{- if .Values.openproject.realtime_collaboration.enabled }}
+# External backend: we are using an external hocuspocus backend with an existing secret containing the password
+{{- if .Values.openproject.realtime_collaboration.hocuspocus.auth.existingSecret }}
+- name: OPENPROJECT_COLLABORATIVE__EDITING__HOCUSPOCUS__SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.openproject.realtime_collaboration.hocuspocus.auth.existingSecret }}
+      key: {{ .Values.openproject.realtime_collaboration.hocuspocus.auth.secretKey }}
+# Included backend: we are using the included hocuspocus backend and configure its secret to connect the frontend, looking it up in an existing secret
+{{- else if .Values.hocuspocus.auth.existingSecret }}
+- name: OPENPROJECT_COLLABORATIVE__EDITING__HOCUSPOCUS__SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.hocuspocus.auth.existingSecret }}
+      key: {{ .Values.hocuspocus.auth.secretKey }}
+# if nothing at all was defined, we use an auto generated secret (see secret_hocuspocus.yaml)
+# this will also be used by the included backend
+{{- else }}
+- name: OPENPROJECT_COLLABORATIVE__EDITING__HOCUSPOCUS__SECRET
+  valueFrom:
+    secretKeyRef:
+      name: hocuspocus-secret-auto-generated
+      key: secret
+{{- end }}
+{{- end }}
+{{- if not (hasKey (default (dict) .Values.environment) "SECRET_KEY_BASE") }}
+{{- if .Values.openproject.secretKeyBase.existingSecret }}
+- name: SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.openproject.secretKeyBase.existingSecret }}
+      key: {{ .Values.openproject.secretKeyBase.secretKey }}
+# if nothing was defined, we use an auto generated secret (see secret_secret_key_base.yaml)
+{{- else }}
+- name: SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: secret-key-base-auto-generated
+      key: secret-key-base
+{{- end }}
+{{- end }}
+{{- if .Values.extraEnvVars }}
+{{- toYaml .Values.extraEnvVars | nindent 0 }}
+{{- end }}
 {{- end }}
 
 {{- define "openproject.envChecksums" }}
@@ -207,6 +318,17 @@ securityContext:
 {{/* If I knew how to map and reduce a range in helm I would do that and use a single checksum. But here we are. */}}
 {{- range $suffix := list "core" "memcached" "oidc" "s3" "environment" }}
 checksum/env-{{ $suffix }}: {{ include (print $.Template.BasePath "/secret_" $suffix ".yaml") $ | sha256sum }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "openproject.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "common.names.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
 

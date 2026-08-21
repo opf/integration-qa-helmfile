@@ -69,7 +69,24 @@ By default, the helm chart will target the latest stable major release. You can 
 
 Please make sure to use the `-slim` variant of OpenProject, as the all-in-one container is adding unnecessary services and will not work as expected with default options such as operating as a non-root user.
 
+#### SECRET_KEY_BASE
 
+The `SECRET_KEY_BASE` in rails applications is used to sign or encrypt data such as cookies, sessions or tokens.
+The chart automatically generates a value for this if you don't provide one.
+You can provide one via an existing secret, however.
+
+```
+openproject:
+  secretKeyBase:
+    existingSecret: my-secret-key-base-secret
+    secretKey: secret-key-base
+```
+
+Helm-charts version 13.5.4 and higher of the helm chart will automatically create a kubernetes secret using a random string.
+If you have not passed a `environment.SECRET_KEY_BASE` value previously, we recommend updating to the newest helm version to have it auto-generate.
+
+If you have an existing strong secret, you are safe already and nothing needs to be done.
+You can optionally place it as the existingSecret as shown in the Helm chart documentation to use the conventional secret to pass it into the specs.
 
 #### HTTPS mode
 
@@ -102,35 +119,29 @@ openproject.admin_user.name="Firstname Lastname"
 openproject.admin_user.mail="admin@example.com"
 ```
 
-#### Real-time collaboration (Hocuspocus)
-
-OpenProject supports real-time collaboration features through a WebSocket backend called Hocuspocus. To enable Hocuspocus, it is necessary to set the allowed domains for hocuspocus to communicate with:
-
-```yaml
-hocuspocus:
-  ...
-
-  allowedOpenProjectDomains:
-    - my-openproject-domain.com
-```
-
-**Important**: The `allowedOpenProjectDomains` can be the top level domain (e.g. my-openproject-domain.com) or subdomain (e.g. openproject.example.com). No wildcards are allowed.
-
-The configuration accepts multiple domains in case of a single websocket server for multiple OpenProject instances.
-
-The domains are passed to the Hocuspocus container as the `ALLOWED_DOMAINS` environment variable (comma-separated). This setting is a security feature that restricts which the Hocuspocus server will be able to connect to.
-
-
 ### TMP volume mounts
 
-OpenProject needs some tmp volumes to be mounted in `/app/tmp`  and `/tmp`, if `global.containerSecurityContext.readOnlyRootFilesystem` is set to true.
+OpenProject needs some tmp volumes to be mounted in `/app/tmp`  and `/tmp`, if `containerSecurityContext.readOnlyRootFilesystem` is set to true.
 This is due to the application server storing a non-configurable PID file and some temporary caches or files being put there.
 
-This setting is true by default (to be precise, it follows its configured value or falls back to `develop !=true`)
+This setting is true by default (to be precise, it follows its configured value or falls back to `containerSecurityContext.readOnlyRootFilesystem`).
 
-To explicity disable this, use `openproject.useTmpVolumes=false`. This will fail if `readOnlyRootFilesystem=true`.
+To explicitly disable this, use `openproject.useTmpVolumes=false`. This will fail if `readOnlyRootFilesystem` is `true`.
 
 These volumes do not contain any critical information and can be excluded from backups using the labels/annotations values.
+
+### Kubernetes Pod Security Standards
+
+With the default values, the rendered chart is compatible with the Kubernetes Pod Security Standards `restricted` profile. This includes the OpenProject web, worker, cron, seeder, hocuspocus, and Helm test pods, including their init containers.
+
+Pod Security Admission enforcement is configured by the cluster operator on the namespace, not by the chart. For example:
+
+```yaml
+pod-security.kubernetes.io/enforce: restricted
+pod-security.kubernetes.io/enforce-version: latest
+```
+
+The bundled PostgreSQL and memcached subcharts also render with restricted-compatible security contexts at the pinned chart versions. If you enable Bitnami's PostgreSQL `volumePermissions` init container, that pod may fail restricted enforcement because it runs as root.
 
 ### ReadWriteMany volumes
 
@@ -203,32 +214,7 @@ Either increase the cluster's resources to have at least 4 CPUs or install the O
 
 ## Development
 
-To install or update from this directory run the following command.
-
-```bash
-bin/install-dev
-```
-
-This will install the chart with `--set develop=true` which is recommended
-on local clusters such as **minikube** or **kind**.
-
-This will also set `OPENPROJECT_HTTPS` to false so no TLS certificate is required
-to access it.
-
-You can set other options just like when installing via `--set`
-(e.g. `bin/install-dev --set persistence.enabled=false`).
-
-### Debugging
-
-Changes to the chart can be debugged using the following.
-
-```bash
-bin/debug
-```
-
-This will try to render the templates and show any errors.
-You can set values just like when installing via `--set`
-(e.g. `bin/debug --set persistence.enabled=false`).
+Please refer to [DEVELOPMENT.md](./DEVELOPMENT.md) for local development.
 
 ## TLS
 
@@ -373,10 +359,34 @@ Set `openproject.oidc.extraOidcSealedSecret="openproject-oidc-secret-sealed"` in
 
 ### S3
 
+When using `s3.auth.existingSecret`, the secret is mounted via `envFrom`, so the keys must be the exact OpenProject environment variable names:
+
 ```yaml
 stringData:
-  accessKeyId: AKIAXDF2JNZRBFQIRTKA
-  secretAccessKey: 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
+  OPENPROJECT_FOG_CREDENTIALS_AWS__ACCESS__KEY__ID: AKIAXDF2JNZRBFQIRTKA
+  OPENPROJECT_FOG_CREDENTIALS_AWS__SECRET__ACCESS__KEY: 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
+```
+
+#### Using IAM Roles for Service Accounts (IRSA) on EKS
+
+Instead of static access credentials, you can authenticate with S3 using the IAM role attached to the Pod.
+This is the recommended approach on AWS EKS via [IRSA](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html).
+
+Set `s3.useIamProfile: true` to enable this mode. The chart will then omit the
+`OPENPROJECT_FOG_CREDENTIALS_AWS__ACCESS__KEY__ID` and `OPENPROJECT_FOG_CREDENTIALS_AWS__SECRET__ACCESS__KEY`
+environment variables entirely, so OpenProject's Fog library falls back to the AWS credential chain
+(instance profile / IRSA token).
+
+```yaml
+s3:
+  enabled: true
+  useIamProfile: true
+  region: eu-central-1
+  bucketName: my-openproject-bucket
+
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/my-openproject-s3-role
 ```
 
 ### Incoming E-Mails cron job (IMAP)

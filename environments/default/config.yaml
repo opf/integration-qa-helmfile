@@ -86,7 +86,7 @@ nextcloud:
   # Pod container image tag                  #
   # Examples: 30, 31                         #
   ############################################
-  version: '32'
+  version: '34'
   ############################################
   # Git branch to use as the source          #
   # Example: master, stable30                #

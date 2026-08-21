@@ -1,0 +1,26 @@
+# Quickstart: Install via bin/install-local-with-tls.
+#
+# Precondition: A local kubernetes cluster. We recommend simply using k3d (https://k3d.io)
+#               and creating a cluster accessible on port 80 and 443 locally (localhost)
+#               by running:
+#
+#                 k3d cluster create dev --port 80:80@loadbalancer --port 443:443@loadbalancer
+#
+#               K3D uses traeffik and will expose any ingress for localhost (including *.localhost)
+#               automatically, so you can simply access the app via 'http://localhost', or in the case
+#               of this example via 'https://openproject.localhost'.
+
+persistence:
+  accessModes:
+    - "ReadWriteOnce" # effectively the same as ReadWriteMany on a single node k3s dev cluster
+
+environment:
+  OPENPROJECT_SEED__ADMIN__USER__PASSWORD__RESET: false # so we can just keep logging in with admin:admin
+
+ingress:
+  enabled: true
+  host: openproject.localhost
+
+  tls:
+    enabled: true
+    secretName: openproject-local-tls # let bin/install-local-with-tls create this for you or do it yourself
