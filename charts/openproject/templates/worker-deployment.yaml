@@ -5,11 +5,13 @@ apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
   name: {{ include "common.names.fullname" . }}-worker-{{ $workerName }}
+  namespace: {{ include "common.names.namespace" . | quote }}
   labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
     {{- range $key, $value := .Values.worker.labels }}
     {{ $key }}: {{ $value | quote }}
     {{- end }}
     openproject/process: worker-{{ $workerName }}
+    app.kubernetes.io/component: worker-{{ $workerName }}
   {{- if or .Values.worker.annotations .Values.openproject.annotations .Values.commonAnnotations }}
   {{- $annotations := include "common.tplvalues.merge" ( dict "values" ( list .Values.worker.annotations .Values.openproject.annotations .Values.commonAnnotations ) "context" . ) }}
   annotations: {{- include "common.tplvalues.render" ( dict "value" $annotations "context" $) | nindent 4 }}
@@ -32,6 +34,7 @@ spec:
       labels:
         {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 8 }}
         openproject/process: worker-{{ $workerName }}
+        app.kubernetes.io/component: worker-{{ $workerName }}
     spec:
       {{- include "openproject.imagePullSecrets" . | indent 6 }}
       {{- with .Values.affinity }}
@@ -51,6 +54,9 @@ spec:
         {{ toYaml . | nindent 8 | trim }}
       {{- end }}
       {{- include "openproject.podSecurityContext" . | indent 6 }}
+      {{- if .Values.runtimeClassName }}
+      runtimeClassName: {{ .Values.runtimeClassName | quote }}
+      {{- end }}
       serviceAccountName: {{ include "common.names.fullname" . }}
       volumes:
         {{- include "openproject.tmpVolumeSpec" . | indent 8 }}
@@ -66,6 +72,7 @@ spec:
         {{- end }}
         {{- include "openproject.extraVolumes" . | indent 8 }}
       initContainers:
+        {{- include "openproject.tmpVolumeInitContainer" . | indent 8 }}
         - name: wait-for-db
           {{- include "openproject.containerSecurityContext" . | indent 10 }}
           image: {{ include "openproject.image" . }}
@@ -77,8 +84,13 @@ spec:
           args:
             - bash
             - /app/docker/prod/wait-for-db
+          {{- if .Values.appInit.resources }}
           resources:
             {{- toYaml .Values.appInit.resources | nindent 12 }}
+          {{- else if ne .Values.appInit.resourcesPreset "none" }}
+          resources:
+            {{- include "common.resources.preset" (dict "type" .Values.appInit.resourcesPreset) | nindent 12 }}
+          {{- end }}
           volumeMounts:
             {{- include "openproject.tmpVolumeMounts" . | indent 12 }}
             {{- include "openproject.extraVolumeMounts" . | indent 12 }}
@@ -115,7 +127,12 @@ spec:
               readOnly: false
             {{- end }}
             {{- include "openproject.extraVolumeMounts" . | indent 12 }}
+          {{- if (coalesce $workerValues.resources .Values.resources) }}
           resources:
             {{- coalesce $workerValues.resources .Values.resources | toYaml | nindent 12 }}
+          {{- else if ne (coalesce $workerValues.resourcesPreset .Values.resourcesPreset) "none" }}
+          resources:
+            {{- include "common.resources.preset" (dict "type" (coalesce $workerValues.resourcesPreset .Values.resourcesPreset)) | nindent 12 }}
+          {{- end }}
 {{- end }}
 {{ end }}

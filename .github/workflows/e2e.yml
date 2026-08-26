@@ -12,7 +12,7 @@ run-name: >-
         ),
         format(
           'NC v.{0}{1}',
-          github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32',
+          github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '34',
           github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
         ),
         format(
@@ -37,7 +37,7 @@ run-name: >-
         ),
         format(
           'nc {0}{1}',
-          github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '32',
+          github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '34',
           github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
         ),
         github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
@@ -100,7 +100,7 @@ on:
         required: false
         type: string
       nextcloud_version:
-        description: "Nextcloud image tag (empty = 32)"
+        description: "Nextcloud image tag (empty = 34)"
         required: false
         type: string
       nextcloud_branch:

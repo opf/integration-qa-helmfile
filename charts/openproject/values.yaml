@@ -5,7 +5,7 @@
 ## Enable development mode.
 ##
 ## Set this to true if you want are working on the charts locally using
-## local clusters such as minikube or kind.
+## local clusters such as minikube, k3d, or kind.
 ##
 ## This will set `OPENPROJECT_HTTPS` to `false` and avoid using volumes for
 ## tmp folders as (permissions for) these don't work correctly in local clusters.
@@ -27,6 +27,8 @@ global:
   ##   - myRegistryKeySecretName
   #
   imagePullSecrets: []
+## Name to override the release namespace with
+namespaceOverride: ""
 ## Add labels to all the deployed resources
 commonLabels: {}
 ## Add annotations to all the deployed resources
@@ -37,6 +39,11 @@ commonAnnotations: {}
 ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 #
 affinity: {}
+
+## @param runtimeClassName Name of the runtime class name
+## ref: https://kubernetes.io/docs/concepts/containers/runtime-class/#usage
+##
+runtimeClassName: ""
 
 ## Cleanup settings.
 #
@@ -58,6 +65,9 @@ cleanup:
 ##   OPENPROJECT_ATTACHMENT__MAX__SIZE: 5120
 #
 environment: {}
+
+# Optionally specify an extra list environment variables.
+extraEnvVars: []
 
 # Optionally specify an extra list of additional volumes.
 extraVolumes: []
@@ -103,6 +113,10 @@ dbInit:
     #
     imagePullPolicy: "Always"
 
+  ## Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if resources is set (resources is recommended for production).
+  ## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+  ##
+  resourcesPreset: ~
   resources:
     limits:
       memory: "200Mi"
@@ -113,9 +127,13 @@ dbInit:
 # These containers need access to the Rails stack and wait for the database to be ready
 # (i.e., the seeder and migration job to have completed)
 appInit:
+  ## Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if resources is set (resources is recommended for production).
+  ## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+  ##
+  resourcesPreset: ~
   resources:
     limits:
-      memory: "512Mi"
+      memory: "1024Mi"
     requests:
       memory: "512Mi"
 
@@ -136,10 +154,14 @@ ingress:
   ingressClassName:
 
   ## Define custom ingress annotations:
-  ##
-  ## Example:
+  ## Use this parameter to set the required annotations for cert-manager, see
+  ## ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
+  ## e.g:
   ## annotations:
   ##   nginx.ingress.kubernetes.io/rewrite-target: /
+  ##   kubernetes.io/ingress.class: nginx
+  ##   cert-manager.io/cluster-issuer: cluster-issuer-name
+  ##
   annotations: {}
 
   ## Ingress labels
@@ -181,11 +203,76 @@ ingress:
     #
     secretName: ""
 
+    ## TLS configuration for additional hostname(s) to be covered with this ingress record
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
+    ## e.g:
+    ## extraTls:
+    ## - hosts:
+    ##     - openproject.local
+    ##   secretName: openproject.local-tls
+    ##
+    extraTls: []
+
 egress:
   tls:
     rootCA:
       configMap: ""
       fileName: ""
+
+## Network Policies
+## Ref: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+networkPolicy:
+  enabled: false
+  ## Don't require server label for connections
+  ##
+  allowExternal: true
+  ## Allow the pod to access any range of port and all destinations.
+  ##
+  allowExternalEgress: true
+  ## Allow access from pods with client label set to "true". Ignored if `networkPolicy.allowExternal` is true.
+  ##
+  addExternalClientAccess: true
+  ## Add extra ingress rules to the NetworkPolicy
+  ## e.g:
+  ## extraIngress:
+  ##   - ports:
+  ##       - port: 1234
+  ##     from:
+  ##       - podSelector:
+  ##           - matchLabels:
+  ##               - role: frontend
+  ##       - podSelector:
+  ##           - matchExpressions:
+  ##               - key: role
+  ##                 operator: In
+  ##                 values:
+  ##                   - frontend
+  extraIngress: []
+  ## Add extra ingress rules to the NetworkPolicy (ignored if allowExternalEgress=true)
+  ## e.g:
+  ## extraEgress:
+  ##   - ports:
+  ##       - port: 1234
+  ##     to:
+  ##       - podSelector:
+  ##           - matchLabels:
+  ##               - role: frontend
+  ##       - podSelector:
+  ##           - matchExpressions:
+  ##               - key: role
+  ##                 operator: In
+  ##                 values:
+  ##                   - frontend
+  ##
+  extraEgress: []
+  ## Labels to match to allow traffic from other pods. Ignored if `networkPolicy.allowExternal` is true.
+  ##
+  ingressPodMatchLabels: {}
+  ## Labels to match to allow traffic from other namespaces. Ignored if `networkPolicy.allowExternal` is true.
+  ## Pod labels to match to allow traffic from other namespaces. Ignored if `networkPolicy.allowExternal` is true.
+  ##
+  ingressNSMatchLabels: {}
+  ingressNSPodMatchLabels: {}
 
 ## Define image setting
 #
@@ -216,7 +303,7 @@ image:
   ## For the helm chart, use the `-slim` variants as the all-in-one container is not compatible
   ## with some of the options (non-root execution, password splitting, etc.) and is inefficient for using in helm
   ## due to embedded a number of services.
-  tag: "16.6.1-slim"
+  tag: "17.7.1-slim"
 
   ## Define image sha256 - mutual exclusive with image tag.
   ## The sha256 has a higher precedence than
@@ -371,6 +458,10 @@ cron:
   secretKeys:
     imapUsername: imapUsername
     imapPassword: imapPassword
+  ## Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if resources is set (resources is recommended for production).
+  ## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+  ##
+  resourcesPreset: ~
   resources:
     requests:
       memory: "256Mi"
@@ -389,6 +480,10 @@ workers:
     replicaCount: 1
     strategy:
       type: "Recreate"
+    ## Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if resources is set (resources is recommended for production).
+    ## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+    ##
+    resourcesPreset: ~
     resources:
       requests:
         memory: "512Mi"
@@ -397,37 +492,53 @@ workers:
         memory: "4Gi"
         cpu: "4"
 
-## WebSocket backend for use with real time collaboration features.
+## hocuspocus - WebSocket backend for use with real time collaboration features in OpenProject (cf. openproject.realtime_collaboration)
+##
+## Disable if you want to use an external hocuspocus (openproject/hocuspocus docker container) backend.
 hocuspocus:
-  enabled: false
+  enabled: true
   ingress:
-    enabled: true
-    ingressClassName:
-    annotations: {}
-    host: "openproject.example.com"
     path: /hocuspocus
     pathType: "Prefix"
-    tls:
-      enabled: true
-      secretName: ""
+
+  ## If not defined, a secret will be generated automatically, and used.
+  auth:
+    existingSecret:
+    secretKey: secret
+
+  ## Network Policies (see the main level networkPolicy above for descriptions)
+  networkPolicy:
+    enabled: false
+    allowExternal: true
+    allowExternalEgress: true
+    addExternalClientAccess: true
+    extraIngress: []
+    extraEgress: []
+    ingressPodMatchLabels: {}
+    ingressNSMatchLabels: {}
+    ingressNSPodMatchLabels: {}
 
   image:
     registry: "docker.io"
     repository: "openproject/hocuspocus"
     imagePullPolicy: "Always"
-    tag: "main-defdb238"
+    tag: "release-338001b2"
+    ## Define image sha256 digest (optional).
+    ## If set, the chart will render `repository:tag@sha256:digest`.
+    # sha256:
 
   strategy:
     type: "Recreate"
 
   podAnnotations:
 
-  allowedOpenProjectDomains:
-    - openproject.example.com
-
   service:
     port: 1234
 
+  ## Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if resources is set (resources is recommended for production).
+  ## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+  ##
+  resourcesPreset: ~
   resources:
     requests:
       memory: "256Mi"
@@ -460,7 +571,8 @@ openproject:
 
   extraEnvVarsSecret: ""
 
-  ## Define the language to seed the instance in
+  ## Force the language to seed the instance in.
+  # Defaults to English if not set.
   #
   seed_locale: "en"
 
@@ -470,6 +582,16 @@ openproject:
   # specify with leading slash, but without trailing slash
   # e.g., /openproject
   railsRelativeUrlRoot:
+
+  ## SECRET_KEY_BASE is required by Rails for cookie signing and other cryptographic operations.
+  ## By default, an auto-generated secret is created on first install and kept across upgrades.
+  ## To use your own secret, provide an existing Kubernetes secret with the key below.
+  secretKeyBase:
+    ## Name of an existing secret containing the SECRET_KEY_BASE value.
+    ## Leave empty to use the auto-generated secret.
+    existingSecret: ""
+    ## Key within the secret that holds the value.
+    secretKey: "secret-key-base"
 
   ## Define admin user details
   # only applicable on first installation
@@ -522,6 +644,22 @@ openproject:
     #
     extraOidcSealedSecret:
 
+  ## openproject.realtime_collaboration - Configuration of realtime collaboration in OpenProject.
+  ##
+  ## Default values connect to hocuspocus server included in the chart (see hocuspocus: under root).
+  realtime_collaboration:
+    enabled: true
+    hocuspocus:
+      protocol: wss
+      # if host is empty, use same host as OpenProject by default
+      host:
+      path: "/hocuspocus"
+
+      auth:
+        # if empty, will fallback to the secret defined for the included hocuspocus backend (see hocuspocus: under root)
+        existingSecret:
+        secretKey: secret
+
   ## Modify PostgreSQL statement timout.
   ## Increase in case you get errors such as "ERROR: canceling statement due to statement timeout".
   ##
@@ -534,7 +672,7 @@ openproject:
   annotations: {}
 
   ## Whether or not to use ephemeral volumes for /app/tmp and /tmp.
-  ## Falls back to a sensible default if undefined.
+  ## Falls back to `containerSecurityContext.readOnlyRootFilesystem` if undefined.
   #
   useTmpVolumes:
 
@@ -553,6 +691,15 @@ openproject:
   ## Define custom labels of tmp storage
   #
   tmpVolumesLabels: {}
+
+  ## When using tmp volumes, some CSI drivers mount them world-writable without
+  ## the sticky bit. Ruby's Dir.tmpdir then rejects them, crashing every Ruby pod
+  ## at boot (MiniMagick / ActiveStorage). When enabled, an init container creates
+  ## a sticky-bit subdirectory (/tmp/ruby) as the non-root app user and TMPDIR is
+  ## pointed at it. Only takes effect when tmp volumes are in use. Opt out if it
+  ## causes issues on your platform.
+  #
+  tmpVolumesPermissionFix: true
 
 ## Whether to allocate persistent volume disk for the data directory.
 ## In case of node failure, the node data directory will still persist.
@@ -621,6 +768,18 @@ s3:
   port:
   pathStyle: false
   signatureVersion: 4
+  ## When set to true, OpenProject authenticates with S3 using the IAM role attached to the Pod
+  ## (e.g. via IRSA/IAM Roles for Service Accounts on EKS) instead of static access credentials.
+  ## In this mode neither OPENPROJECT_FOG_CREDENTIALS_AWS__ACCESS__KEY__ID nor
+  ## OPENPROJECT_FOG_CREDENTIALS_AWS__SECRET__ACCESS__KEY are written to the generated Secret,
+  ## and s3.auth.accessKeyId / s3.auth.secretAccessKey / s3.auth.existingSecret are ignored.
+  ##
+  ## To use IRSA, annotate the chart's ServiceAccount with the role ARN, for example:
+  ##
+  ##   serviceAccount:
+  ##     annotations:
+  ##       eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/my-openproject-s3-role
+  ##
   useIamProfile: false
   # Some providers do not properly support signature v4 streaming (e.g. Scaleway)
   enableSignatureV4Streaming: true
@@ -1069,6 +1228,10 @@ metrics:
     #
     honorLabels: false
 
+## Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if resources is set (resources is recommended for production).
+## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+##
+resourcesPreset: ~
 ## Configure resource requests and limits.
 ##
 ## http://kubernetes.io/docs/user-guide/compute-resources/
@@ -1138,6 +1301,10 @@ service:
     #
     timeoutSeconds: 10800
 
+  ## Define custom service annotations.
+  #
+  annotations: {}
+
 ## Define Service Accounts for Pods.
 ##
 ## Ref.: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
@@ -1146,6 +1313,13 @@ serviceAccount:
   ## Whether to create service account.
   #
   create: true
+
+  ## Settings to add OpenShift security context constraints role to the service account
+  openshift:
+    securityContextConstraints:
+      roleBinding:
+        enable: false
+        resourceName: "nonroot-v2"
 
   ## Define custom service account annotations.
   #
@@ -1156,9 +1330,13 @@ seederJob:
   ## Define custom seeder job annotations.
   #
   annotations: {}
+  ## Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if resources is set (resources is recommended for production).
+  ## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+  ##
+  resourcesPreset: ~
   resources:
     limits:
-      memory: "512Mi"
+      memory: "1Gi"
     requests:
       memory: "512Mi"
 

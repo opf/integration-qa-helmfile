@@ -80,10 +80,16 @@ collect_diagnostics() {
     kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --previous --tail=200 2>&1 | redact_stream || true
   fi
 
-  if kubectl get deployment pullpreview-caddy -n "${namespace}" >/dev/null 2>&1; then
-    echo "[pullpreview] pullpreview-caddy logs:"
-    kubectl logs -n "${namespace}" deploy/pullpreview-caddy --tail=200 2>&1 | redact_stream || true
-    kubectl describe deployment pullpreview-caddy -n "${namespace}" 2>&1 | redact_stream || true
+local caddy_pod=""
+  caddy_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=pullpreview-caddy" \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [[ -z "${caddy_pod}" ]]; then
+    caddy_pod="$(kubectl get pods -n "${namespace}" -l "app=pullpreview-caddy" \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  fi
+  if [[ -n "${caddy_pod}" ]]; then
+    echo "[pullpreview] Caddy pod log tail (${caddy_pod}):"
+    kubectl logs "${caddy_pod}" -n "${namespace}" --tail=200 2>&1 | redact_stream || true
   fi
 
   echo "::endgroup::"

@@ -1,8 +1,8 @@
 name: PullPreview
 
 on:
-  schedule:
-    - cron: "30 */6 * * *"
+# schedule:
+#   - cron: "30 */6 * * *"
   pull_request:
     types:
       - opened

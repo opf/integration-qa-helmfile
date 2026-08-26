@@ -153,9 +153,16 @@ if [[ "${sync_rc}" -ne 0 ]]; then
   exit "${sync_rc}"
 fi
 
+# Warm public TLS endpoints in background so Caddy begins on-demand ACME negotiation
+if [[ -n "${PULLPREVIEW_PUBLIC_DNS:-}" ]]; then
+  for host in "${PULLPREVIEW_PUBLIC_DNS}" "nextcloud.${PULLPREVIEW_PUBLIC_DNS}" "keycloak.${PULLPREVIEW_PUBLIC_DNS}"; do
+    curl -sk --connect-timeout 5 --max-time 15 "https://${host}" >/dev/null 2>&1 &
+  done
+fi
+
 setup_started_at="$(date +%s)"
 set +e
-pullpreview/wait-setup-job.sh "${namespace}" "${PULLPREVIEW_SETUP_JOB_TIMEOUT:-14m}"
+pullpreview/wait-setup-job.sh "${namespace}" "${PULLPREVIEW_SETUP_JOB_TIMEOUT:-15m}"
 setup_rc=$?
 set -e
 record_pp_timing "wait-setup-job" "${setup_started_at}"

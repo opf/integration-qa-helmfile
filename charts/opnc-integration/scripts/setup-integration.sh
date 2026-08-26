@@ -6,40 +6,31 @@ echo "###################################"
 echo "# Setup integration app           #"
 echo "###################################"
 
+if [[ "$INTEGRATION_APP_SETUP_METHOD" != "oauth2" && "$INTEGRATION_APP_SETUP_METHOD" != "sso-nextcloud" && "$INTEGRATION_APP_SETUP_METHOD" != "sso-external" ]]; then
+    echo "[ERROR] Invalid INTEGRATION_APP_SETUP_METHOD: $INTEGRATION_APP_SETUP_METHOD"
+    echo "[ERROR] Valid options are: 'oauth2', 'sso-nextcloud', 'sso-external'"
+    exit 1
+fi
+
 NEXTCLOUD_WAIT_URL="${NEXTCLOUD_WAIT_URL:-https://$NEXTCLOUD_HOST}"
 OPENPROJECT_WAIT_URL="${OPENPROJECT_WAIT_URL:-https://$OPENPROJECT_HOST}"
 KEYCLOAK_WAIT_URL="${KEYCLOAK_WAIT_URL:-https://$KEYCLOAK_HOST}"
 NEXTCLOUD_WAIT_HOST_HEADER="${NEXTCLOUD_WAIT_HOST_HEADER:-}"
 OPENPROJECT_WAIT_HOST_HEADER="${OPENPROJECT_WAIT_HOST_HEADER:-}"
 KEYCLOAK_WAIT_HOST_HEADER="${KEYCLOAK_WAIT_HOST_HEADER:-}"
-NEXTCLOUD_INTEGRATION_CHECK_URL="${NEXTCLOUD_INTEGRATION_CHECK_URL:-${NEXTCLOUD_WAIT_URL%/status.php}/index.php/apps/integration_openproject/check-admin-config}"
-NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER="${NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER:-$NEXTCLOUD_WAIT_HOST_HEADER}"
 
-has_integration_setup() {
-    local response
-    local setup_without_project_folder
-    local setup_with_project_folder
-    local curl_args=(-s -XGET -uadmin:admin -H 'Content-Type: application/json')
-
-    if [[ -n "$NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER" ]]; then
-        curl_args+=(-H "Host: $NEXTCLOUD_INTEGRATION_CHECK_HOST_HEADER")
-    fi
-    if ! response=$(curl "${curl_args[@]}" "$NEXTCLOUD_INTEGRATION_CHECK_URL"); then
-        return 1
-    fi
-    if ! setup_without_project_folder=$(echo "$response" | jq -er ".config_status_without_project_folder"); then
-        return 1
-    fi
-    if ! setup_with_project_folder=$(echo "$response" | jq -er ".project_folder_setup_status"); then
-        return 1
-    fi
-
-    if [[ "$setup_without_project_folder" == "true" || "$setup_with_project_folder" == "true" ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
+# export configs
+export INTEGRATION_SETUP_DEBUG='true'
+export SETUP_PROJECT_FOLDER='true'
+export NC_HOST="https://$NEXTCLOUD_HOST"
+export NC_ADMIN_USERNAME='admin'
+export NC_ADMIN_PASSWORD='admin'
+export NC_INTEGRATION_ENABLE_NAVIGATION='false'
+export NC_INTEGRATION_ENABLE_SEARCH='false'
+export OP_HOST="https://$OPENPROJECT_HOST"
+export OP_ADMIN_USERNAME='admin'
+export OP_ADMIN_PASSWORD='admin'
+export OP_STORAGE_NAME='nextcloud'
 
 # waits 5 minutes for the server to be ready
 wait_for_server() {
@@ -66,12 +57,6 @@ wait_for_server() {
     return 1
 }
 
-if [[ "$INTEGRATION_APP_SETUP_METHOD" != "oauth2" && "$INTEGRATION_APP_SETUP_METHOD" != "sso-nextcloud" && "$INTEGRATION_APP_SETUP_METHOD" != "sso-external" ]]; then
-    echo "[ERROR] Invalid INTEGRATION_APP_SETUP_METHOD: $INTEGRATION_APP_SETUP_METHOD"
-    echo "[ERROR] Valid options are: 'oauth2', 'sso-nextcloud', 'sso-external'"
-    exit 1
-fi
-
 # Exit code for deterministic, non-retryable failures; matched by the Job's
 # podFailurePolicy so Kubernetes fails the whole job instead of retrying.
 TERMINAL_EXIT_CODE=42
@@ -97,29 +82,16 @@ echo "[INFO] Waiting for OpenProject to be ready..."
 wait_for_server "$OPENPROJECT_WAIT_URL" "$OPENPROJECT_WAIT_HOST_HEADER"
 echo "[INFO] OpenProject is ready."
 
-if has_integration_setup; then
-    echo "[INFO] Integration app is already set up. Skipping integration setup."
-    exit 0
-fi
-
 SCRIPT_URL="https://raw.githubusercontent.com/nextcloud/integration_openproject/master"
 
-# export configs
-export INTEGRATION_SETUP_DEBUG='true'
-export SETUP_PROJECT_FOLDER='true'
-export NC_HOST="https://$NEXTCLOUD_HOST"
-export NC_ADMIN_USERNAME='admin'
-export NC_ADMIN_PASSWORD='admin'
-export NC_INTEGRATION_ENABLE_NAVIGATION='false'
-export NC_INTEGRATION_ENABLE_SEARCH='false'
-export OP_HOST="https://$OPENPROJECT_HOST"
-export OP_ADMIN_USERNAME='admin'
-export OP_ADMIN_PASSWORD='admin'
-export OP_STORAGE_NAME='nextcloud'
-# for old script
-export OPENPROJECT_HOST="https://$OPENPROJECT_HOST"
-export NEXTCLOUD_HOST="https://$NEXTCLOUD_HOST"
-export OPENPROJECT_STORAGE_NAME='nextcloud'
+if [[ "$NC_HOST" != "$NEXTCLOUD_WAIT_URL" ]]; then
+    echo "[INFO] Waiting for Nextcloud external endpoint ($NC_HOST) to be ready..."
+    wait_for_server "$NC_HOST"
+fi
+if [[ "$OP_HOST" != "$OPENPROJECT_WAIT_URL" ]]; then
+    echo "[INFO] Waiting for OpenProject external endpoint ($OP_HOST) to be ready..."
+    wait_for_server "$OP_HOST"
+fi
 
 if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
     status=$(curl -s -w "%{http_code}" $SCRIPT_URL/integration_setup.sh -o integration_setup.sh)
@@ -128,6 +100,9 @@ if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
         exit 1
     fi
 
+    OPENPROJECT_HOST="https://$OPENPROJECT_HOST" \
+    NEXTCLOUD_HOST="https://$NEXTCLOUD_HOST" \
+    OPENPROJECT_STORAGE_NAME='nextcloud' \
     bash integration_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then

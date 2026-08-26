@@ -183,6 +183,9 @@ nextcloud:
         value: keycloak
       - name: OIDC_KEYCLOAK_DISCOVERY_URL
         value: "https://keycloak.{{ pullpreview_public_dns }}/realms/opnc/.well-known/openid-configuration"
+      # In-cluster Keycloak avoids public HTTPS (Caddy/ACME) hairpin during beforestart.
+      - name: OIDC_KEYCLOAK_WAIT_URL
+        value: "http://keycloak:8080/realms/opnc/.well-known/openid-configuration"
       - name: NEXTCLOUD_ENABLE_APPS
         valueFrom:
           configMapKeyRef:
