@@ -17,7 +17,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
   test(
     'current_user tool returns authenticated Bob_AI profile',
-    squashTestCase(3006, { stepCount: 2 }),
+    squashTestCase(2174, { stepCount: 2 }),
     async () => {
       let result: any;
       await test.step('Call tool current_user with empty arguments', async () => {
@@ -40,7 +40,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
   test(
     'search_projects tool lists projects',
-    squashTestCase(3007, { stepCount: 2 }),
+    squashTestCase(2175, { stepCount: 2 }),
     async () => {
       let result: any;
       await test.step('Call tool search_projects with empty arguments', async () => {
@@ -59,7 +59,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
   test(
     'list_statuses tool returns work package statuses',
-    squashTestCase(3008, { stepCount: 2 }),
+    squashTestCase(2176, { stepCount: 2 }),
     async () => {
       let result: any;
       await test.step('Call tool list_statuses with empty arguments', async () => {
@@ -95,7 +95,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
   test(
     'search_work_packages tool queries work packages by subject',
-    squashTestCase(3010, { stepCount: 2 }),
+    squashTestCase(2177, { stepCount: 2 }),
     async () => {
       let result: any;
       await test.step('Call tool search_work_packages with { subject: "test" }', async () => {
@@ -113,7 +113,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
   test(
     'create_work_package and update_work_package lifecycle',
-    squashTestCase(3011, { stepCount: 5 }),
+    squashTestCase(2178, { stepCount: 5 }),
     async () => {
       let projectId: number = 0;
       let typeId: number = 0;
@@ -189,7 +189,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
   test(
     'calling non-existent tool returns error structure without crashing',
-    squashTestCase(3012, { stepCount: 2 }),
+    squashTestCase(2179, { stepCount: 2 }),
     async () => {
       let result: any;
       let caughtError: unknown;
@@ -216,7 +216,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
   test(
     'search_work_packages supports pagination parameter',
-    squashTestCase(3013, { stepCount: 2 }),
+    squashTestCase(2180, { stepCount: 2 }),
     async () => {
       await test.step('Call search_work_packages with { page: 1 }', async () => {
         const page1Result = await client.callTool({

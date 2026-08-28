@@ -18,7 +18,7 @@ const EXPECTED_TOOLS = [
 test.describe('MCP Server Protocol Handshake & Discovery', { tag: ['@mcp'] }, () => {
   test(
     'Initialize MCP connection over Streamable HTTP',
-    squashTestCase(3003, { stepCount: 2 }),
+    squashTestCase(2171, { stepCount: 2 }),
     async () => {
       await test.step('Initiate MCP client handshake', async () => {
         const client = await createMcpClient(getAdminMcpAuth());
@@ -33,7 +33,7 @@ test.describe('MCP Server Protocol Handshake & Discovery', { tag: ['@mcp'] }, ()
 
   test(
     'tools/list returns available OpenProject MCP tools',
-    squashTestCase(3004, { stepCount: 2 }),
+    squashTestCase(2172, { stepCount: 2 }),
     async () => {
       const client = await createMcpClient(getAdminMcpAuth());
       
@@ -58,7 +58,7 @@ test.describe('MCP Server Protocol Handshake & Discovery', { tag: ['@mcp'] }, ()
 
   test(
     'resources/list returns available OpenProject resources',
-    squashTestCase(3005, { stepCount: 2 }),
+    squashTestCase(2173, { stepCount: 2 }),
     async () => {
       const client = await createMcpClient(getAdminMcpAuth());
       

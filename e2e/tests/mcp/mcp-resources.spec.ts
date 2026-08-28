@@ -24,8 +24,8 @@ test.describe('MCP Resource Reading & Discovery', { tag: ['@mcp'] }, () => {
   }
 
   test(
-    'Read current_user resource via /api/v3/users/me',
-    squashTestCase(3014, { stepCount: 2 }),
+    'Read current_user resource via mcp://current_user',
+    squashTestCase(2182, { stepCount: 2 }),
     async () => {
       const uri = uriFor('current_user');
       let response: Awaited<ReturnType<Client['readResource']>>;
@@ -62,8 +62,8 @@ test.describe('MCP Resource Reading & Discovery', { tag: ['@mcp'] }, () => {
   );
 
   test(
-    'Read type_list resource via /api/v3/types',
-    squashTestCase(3016, { stepCount: 2 }),
+    'Read type_list resource via mcp://type_list',
+    squashTestCase(2183, { stepCount: 2 }),
     async () => {
       const uri = uriFor('type_list');
       let response: Awaited<ReturnType<Client['readResource']>>;

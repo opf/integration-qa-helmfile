@@ -1,9 +1,10 @@
 # mcp-eval configuration for OpenProject MCP server
+# Resolve LLM_* via .github/scripts/resolve-llm-provider.sh (or export manually).
 model:
   provider: openai
-  name: Llama-3.3-70b-instruct
-  api_base: ${LLM_STACK_URL:-https://llm-stack.openproject-edge.eu/v1}
-  api_key: ${LLM_STACK_API_KEY}
+  name: ${LLM_MODEL:-Llama-3.3-70b-instruct}
+  api_base: ${LLM_BASE_URL:-https://llm-stack.openproject-edge.eu/v1}
+  api_key: ${LLM_API_KEY}
   temperature: 0.1
   max_tokens: 1024
 

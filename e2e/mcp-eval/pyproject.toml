@@ -7,4 +7,5 @@ dependencies = [
 ]
 
 [tool.mcpeval]
+# Overridden at runtime by LLM_MODEL from resolve-llm-provider.sh / mcpeval.yaml
 default_model = "openai/Llama-3.3-70b-instruct"
