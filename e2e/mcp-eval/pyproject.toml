@@ -1,0 +1,11 @@
+[project]
+name = "openproject-mcp-eval"
+version = "1.0.0"
+requires-python = ">=3.10"
+dependencies = [
+    "mcpevals>=0.1.10",
+]
+
+[tool.mcpeval]
+# Overridden at runtime by LLM_MODEL from resolve-llm-provider.sh / mcpeval.yaml
+default_model = "openai/Llama-3.3-70b-instruct"

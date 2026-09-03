@@ -26,3 +26,7 @@ test-results/
 .playwright-browsers/
 docker-compose.override.yml
 .DS_Store
+
+# Python
+__pycache__/
+*.pyc

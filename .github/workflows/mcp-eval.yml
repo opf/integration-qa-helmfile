@@ -1,0 +1,303 @@
+name: MCP-eval
+run-name: >-
+  MCP-eval · ${{ github.event.inputs.setupMethod }} · ${{ github.event.inputs.llm_provider }} · ${{ github.event.inputs.llm_model }} · op ${{ github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17' }}
+
+defaults:
+  run:
+    shell: bash
+
+on:
+  workflow_dispatch:
+    inputs:
+      openproject_version:
+        description: "OpenProject image tag (empty = 17)"
+        required: false
+        type: string
+      setupMethod:
+        description: "oauth2 = OpenProject standalone; sso-external = OpenProject + Keycloak"
+        required: true
+        default: oauth2
+        type: choice
+        options:
+          - oauth2
+          - sso-external
+      llm_provider:
+        description: "LLM API: llm-stack (default) or openrouter"
+        required: true
+        default: llm-stack
+        type: choice
+        options:
+          - llm-stack
+          - openrouter
+      llm_model:
+        description: "Model (provider-default, or OpenRouter-style id; llm-stack only supports Llama 3.3 70B)"
+        required: true
+        default: provider-default
+        type: choice
+        options:
+          - provider-default
+          - meta-llama/llama-3.3-70b-instruct
+          - openai/gpt-4o-mini
+          - openai/gpt-4.1-mini
+          - anthropic/claude-sonnet-4.5
+          - google/gemini-2.5-flash
+      squash_iteration_id:
+        description: "Squash TM iteration ID for mcp-eval result import (optional)"
+        required: false
+        type: string
+      squash_sync_test_plan:
+        description: "Add mapped mcp-eval Squash test cases to the iteration before import"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: mcp-eval
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CI: true
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+    outputs:
+      live: ${{ steps.publish.outputs.live }}
+      preview_name: ${{ steps.publish.outputs.preview_name }}
+      tests_should_run: ${{ steps.publish.outputs.tests_should_run }}
+      openproject_url: ${{ steps.publish.outputs.openproject_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Resolve enterprise token
+        id: enterprise_token
+        env:
+          ENTERPRISE_TOKEN_TIER: corporate
+          TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
+        run: .github/scripts/resolve-enterprise-token.sh
+
+      - name: Resolve topology and preview name
+        id: resolve
+        env:
+          IN_SETUP: ${{ github.event.inputs.setupMethod }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
+          SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SECRET_HCLOUD:-}" ]]; then
+            echo "::error::Secret HCLOUD_TOKEN is not set or empty."
+            exit 1
+          fi
+          if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
+            echo "::error::Secret HETZNER_CA_KEY is not set or empty."
+            exit 1
+          fi
+
+          preview_name="mcpeval-${RUN_ID}-${RUN_ATTEMPT}"
+          {
+            .github/scripts/resolve-stack-topology.sh "mcp" "${IN_SETUP}"
+            echo "preview_name=${preview_name}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: PullPreview up
+        id: pullpreview_up
+        if: success()
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+        with:
+          provider: hetzner
+          label: ${{ steps.resolve.outputs.preview_name }}
+          force_action: up
+          region: fsn1
+          image: ubuntu-24.04
+          instance_type: cpx42
+          dns: my.opf.run
+          max_domain_length: "40"
+          deployment_target: helm
+          chart: ./charts/pullpreview-stack
+          chart_values: pullpreview/stack-values.yaml.gotmpl
+          pre_script: pullpreview/pre-script-helm-deps-e2e.sh
+          proxy_tls: traefik:80
+          proxy_tls_hosts: ${{ steps.resolve.outputs.proxy_tls_hosts }}
+          ttl: 24h
+        env:
+          PULLPREVIEW_LOGGER_LEVEL: INFO
+          OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
+          INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
+          OPENPROJECT_VERSION: ${{ github.event.inputs.openproject_version }}
+          XWIKI_ENABLED: "false"
+          STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
+
+      - name: Strip SSH lines from PullPreview summary
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        run: |
+          set -euo pipefail
+          [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || exit 0
+          [[ -f "${GITHUB_STEP_SUMMARY}" ]] || exit 0
+          sed -i -E '/^- SSH (Username|IP|Command):/d' "${GITHUB_STEP_SUMMARY}"
+
+      - name: Deploy preview summary
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        env:
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          PULLPREVIEW_OUTCOME: ${{ steps.pullpreview_up.outcome }}
+          PULLPREVIEW_LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+          SKIP_XWIKI: "true"
+          SKIP_NEXTCLOUD: "true"
+          SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
+        run: .github/scripts/deploy-preview-summary.sh
+
+      - name: Preview endpoint checks
+        id: validate_urls
+        uses: ./.github/actions/preview-endpoint-checks
+        if: success() && steps.pullpreview_up.outputs.live == 'true'
+        continue-on-error: true
+        with:
+          preview-url: ${{ steps.pullpreview_up.outputs.url }}
+          skip-xwiki: "true"
+          skip-nextcloud: "true"
+          skip-keycloak: ${{ steps.resolve.outputs.skip_keycloak }}
+
+      - name: Export OpenProject URL
+        id: export_hosts
+        if: success() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome == 'success'
+        env:
+          PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
+        run: |
+          set -euo pipefail
+          preview_url="${PREVIEW_URL}"
+          if [[ "${preview_url}" == *:443 ]]; then
+            preview_url="${preview_url%:443}"
+          fi
+          echo "OPENPROJECT_URL=${preview_url}" >> "$GITHUB_ENV"
+
+      - name: Publish deploy outputs
+        id: publish
+        if: always()
+        env:
+          LIVE: ${{ steps.pullpreview_up.outputs.live }}
+          PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
+          VALIDATE_OUTCOME: ${{ steps.validate_urls.outcome }}
+        run: |
+          set -euo pipefail
+          tests_should_run=false
+          if [[ "${LIVE}" == "true" ]] && [[ "${VALIDATE_OUTCOME}" == "success" ]]; then
+            tests_should_run=true
+          fi
+          {
+            echo "live=${LIVE:-}"
+            echo "preview_name=${PREVIEW_NAME}"
+            echo "tests_should_run=${tests_should_run}"
+            echo "openproject_url=${OPENPROJECT_URL:-}"
+          } >> "$GITHUB_OUTPUT"
+
+  mcp_eval:
+    needs: [deploy]
+    if: always() && needs.deploy.outputs.tests_should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Resolve LLM provider
+        id: llm
+        env:
+          LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
+          LLM_MODEL: ${{ github.event.inputs.llm_model }}
+          LLM_STACK_API_KEY: ${{ secrets.LLM_STACK_API_KEY }}
+          LLM_STACK_URL: ${{ vars.LLM_STACK_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -euo pipefail
+          resolved="$(.github/scripts/resolve-llm-provider.sh "${LLM_PROVIDER}")"
+          printf '%s\n' "${resolved}" >> "$GITHUB_OUTPUT"
+
+          llm_api_key="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_api_key=//p')"
+          llm_base_url="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_base_url=//p')"
+          llm_model="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_model=//p')"
+          llm_provider="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_provider=//p')"
+
+          if [[ -z "${llm_api_key}" ]]; then
+            if [[ "${llm_provider}" == "openrouter" ]]; then
+              echo "::error::Secret OPENROUTER_API_KEY (or LLM_API_KEY) is not set or empty."
+            else
+              echo "::error::Secret LLM_STACK_API_KEY (or LLM_API_KEY) is not set or empty."
+            fi
+            exit 1
+          fi
+          {
+            echo "### LLM provider"
+            echo ""
+            echo "- Provider: \`${llm_provider}\`"
+            echo "- Base URL: \`${llm_base_url}\`"
+            echo "- Model: \`${llm_model}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Run mcp-eval
+        id: tests
+        working-directory: e2e/mcp-eval
+        env:
+          OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
+          MCP_BEARER_TOKEN: bob_ai_mcp_test_token_1234567890
+          LLM_API_KEY: ${{ steps.llm.outputs.llm_api_key }}
+          LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
+          LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${LLM_API_KEY:-}" ]]; then
+            echo "::error::LLM_API_KEY is empty after provider resolution."
+            exit 1
+          fi
+          if [[ -z "${OPENPROJECT_URL:-}" ]]; then
+            echo "::error::OPENPROJECT_URL is empty; deploy did not export a preview URL."
+            exit 1
+          fi
+          pip install -e .
+          mkdir -p reports
+          mcp-eval run tests/ --json reports/results.json --html reports/report.html
+
+      - name: Record run metadata
+        id: record
+        if: always() && steps.llm.outcome == 'success' && steps.tests.outcome != 'skipped'
+        working-directory: e2e/mcp-eval
+        env:
+          REPORTS_DIR: reports
+          LLM_PROVIDER: ${{ steps.llm.outputs.llm_provider }}
+          LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
+          LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
+          OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
+        run: python3 scripts/record-run-metadata.py
+
+      - name: Publish to Squash TM
+        if: always() && steps.tests.outcome != 'skipped'
+        working-directory: e2e/mcp-eval
+        env:
+          SQUASH_TM_API_TOKEN: ${{ secrets.SQUASH_TM_API_TOKEN }}
+          SQUASH_TM_ITERATION_ID: ${{ github.event.inputs.squash_iteration_id != '' && github.event.inputs.squash_iteration_id || vars.SQUASH_TM_ITERATION_ID }}
+          SQUASH_TM_SYNC_TEST_PLAN: ${{ github.event.inputs.squash_sync_test_plan == 'true' && 'true' || 'false' }}
+          SQUASH_TM_SKIP_MISSING_AUTH: "true"
+        run: python3 scripts/publish-mcp-eval-squash.py --json reports/results.json
+
+      - name: Upload mcp-eval reports
+        if: always() && steps.tests.outcome != 'skipped'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mcp-eval-reports-${{ steps.record.outputs.artifact_slug || 'unknown' }}
+          path: e2e/mcp-eval/reports/
+          if-no-files-found: ignore
+          retention-days: 14

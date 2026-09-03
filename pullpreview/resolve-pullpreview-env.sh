@@ -206,6 +206,10 @@ xw_enabled = (opnc.get("xwiki") or {}).get("enabled")
 if xw_enabled is not None:
     values["XWIKI_ENABLED"] = "true" if xw_enabled else "false"
 
+stack_profile = opnc.get("stackProfile")
+if stack_profile:
+    values["STACK_PROFILE"] = str(stack_profile)
+
 op_env = (op.get("environment") or {})
 wiki_enh = op_env.get("OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS_ACTIVE")
 if str(wiki_enh).strip().lower() == "true":

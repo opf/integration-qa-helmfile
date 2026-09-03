@@ -28,6 +28,8 @@ openproject:
   #####################################################
   # Run OpenProject in standalone mode                #
   # (without Nextcloud and Keycloak integration)      #
+  # For local MCP tests set standalone: true (and     #
+  # xwiki.enabled: false) in environments/override.yaml
   #####################################################
   standalone: false
   #####################################################
@@ -145,6 +147,7 @@ persistence:
   accessMode: 'ReadWriteOnce'
 
 xwiki:
+  # Full integration default. Local MCP: override with enabled: false.
   enabled: true
   host: xwiki.test
   version: '17.10.10'

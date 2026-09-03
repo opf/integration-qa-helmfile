@@ -4,12 +4,23 @@ integrationSetupMethod: 'sso-external'
 
 previewMode: false
 
+# MCP test harness provisioning (setup-mcp.rb initContainer on setup-job).
+# Use mcp.enabled: false to skip MCP seed on public previews without disabling CI.
+mcp:
+  enabled: true
+  oauthToken: "bob_ai_mcp_test_token_1234567890"
+
 # When defer is true, setup-job is not created by the bootstrap release; install it via a
 # follow-up release with renderScope: setupJob (PullPreview phased deploy).
 renderScope: bootstrap
 setupJob:
   enabled: true
   defer: false
+  # Transient pod crashes get backoffLimit retries; activeDeadlineSeconds is the
+  # wall-clock ceiling across all attempts (must stay below opnc-setup-job helmfile
+  # timeout 900s and PULLPREVIEW_SETUP_JOB_TIMEOUT in helmfile-sync.sh).
+  backoffLimit: 2
+  activeDeadlineSeconds: 780
 
 openprojectHost: openproject.test
 openprojectAssetHost: openproject-assets.test

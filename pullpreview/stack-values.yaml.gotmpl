@@ -10,6 +10,7 @@
 {{- $xwikiExtensionOpenProjectVersion := trim (env "XWIKI_EXTENSION_OPENPROJECT_VERSION") -}}
 {{- $wikiEnhancements := eq (trim (env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true")) "true" -}}
 {{- $xwikiEnabled := eq (trim (env "XWIKI_ENABLED" | default "true")) "true" -}}
+{{- $stackProfile := trim (env "STACK_PROFILE") | default "full" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
 {{- $xwikiImageTag := $xwikiVersion | default "17.10.10" -}}
@@ -23,6 +24,7 @@ opnc-integration:
   xwikiHost: "xwiki.{{ pullpreview_public_dns }}"
   xwiki:
     enabled: {{ $xwikiEnabled }}
+  stackProfile: {{ $stackProfile | quote }}
   openproject:
     dockerTag: {{ $openprojectImageTag | quote }}
 {{- if $openprojectBranch }}
