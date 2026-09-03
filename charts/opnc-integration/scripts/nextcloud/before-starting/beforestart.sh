@@ -132,15 +132,15 @@ run_occ config:system:set allow_local_remote_servers --value 1
 # not reachable over hairpin from inside the pod. The discovery document still
 # advertises the public issuer via KEYCLOAK_HOSTNAME, so the stored provider is
 # unchanged. Local/dev leaves it unset and keeps using the public URL + CA mount.
-OIDC_DISCOVERY_URL="${OIDC_KEYCLOAK_WAIT_URL:-$OIDC_KEYCLOAK_DISCOVERY_URL}"
-wait_for_url "$OIDC_DISCOVERY_URL"
+OIDC_WAIT_URL="${OIDC_KEYCLOAK_WAIT_URL:-$OIDC_KEYCLOAK_DISCOVERY_URL}"
+wait_for_url "$OIDC_WAIT_URL"
 # setup user_oidc app
 run_occ config:app:set --value=1 user_oidc store_login_token
 run_occ config:system:set user_oidc --type boolean --value="true" oidc_provider_bearer_validation
 run_occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" \
     -c "$OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_ID" \
     -s "$OIDC_KEYCLOAK_NEXTCLOUD_CLIENT_SECRET" \
-    -d "$OIDC_DISCOVERY_URL" \
+    -d "$OIDC_KEYCLOAK_DISCOVERY_URL" \
     -o "openid profile email api_v3"
 run_occ user_oidc:provider "$OIDC_KEYCLOAK_PROVIDER_NAME" --check-bearer 1
 run_occ config:app:set oidc refresh_expire_time --value "never"
