@@ -44,7 +44,7 @@ test.describe('MCP Resource Reading & Discovery', { tag: ['@mcp'] }, () => {
 
   test(
     'Read status_list resource via /api/v3/statuses',
-    squashTestCase(3015, { stepCount: 2 }),
+    squashTestCase(2186, { stepCount: 2 }),
     async () => {
       const uri = uriFor('status_list');
       let response: Awaited<ReturnType<Client['readResource']>>;

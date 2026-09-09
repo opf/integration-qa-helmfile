@@ -197,6 +197,7 @@ def suite_attachment(run_meta: dict[str, Any] | None) -> dict[str, str] | None:
             [
                 f"llm_provider={run_meta.get('llm_provider', '')}",
                 f"llm_model={run_meta.get('llm_model', '')}",
+                f"llm_judge_model={run_meta.get('llm_judge_model', '')}",
                 f"llm_base_url={run_meta.get('llm_base_url', '')}",
                 f"openproject_url={run_meta.get('openproject_url', '')}",
             ]

@@ -66,19 +66,30 @@ Auth fallback is the seeded token `bob_ai_mcp_test_token_1234567890` (`mcp.oauth
 
 ### mcp-eval (`mcp-eval/`)
 
-Python LLM evaluation against a live MCP server (tool selection, multi-step, guardrails). Requires Python 3.10+ and an LLM API key. Trust the local CA (`opnc-root-ca.crt`) for `https://openproject.test`, or set `SSL_CERT_FILE` / `REQUESTS_CA_BUNDLE`.
+Python LLM evaluation against a live MCP server (tool selection, argument extraction, multi-step, guardrails, resources). Requires Python 3.10+ and an LLM API key. Trust the local CA (`opnc-root-ca.crt`) for `https://openproject.test`, or set `SSL_CERT_FILE` / `REQUESTS_CA_BUNDLE`.
+
+Each case asserts:
+
+1. Structural checks (tool called / args / content / sequence / no tools)
+2. **Path** efficiency (`Expect.path.efficiency`) and tool success rate (except resources)
+3. **Performance** (`response_time_under`, `max_iterations`)
+4. **LLM judge** (`Expect.judge.llm`) via the same OpenAI-compatible base URL as the agent
+
+Default judge on llm-stack is **`Llama-3.3-70b-instruct`** (only model that provider exposes; keyed by `LLM_STACK_API_KEY`). Override with `LLM_JUDGE_MODEL` when the base URL supports another id (e.g. OpenRouter `google/gemini-2.5-flash`).
 
 Resolve provider presets with `.github/scripts/resolve-llm-provider.sh` (`llm-stack` default, or `openrouter`), then run:
 
 ```bash
 cd mcp-eval
 pip install -e .
+python3 scripts/expectations.test.py
 export OPENPROJECT_URL=https://openproject.test
 export MCP_BEARER_TOKEN=bob_ai_mcp_test_token_1234567890
 
 # llm-stack (default)
 export LLM_STACK_API_KEY=<key>
 eval "$(../../.github/scripts/resolve-llm-provider.sh --export llm-stack)"
+# optional: export LLM_JUDGE_MODEL=same-as-agent
 
 # or OpenRouter with a curated model id:
 # export OPENROUTER_API_KEY=<key>
@@ -88,11 +99,11 @@ eval "$(../../.github/scripts/resolve-llm-provider.sh --export llm-stack)"
 mcp-eval run tests/ --json reports/results.json --html reports/report.html
 ```
 
-Or export `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` directly (see `mcpeval.yaml`).
+Or export `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` directly. `tests/eval_config.py` applies them into mcp-eval settings at import (YAML does not expand `${VAR}`).
 
-CI writes `reports/run-metadata.json` (provider, model, base URL, OpenProject URL) and adds a `run` object to `results.json` so artifacts show which model produced the run.
+CI writes `reports/run-metadata.json` (provider, model, judge model, base URL, OpenProject URL) and adds a `run` object to `results.json` so artifacts show which model produced and judged the run.
 
-**Squash TM (optional):** Create cases from [`mcp-eval/SQUASH_CASES.md`](mcp-eval/SQUASH_CASES.md) (title + prompt only; no manual steps), then fill numeric IDs in [`mcp-eval/squash-mapping.yaml`](mcp-eval/squash-mapping.yaml). Publish pass/fail results (no `test_steps`) with:
+**Squash TM (optional):** Create Squash cases from titles/prompts in [`mcp-eval/squash-mapping.yaml`](mcp-eval/squash-mapping.yaml) (no manual steps), then fill numeric `squash_test_case_id` values there. Publish pass/fail results (no `test_steps`) with:
 
 ```bash
 cd mcp-eval
@@ -103,7 +114,7 @@ python3 scripts/publish-mcp-eval-squash.py --json reports/results.json
 # dry-run / missing auth: SQUASH_TM_DRY_RUN=true or SQUASH_TM_SKIP_MISSING_AUTH=true
 ```
 
-CI (`mcp-eval.yml`) accepts optional `squash_iteration_id` / `squash_sync_test_plan` and writes `reports/squash-results.json` into the artifact. Unmapped local IDs are skipped with a warning until you fill `squash_test_case_id`.
+CI (`mcp-eval.yml`) accepts optional `squash_iteration_id` / `squash_sync_test_plan` and writes `reports/squash-results.json` into the artifact. Unmapped local IDs are skipped with a warning until you fill `squash_test_case_id`. First import after tightening assertions should use dry-run / no iteration id.
 
 **Curated `llm_model` choices** (workflow dropdown; no duplicate Llama entries):
 
@@ -115,6 +126,8 @@ CI (`mcp-eval.yml`) accepts optional `squash_iteration_id` / `squash_sync_test_p
 | `openai/gpt-4.1-mini` | rejected | as-is |
 | `anthropic/claude-sonnet-4.5` | rejected | as-is |
 | `google/gemini-2.5-flash` | rejected | as-is |
+
+`llm_judge_model` defaults to `same-as-agent` (uses the resolved agent model on the same base URL).
 
 GitHub Actions cannot load OpenRouter’s full model catalog into the dropdown at dispatch time; this list is a static, tool-capable subset.
 ## Environment Variables
@@ -138,6 +151,7 @@ GitHub Actions cannot load OpenRouter’s full model catalog into the dropdown a
 | `LLM_API_KEY` | Generic OpenAI-compatible API key for mcp-eval | none |
 | `LLM_BASE_URL` | OpenAI-compatible base URL override | provider default |
 | `LLM_MODEL` | Model id (`provider-default`, OpenRouter-style id, or legacy `Llama-3.3-70b-instruct`) | provider default |
+| `LLM_JUDGE_MODEL` | Judge model (`same-as-agent`, or id on the same base URL as the agent) | `same-as-agent` (agent model) |
 | `LLM_STACK_API_KEY` | llm-stack key (used when `LLM_PROVIDER=llm-stack`) | none |
 | `LLM_STACK_URL` | llm-stack base URL | `https://llm-stack.openproject-edge.eu/v1` |
 | `OPENROUTER_API_KEY` | OpenRouter key (used when `LLM_PROVIDER=openrouter`) | none |

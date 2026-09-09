@@ -55,9 +55,17 @@ def main() -> int:
     reports_dir = Path(os.environ.get("REPORTS_DIR", "reports"))
     reports_dir.mkdir(parents=True, exist_ok=True)
 
+    llm_model = os.environ.get("LLM_MODEL", "")
+    judge_raw = (os.environ.get("LLM_JUDGE_MODEL") or "").strip()
+    if not judge_raw or judge_raw in {"same-as-agent", "provider-default"}:
+        judge_model = llm_model
+    else:
+        judge_model = judge_raw
+
     meta = {
         "llm_provider": os.environ.get("LLM_PROVIDER", ""),
-        "llm_model": os.environ.get("LLM_MODEL", ""),
+        "llm_model": llm_model,
+        "llm_judge_model": judge_model,
         "llm_base_url": os.environ.get("LLM_BASE_URL", ""),
         "openproject_url": os.environ.get("OPENPROJECT_URL", ""),
     }
@@ -101,6 +109,7 @@ def main() -> int:
             f.write("### MCP-eval results\n\n")
             f.write(f"- Provider: `{meta['llm_provider']}`\n")
             f.write(f"- Model: `{meta['llm_model']}`\n")
+            f.write(f"- Judge model: `{meta['llm_judge_model']}`\n")
             f.write(f"- Base URL: `{meta['llm_base_url']}`\n")
             if meta["openproject_url"]:
                 f.write(f"- OpenProject: {meta['openproject_url']}\n")

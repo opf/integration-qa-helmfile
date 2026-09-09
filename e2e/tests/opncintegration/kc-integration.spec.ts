@@ -1,8 +1,12 @@
 import { test, expect, integrationTags } from '../base-test';
 import { KeycloakLoginPage, KeycloakHomePage } from '../../pageobjects/keycloak';
+import { squashTestCase } from '../../utils/squash-metadata';
 
 test.describe('SSO External - Keycloak Integration', integrationTags, () => {
-  test('should login to Keycloak and check op and nc client are present', { tag: ['@smoke'] }, async ({ page }) => {
+  test(
+    'should login to Keycloak and check op and nc client are present',
+    squashTestCase(2187, { tag: ['@smoke'] }),
+    async ({ page }) => {
     const loginPage = new KeycloakLoginPage(page);
     await loginPage.login();
     const homePage = new KeycloakHomePage(page);
@@ -21,5 +25,6 @@ test.describe('SSO External - Keycloak Integration', integrationTags, () => {
       await page.screenshot({ path: 'test-results/clients-not-found.png', fullPage: true });
     }
     expect(areClientsPresent).toBe(true);
-  });
+    },
+  );
 });

@@ -1,10 +1,16 @@
-import pytest
 from mcp_eval import task, Expect
+from eval_config import configure
+from expectations import (
+    assert_path,
+    assert_quality,
+    rubric_argument_extraction,
+)
 from seed_data import (
-    DEMO_PROJECT, SCRUM_PROJECT, MCP_USER,
-    DEMO_WORK_PACKAGES, SCRUM_VERSIONS,
+    MCP_USER,
     supported_case,
 )
+
+configure()
 
 # ═══════════════════════════════════════════════════════════════════════
 # Category 2: Argument Extraction
@@ -13,8 +19,7 @@ from seed_data import (
 #   1. The LLM selects the correct tool
 #   2. The LLM extracts the correct arguments from natural language
 #   3. The tool result is coherent with the extracted arguments
-#
-# All prompts reference REAL seeded entities so results are verifiable.
+#   4. LLM judge + performance + path efficiency
 # ═══════════════════════════════════════════════════════════════════════
 
 ARGUMENT_CASES = [
@@ -93,18 +98,33 @@ for case in filter(supported_case, ARGUMENT_CASES):
     async def test_argument_extraction(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
-        # 1. Verify correct tool was selected
-        await session.assert_that(Expect.tools.was_called(_case["tool"]))
+        await session.assert_that(
+            Expect.tools.was_called(_case["tool"]),
+            name="tool_selected",
+        )
 
-        # 2. Verify arguments were extracted correctly (where deterministic)
         if _case["expected_args"]:
             await session.assert_that(
-                Expect.tools.was_called(_case["tool"]).with_args(_case["expected_args"])
+                Expect.tools.called_with(_case["tool"], _case["expected_args"]),
+                name="args_extracted",
             )
 
-        # 3. Verify result content matches seed data
         for expected in _case["result_must_contain"]:
             await session.assert_that(
                 Expect.content.contains(expected),
-                msg=f"Result should contain '{expected}' from seed data",
+                name=f"contains_{expected}",
+                response=response,
             )
+
+        await assert_path(session, tools=[_case["tool"]], allow_extra_steps=1)
+        await assert_quality(
+            session,
+            response,
+            category="argument_extraction",
+            prompt=_case["prompt"],
+            rubric=rubric_argument_extraction(
+                _case["prompt"],
+                _case["tool"],
+                _case["expected_args"],
+            ),
+        )

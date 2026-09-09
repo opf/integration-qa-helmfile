@@ -1,6 +1,13 @@
-import pytest
 from mcp_eval import task, Expect
-from seed_data import DEMO_PROJECT, DEMO_WORK_PACKAGES, SCRUM_WORK_PACKAGES, supported_case
+from eval_config import configure
+from expectations import (
+    assert_path,
+    assert_quality,
+    rubric_multi_step,
+)
+from seed_data import supported_case
+
+configure()
 
 # ═══════════════════════════════════════════════════════════════════════
 # Category 3: Multi-Step Workflows
@@ -9,8 +16,7 @@ from seed_data import DEMO_PROJECT, DEMO_WORK_PACKAGES, SCRUM_WORK_PACKAGES, sup
 #   1. The LLM chains the correct sequence of tool calls
 #   2. Each intermediate result feeds into the next step
 #   3. The final result contains expected seed data
-#
-# All prompts reference REAL seeded projects and work packages.
+#   4. LLM judge + performance + path efficiency
 # ═══════════════════════════════════════════════════════════════════════
 
 MULTI_STEP_CASES = [
@@ -59,13 +65,33 @@ for case in filter(supported_case, MULTI_STEP_CASES):
     async def test_multi_step(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
-        # 1. Verify all expected tools were called (in any order)
         for tool in _case["tools"]:
-            await session.assert_that(Expect.tools.was_called(tool))
+            await session.assert_that(
+                Expect.tools.was_called(tool),
+                name=f"called_{tool}",
+            )
 
-        # 2. Verify the final result contains expected seed data
+        await session.assert_that(
+            Expect.tools.sequence(_case["tools"], allow_other_calls=True),
+            name="tool_sequence",
+        )
+
         for expected in _case["result_must_contain"]:
             await session.assert_that(
                 Expect.content.contains(expected),
-                msg=f"Multi-step result should contain '{expected}'",
+                name=f"contains_{expected}",
+                response=response,
             )
+
+        await assert_path(
+            session,
+            tools=_case["tools"],
+            allow_extra_steps=2,
+        )
+        await assert_quality(
+            session,
+            response,
+            category="multi_step",
+            prompt=_case["prompt"],
+            rubric=rubric_multi_step(_case["prompt"], _case["tools"]),
+        )

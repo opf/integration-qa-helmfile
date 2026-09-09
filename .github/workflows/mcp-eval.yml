@@ -41,6 +41,17 @@ on:
           - openai/gpt-4.1-mini
           - anthropic/claude-sonnet-4.5
           - google/gemini-2.5-flash
+      llm_judge_model:
+        description: "LLM judge model (same-as-agent, or OpenRouter-style id on the same base URL)"
+        required: true
+        default: same-as-agent
+        type: choice
+        options:
+          - same-as-agent
+          - meta-llama/llama-3.3-70b-instruct
+          - openai/gpt-4o-mini
+          - openai/gpt-4.1-mini
+          - google/gemini-2.5-flash
       squash_iteration_id:
         description: "Squash TM iteration ID for mcp-eval result import (optional)"
         required: false
@@ -257,6 +268,7 @@ jobs:
           LLM_API_KEY: ${{ steps.llm.outputs.llm_api_key }}
           LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
           LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
+          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
         run: |
           set -euo pipefail
           if [[ -z "${LLM_API_KEY:-}" ]]; then
@@ -268,6 +280,7 @@ jobs:
             exit 1
           fi
           pip install -e .
+          python3 scripts/expectations.test.py
           mkdir -p reports
           mcp-eval run tests/ --json reports/results.json --html reports/report.html
 
@@ -280,6 +293,7 @@ jobs:
           LLM_PROVIDER: ${{ steps.llm.outputs.llm_provider }}
           LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
           LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
+          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
           OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
         run: python3 scripts/record-run-metadata.py
 

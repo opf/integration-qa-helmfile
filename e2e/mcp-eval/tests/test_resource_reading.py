@@ -1,6 +1,12 @@
-import pytest
 from mcp_eval import task, Expect
-from seed_data import MCP_USER, STATUSES, TYPES
+from eval_config import configure
+from expectations import (
+    assert_quality,
+    rubric_resource,
+)
+from seed_data import MCP_USER
+
+configure()
 
 # ═══════════════════════════════════════════════════════════════════════
 # Category 5: Resource Reading
@@ -8,8 +14,7 @@ from seed_data import MCP_USER, STATUSES, TYPES
 # Each test verifies:
 #   1. The LLM accesses the correct MCP resource URI
 #   2. The resource content matches known seed data
-#
-# Resources are server-side MCP primitives separate from tools.
+#   3. LLM judge + performance (no path: resource reads ≠ tool calls)
 # ═══════════════════════════════════════════════════════════════════════
 
 RESOURCE_CASES = [
@@ -41,12 +46,21 @@ for case in RESOURCE_CASES:
     async def test_resource_reading(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
-        # 1. Verify the response is non-empty
-        await session.assert_that(Expect.content.not_empty())
-
-        # 2. Verify the resource content contains expected seed data
         for expected in _case["result_must_contain"]:
             await session.assert_that(
                 Expect.content.contains(expected),
-                msg=f"Resource {_case['uri']} should contain '{expected}' from seed data",
+                name=f"contains_{expected}",
+                response=response,
             )
+
+        await assert_quality(
+            session,
+            response,
+            category="resource_reading",
+            prompt=_case["prompt"],
+            rubric=rubric_resource(
+                _case["prompt"],
+                _case["uri"],
+                _case["result_must_contain"],
+            ),
+        )

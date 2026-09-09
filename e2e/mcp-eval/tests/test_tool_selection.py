@@ -1,11 +1,16 @@
-import pytest
 from mcp_eval import task, Expect
+from eval_config import configure
+from expectations import (
+    assert_path,
+    assert_quality,
+    rubric_tool_selection,
+)
 from seed_data import (
-    MCP_USER, DEMO_PROJECT, SCRUM_PROJECT,
-    TYPES, STATUSES, SEEDED_USERS, SCRUM_VERSIONS,
-    DEMO_WORK_PACKAGES, SCRUM_WORK_PACKAGES,
+    MCP_USER,
     supported_case,
 )
+
+configure()
 
 # ═══════════════════════════════════════════════════════════════════════
 # Category 1: Single-Turn Tool Selection Accuracy
@@ -13,6 +18,7 @@ from seed_data import (
 # Each test verifies:
 #   1. The LLM selects the CORRECT tool (tool selection)
 #   2. The tool call RETURNS data matching the seed data (result verification)
+#   3. LLM judge + performance + path efficiency
 # ═══════════════════════════════════════════════════════════════════════
 
 TOOL_SELECTION_CASES = [
@@ -225,19 +231,34 @@ for case in filter(supported_case, TOOL_SELECTION_CASES):
     async def test_tool_selection(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
-        # 1. Verify the correct tool was selected
-        await session.assert_that(Expect.tools.was_called(_case["tool"]))
+        await session.assert_that(
+            Expect.tools.was_called(_case["tool"]),
+            name="tool_selected",
+        )
 
-        # 2. Verify result content contains expected seed data
         for expected in _case["result_must_contain"]:
             await session.assert_that(
                 Expect.content.contains(expected),
-                msg=f"Result should contain '{expected}' from seed data",
+                name=f"contains_{expected}",
+                response=response,
             )
 
-        # 3. Verify result does NOT contain forbidden strings
         for forbidden in _case["result_must_not_contain"]:
             await session.assert_that(
                 Expect.content.not_contains(forbidden),
-                msg=f"Result should NOT contain '{forbidden}'",
+                name=f"not_contains_{forbidden}",
+                response=response,
             )
+
+        await assert_path(session, tools=[_case["tool"]], allow_extra_steps=1)
+        await assert_quality(
+            session,
+            response,
+            category="tool_selection",
+            prompt=_case["prompt"],
+            rubric=rubric_tool_selection(
+                _case["prompt"],
+                _case["tool"],
+                _case["result_must_contain"],
+            ),
+        )

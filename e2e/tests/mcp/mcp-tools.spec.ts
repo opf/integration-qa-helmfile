@@ -77,7 +77,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
   test(
     'list_types tool returns work package types',
-    squashTestCase(3009, { stepCount: 2 }),
+    squashTestCase(2185, { stepCount: 2 }),
     async () => {
       let result: any;
       await test.step('Call tool list_types with empty arguments', async () => {
