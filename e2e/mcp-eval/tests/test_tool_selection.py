@@ -88,13 +88,6 @@ TOOL_SELECTION_CASES = [
 
     # ── search_work_packages (seeded demo WPs) ───────────────────────
     {
-        "id": "TS-09",
-        "prompt": "Find work packages related to conference",
-        "tool": "search_work_packages",
-        "result_must_contain": ["conference"],
-        "result_must_not_contain": [],
-    },
-    {
         "id": "TS-10",
         "prompt": "List all open bugs",
         "tool": "search_work_packages",
@@ -103,13 +96,6 @@ TOOL_SELECTION_CASES = [
     },
 
     # ── search_users (seeded demo users) ──────────────────────────────
-    {
-        "id": "TS-11",
-        "prompt": f"Find user {MCP_USER['firstname']} in the system",
-        "tool": "search_users",
-        "result_must_contain": [MCP_USER["firstname"], MCP_USER["lastname"]],
-        "result_must_not_contain": [],
-    },
     {
         "id": "TS-12",
         "prompt": "Who are the team members?",

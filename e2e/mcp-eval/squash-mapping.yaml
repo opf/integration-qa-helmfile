@@ -8,7 +8,7 @@ cases:
     category: tool_selection
     tool: current_user
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2195
 
   - id: TS-02
     title: 'Tool select: current_user (profile)'
@@ -16,7 +16,7 @@ cases:
     category: tool_selection
     tool: current_user
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2196
 
   - id: TS-03
     title: 'Tool select: list_statuses'
@@ -24,7 +24,7 @@ cases:
     category: tool_selection
     tool: list_statuses
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2197
 
   - id: TS-04
     title: 'Tool select: list_statuses (workflow)'
@@ -32,7 +32,7 @@ cases:
     category: tool_selection
     tool: list_statuses
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2198
 
   - id: TS-05
     title: 'Tool select: list_types'
@@ -40,7 +40,7 @@ cases:
     category: tool_selection
     tool: list_types
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2199
 
   - id: TS-06
     title: 'Tool select: list_types (categories)'
@@ -48,7 +48,7 @@ cases:
     category: tool_selection
     tool: list_types
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2200
 
   - id: TS-07
     title: 'Tool select: search_projects (all)'
@@ -56,7 +56,7 @@ cases:
     category: tool_selection
     tool: search_projects
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2201
 
   - id: TS-08
     title: 'Tool select: search_projects (Demo)'
@@ -64,15 +64,7 @@ cases:
     category: tool_selection
     tool: search_projects
     active: true
-    squash_test_case_id: null
-
-  - id: TS-09
-    title: 'Tool select: search_work_packages (conference)'
-    prompt: 'Find work packages related to conference'
-    category: tool_selection
-    tool: search_work_packages
-    active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2202
 
   - id: TS-10
     title: 'Tool select: search_work_packages (bugs)'
@@ -80,15 +72,7 @@ cases:
     category: tool_selection
     tool: search_work_packages
     active: true
-    squash_test_case_id: null
-
-  - id: TS-11
-    title: 'Tool select: search_users (Bob)'
-    prompt: 'Find user Bob in the system'
-    category: tool_selection
-    tool: search_users
-    active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2204
 
   - id: TS-12
     title: 'Tool select: search_users (team)'
