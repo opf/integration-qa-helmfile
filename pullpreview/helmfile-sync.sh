@@ -194,6 +194,12 @@ if [[ "${PULLPREVIEW_SUCCESS_DIAGNOSTICS:-false}" == "true" ]]; then
   collect_diagnostics "successful deploy" "${namespace}"
 fi
 
+if kubectl get deployment pullpreview-caddy -n "${namespace}" >/dev/null 2>&1; then
+  echo "::group::PullPreview Caddy status"
+  kubectl logs -n "${namespace}" deploy/pullpreview-caddy --tail=100 2>&1 | redact_stream || true
+  echo "::endgroup::"
+fi
+
 print_pp_timing
 
 echo "[pullpreview helmfile] DAG deploy finished successfully."

@@ -80,7 +80,7 @@ collect_diagnostics() {
     kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --previous --tail=200 2>&1 | redact_stream || true
   fi
 
-  local caddy_pod=""
+local caddy_pod=""
   caddy_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=pullpreview-caddy" \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   if [[ -z "${caddy_pod}" ]]; then

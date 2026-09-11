@@ -9,6 +9,14 @@ inputs:
     description: Skip XWiki endpoint checks (set true when XWiki is not deployed)
     required: false
     default: 'false'
+  skip-nextcloud:
+    description: Skip Nextcloud endpoint checks (set true when Nextcloud is not deployed)
+    required: false
+    default: 'false'
+  skip-keycloak:
+    description: Skip Keycloak endpoint checks (set true when Keycloak is not deployed)
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -27,6 +35,84 @@ runs:
           echo ""
         } >> "${GITHUB_STEP_SUMMARY}"
 
+    - name: Wait for TLS readiness
+      shell: bash
+      env:
+        PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+        SKIP_NEXTCLOUD: ${{ inputs.skip-nextcloud }}
+        SKIP_KEYCLOAK: ${{ inputs.skip-keycloak }}
+        SKIP_XWIKI: ${{ inputs.skip-xwiki }}
+      run: |
+        set -euo pipefail
+        # Caddy's on-demand ACME provisions certificates upon receiving the first
+        # TLS handshake with a given SNI. Warm up the main host and all active subdomains.
+        targets=("https://${PREVIEW_HOST}/")
+        if [[ "${SKIP_KEYCLOAK}" != "true" ]]; then
+          targets+=("https://keycloak.${PREVIEW_HOST}/")
+        fi
+        if [[ "${SKIP_NEXTCLOUD}" != "true" ]]; then
+          targets+=("https://nextcloud.${PREVIEW_HOST}/")
+        fi
+        if [[ "${SKIP_XWIKI}" != "true" ]]; then
+          targets+=("https://xwiki.${PREVIEW_HOST}/")
+        fi
+
+        max_attempts=30
+        sleep_seconds=10
+        echo "Waiting for TLS readiness on ${#targets[@]} endpoint(s) (up to $((max_attempts * sleep_seconds))s):"
+        for t in "${targets[@]}"; do echo "  - ${t}"; done
+
+        pending_targets=("${targets[@]}")
+        declare -A last_errors=()
+        for attempt in $(seq 1 "${max_attempts}"); do
+          next_pending=()
+          for url in "${pending_targets[@]}"; do
+            set +e
+            curl_err="$(/usr/bin/curl -skS -o /dev/null --connect-timeout 10 "${url}" 2>&1)"
+            curl_exit=$?
+            set -e
+            if [[ "${curl_exit}" -eq 0 ]]; then
+              echo "TLS ready: ${url} (attempt ${attempt}/${max_attempts})"
+            else
+              last_errors["${url}"]="curl-exit-${curl_exit}: ${curl_err}"
+              next_pending+=("${url}")
+            fi
+          done
+          pending_targets=()
+          if [[ "${#next_pending[@]}" -gt 0 ]]; then
+            pending_targets=("${next_pending[@]}")
+          fi
+          if [[ "${#pending_targets[@]}" -eq 0 ]]; then
+            echo "All TLS endpoints ready after attempt ${attempt}/${max_attempts}."
+            break
+          fi
+          echo "TLS pending on ${#pending_targets[@]} endpoint(s), attempt ${attempt}/${max_attempts}..."
+          sleep "${sleep_seconds}"
+        done
+
+        if [[ "${#pending_targets[@]}" -gt 0 ]]; then
+          echo "::error::TLS handshake failed on ${#pending_targets[@]} endpoint(s) after $((max_attempts * sleep_seconds))s: ${pending_targets[*]}"
+          summary_file="${GITHUB_STEP_SUMMARY:-}"
+          if [[ -n "${summary_file}" ]]; then
+            {
+              echo "#### TLS readiness failure"
+              echo ""
+              echo "Caddy was unable to complete TLS handshakes within $((max_attempts * sleep_seconds))s. Possible causes: Let's Encrypt rate limits on \`opf.run\` or ACME challenge failure."
+              echo ""
+              echo "| Endpoint | Last Error |"
+              echo "|---|---|"
+              for url in "${pending_targets[@]}"; do
+                echo "| \`${url}\` | \`${last_errors[${url}]:-unknown}\` |"
+              done
+              echo ""
+            } >> "${summary_file}"
+          fi
+          for url in "${pending_targets[@]}"; do
+            echo "  - ${url}: ${last_errors[${url}]:-unknown}"
+          done
+          exit 1
+        fi
+
     - name: Check OpenProject
       id: check_openproject
       shell: bash
@@ -44,6 +130,7 @@ runs:
 
     - name: Check Nextcloud
       id: check_nextcloud
+      if: inputs.skip-nextcloud != 'true'
       shell: bash
       continue-on-error: true
       env:
@@ -54,6 +141,7 @@ runs:
 
     - name: Check Keycloak
       id: check_keycloak
+      if: inputs.skip-keycloak != 'true'
       shell: bash
       continue-on-error: true
       env:
@@ -94,9 +182,17 @@ runs:
         CHECK_XW: ${{ steps.check_xwiki.outcome }}
         CHECK_XW_META: ${{ steps.check_xwiki_metadata.outcome }}
         SKIP_XWIKI: ${{ inputs.skip-xwiki }}
+        SKIP_NEXTCLOUD: ${{ inputs.skip-nextcloud }}
+        SKIP_KEYCLOAK: ${{ inputs.skip-keycloak }}
       run: |
         set -euo pipefail
-        entries=("OpenProject:${CHECK_OP}" "Nextcloud:${CHECK_NC}" "Keycloak:${CHECK_KC}")
+        entries=("OpenProject:${CHECK_OP}")
+        if [[ "${SKIP_NEXTCLOUD}" != "true" ]]; then
+          entries+=("Nextcloud:${CHECK_NC}")
+        fi
+        if [[ "${SKIP_KEYCLOAK}" != "true" ]]; then
+          entries+=("Keycloak:${CHECK_KC}")
+        fi
         if [[ "${SKIP_XWIKI}" != "true" ]]; then
           entries+=("XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}")
         fi

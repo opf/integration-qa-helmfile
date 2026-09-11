@@ -17,6 +17,7 @@ on:
         options:
           - e2e
           - setup
+          - mcpeval
           - pr
           - scheduled
           - all
@@ -128,6 +129,9 @@ jobs:
               setup)
                 [[ "${label}" =~ ^setup-[0-9]+-[0-9]+$ ]]
                 ;;
+              mcpeval)
+                [[ "${label}" =~ ^mcpeval-[0-9]+-[0-9]+$ ]]
+                ;;
               pr)
                 [[ "${label}" == "pullpreview" ]]
                 ;;
@@ -137,6 +141,7 @@ jobs:
               all)
                 [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]] \
                   || [[ "${label}" =~ ^setup-[0-9]+-[0-9]+$ ]] \
+                  || [[ "${label}" =~ ^mcpeval-[0-9]+-[0-9]+$ ]] \
                   || [[ "${label}" == "pullpreview" ]] \
                   || [[ "${label}" =~ ^sched- ]]
                 ;;
@@ -285,7 +290,7 @@ jobs:
               return
             fi
 
-            if [[ ! "${label}" =~ ^(e2e|setup)-([0-9]+)-[0-9]+$ ]]; then
+            if [[ ! "${label}" =~ ^(e2e|setup|mcpeval)-([0-9]+)-[0-9]+$ ]]; then
               hetzner_created="$(extract_hetzner_created_iso "${line}")"
               if [[ -n "${hetzner_created}" ]]; then
                 launched_display="$(format_launched_display "${hetzner_created}")"

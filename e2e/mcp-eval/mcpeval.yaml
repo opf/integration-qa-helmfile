@@ -1,0 +1,37 @@
+# mcp-eval configuration for OpenProject MCP server.
+# Per-run values (LLM_*, OPENPROJECT_URL, MCP_BEARER_TOKEN) are applied by
+# tests/eval_config.py at import time — mcp-eval does not expand ${VAR} in YAML.
+provider: openai
+model: Llama-3.3-70b-instruct
+
+default_agent:
+  name: mcp_eval_agent
+  instruction: >-
+    You test the OpenProject MCP server. Use only the provided tools;
+    if no tool can do what is asked, say so plainly instead of guessing.
+  server_names: ["openproject"]
+
+judge:
+  provider: openai
+  model: Llama-3.3-70b-instruct
+  min_score: 0.7
+  max_tokens: 1000
+  system_prompt: >-
+    You are a strict but fair evaluator of MCP tool-calling agents.
+
+execution:
+  max_concurrency: 2
+  timeout_seconds: 300
+
+reporting:
+  formats: ["json", "markdown", "html"]
+  output_dir: "./reports"
+  include_traces: true
+
+mcp:
+  servers:
+    openproject:
+      transport: streamable_http
+      url: https://openproject.test/mcp/
+      headers:
+        Authorization: "Bearer changeme"

@@ -107,7 +107,13 @@ true
 {{- end -}}
 
 {{- define "opnc.renderSetupJob" -}}
-{{- if and (not .Values.openproject.standalone) (.Values.setupJob.enabled | default true) -}}
+{{- /* Integration setup is skipped in standalone; MCP (and XWiki OAuth) may still need the job. */ -}}
+{{- $mcp := .Values.mcp | default (dict "enabled" true) -}}
+{{- $setupEnabled := .Values.setupJob.enabled | default true -}}
+{{- $needsIntegration := not (.Values.openproject.standalone | default false) -}}
+{{- $needsMcp := $mcp.enabled -}}
+{{- $needsXwiki := .Values.xwiki.enabled | default false -}}
+{{- if and $setupEnabled (or $needsIntegration $needsMcp $needsXwiki) -}}
 {{- if or (eq .Values.renderScope "setupJob") (not (.Values.setupJob.defer | default false)) -}}
 true
 {{- end -}}
