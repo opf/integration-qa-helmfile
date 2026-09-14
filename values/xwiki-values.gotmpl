@@ -2,6 +2,18 @@ fullnameOverride: xwiki
 image:
   tag: {{ .Values.xwiki.version | default "latest" | quote }}
 probes:
+  startup:
+    enabled: false
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - "test -f /xwiki-ready"
+    initialDelaySeconds: 300
+    timeoutSeconds: 10
+    periodSeconds: 30
+    failureThreshold: 120
+    successThreshold: 1
   liveness:
     enabled: false
   readiness:
@@ -43,3 +55,11 @@ extraVolumeMounts:
     subPath: entrypoint.sh
 mysql:
   enabled: true
+  primary:
+    startupProbe:
+      enabled: true
+      initialDelaySeconds: 30
+      timeoutSeconds: 5
+      periodSeconds: 10
+      failureThreshold: 60
+      successThreshold: 1

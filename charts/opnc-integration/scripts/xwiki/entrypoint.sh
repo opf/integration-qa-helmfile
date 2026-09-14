@@ -2,6 +2,12 @@
 
 set -uo pipefail
 
+start_time=$SECONDS
+
+READY_FILE="/xwiki-ready"
+# remove ready indicator file to ensure a clean state for readiness probe
+rm -f "$READY_FILE"
+
 BASE_URL="http://localhost:8080"
 REST_URL="$BASE_URL/rest"
 WEBAPPS_DIR=/usr/local/tomcat/webapps/ROOT/WEB-INF
@@ -89,6 +95,15 @@ wait_for_url "$REST_URL/wikis/xwiki/spaces" "XWiki REST API"
 
 echo "[INFO] Waiting for XWiki wiki initialization..."
 wait_for_url "$BASE_URL/bin/view/Main/" "XWiki main wiki"
+
+ready_time=$SECONDS
+echo ""
+echo "[INFO] XWiki is ready. Total time: $((ready_time - start_time)) seconds."
+echo ""
+
+# To let k8s know that the wiki is ready,
+# we create a file that is checked by the readiness probe
+touch "$READY_FILE"
 
 ADMIN_PASS=$(sed -n 's/^xwiki.superadminpassword=//p' $WEBAPPS_DIR/xwiki.cfg)
 SUPER_ADMIN_AUTH="superadmin:$ADMIN_PASS"
@@ -275,8 +290,7 @@ function setup_openproject_connection() {
 echo "############################################"
 echo "# Install OpenProject Extensions           #"
 echo "############################################"
-install_extension "com.xwiki.licensing:application-licensing-test-api" "1.32.2" "licensing-api" "wiki:xwiki"
-install_extension "com.xwiki.projectmanagement:project-management-openproject-api" "$EXTENSION_OPENPROJECT_VERSION" "openproject-api" ""
+install_extension "com.xwiki.licensing:application-licensing-test-api" "1.32.3" "licensing-api" "wiki:xwiki"
 install_extension "com.xwiki.projectmanagement:project-management-openproject-ui" "$EXTENSION_OPENPROJECT_VERSION" "openproject-ui" "wiki:xwiki"
 
 echo "############################################"

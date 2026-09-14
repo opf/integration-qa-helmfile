@@ -147,7 +147,7 @@ persistence:
 xwiki:
   enabled: true
   host: xwiki.test
-  version: '17.10.10'
+  version: '18.4.5'
   extensions:
     openproject:
       version: '1.2.0'
