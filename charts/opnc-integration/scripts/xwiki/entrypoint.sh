@@ -4,6 +4,7 @@ set -uo pipefail
 
 start_time=$SECONDS
 
+XWIKI_LOG_FILE="/xwiki-install.log"
 READY_FILE="/xwiki-ready"
 # remove ready indicator file to ensure a clean state for readiness probe
 rm -f "$READY_FILE"
@@ -34,6 +35,53 @@ if [ -z "$EXTENSION_OPENPROJECT_VERSION" ]; then
     EXTENSION_OPENPROJECT_VERSION="1.2.0"
 fi
 
+wait_xwiki_installation() {
+    local install_job_started=""
+    local installing_doc=""
+    local install_complete=""
+    local job_init_timeout=600  # 10 minutes timeout for XWiki job initialization
+    local s_time=$SECONDS
+    local sleep_time=30
+
+    while true; do
+        if [ -z "$install_job_started" ]; then
+            install_job_started=$(grep "Starting job of type \[install\]" "$XWIKI_LOG_FILE")
+        fi
+        if [ -z "$installing_doc" ]; then
+            installing_doc=$(grep "Installing document" "$XWIKI_LOG_FILE")
+        fi
+        install_complete=$(grep "Finished job of type \[install\]" "$XWIKI_LOG_FILE")
+
+        if [ -n "$install_complete" ]; then
+            echo "[INFO] XWiki installation completed."
+            return 0
+        fi
+
+        elapsed_time=$((SECONDS - s_time))
+        # gradually reduce sleep time as the elapsed time increases
+        # to check more frequently during the end of the installation process.
+        if [ $elapsed_time -gt 600 ]; then # after 10 minutes
+            sleep_time=20
+        elif [ $elapsed_time -gt 1200 ]; then # after 20 minutes
+            sleep_time=15
+        elif [ $elapsed_time -gt 1500 ]; then # after 25 minutes
+            sleep_time=10
+        elif [ $elapsed_time -gt 1800 ]; then # after 30 minutes
+            sleep_time=5
+        fi
+
+        if [ -n "$install_job_started" ] || [ -n "$installing_doc" ]; then
+            sleep $sleep_time
+        else
+            if [ $elapsed_time -ge $job_init_timeout ]; then
+                echo "[ERROR] XWiki install job did not start within $job_init_timeout seconds."
+                exit 1
+            fi
+            sleep $sleep_time
+        fi
+    done
+}
+
 wait_for_url() {
     local url="$1"
     local label="$2"
@@ -50,7 +98,7 @@ wait_for_url() {
     done
 
     echo "[ERROR] Timeout waiting for $label"
-    return 1
+    exit 1
 }
 
 wait_for_openproject_metadata() {
@@ -75,7 +123,9 @@ echo "############################################"
 echo "# Download XWiki Standard Flavor           #"
 echo "############################################"
 mkdir -p "$EXTENSION_REPO"
+SKIP_INSTALLATION_CHECK="no"
 if [ -n "$(find "$EXTENSION_REPO" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+    SKIP_INSTALLATION_CHECK="yes"
     echo "[INFO] Extension repository already populated; skipping flavor download."
 else
     curl -sSL "$XWIKI_DOWNLOAD_URL/platform/$FLAVOR_NAME/$XWIKI_VERSION/$FLAVOR_NAME-$XWIKI_VERSION.xip" \
@@ -88,18 +138,22 @@ fi
 echo "############################################"
 echo "# Start XWiki With Standard Flavor         #"
 echo "############################################"
-/entrypoint/start.sh &
+/entrypoint/start.sh | tee -a "$XWIKI_LOG_FILE" 2>&1 &
+
+if [ "$SKIP_INSTALLATION_CHECK" = "no" ]; then
+    wait_xwiki_installation
+
+    ready_time=$SECONDS
+    echo ""
+    echo "[INFO] XWiki is ready. Total time: $((ready_time - start_time)) seconds."
+    echo ""
+fi
 
 echo "[INFO] Waiting for XWiki REST API..."
 wait_for_url "$REST_URL/wikis/xwiki/spaces" "XWiki REST API"
 
-echo "[INFO] Waiting for XWiki wiki initialization..."
+echo "[INFO] Waiting for XWiki main wiki..."
 wait_for_url "$BASE_URL/bin/view/Main/" "XWiki main wiki"
-
-ready_time=$SECONDS
-echo ""
-echo "[INFO] XWiki is ready. Total time: $((ready_time - start_time)) seconds."
-echo ""
 
 # To let k8s know that the wiki is ready,
 # we create a file that is checked by the readiness probe
