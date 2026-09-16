@@ -45,6 +45,7 @@ spec:
     - {{ include "opnc.openprojectHost" . }}
     - {{ include "opnc.nextcloudHost" . }}
     - {{ include "opnc.keycloakHost" . }}
+    - {{ include "opnc.xwikiHost" . }}
   issuerRef:
     name: {{ include "opnc.issuerName" . }}
     kind: Issuer
