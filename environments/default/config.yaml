@@ -148,6 +148,10 @@ xwiki:
   enabled: true
   host: xwiki.test
   version: '18.4.5'
+  # OIDC client to be registered in XWiki for OpenProject
+  openproject:
+    clientId: op-client-id
+    clientSecret: op-client-secret
   extensions:
     openproject:
       version: '1.2.0'

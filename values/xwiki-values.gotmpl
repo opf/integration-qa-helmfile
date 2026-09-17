@@ -42,10 +42,14 @@ extraEnvVars:
     value: {{ .Values.xwiki.extensions.openproject.version | default "1.2.0" | quote }}
   - name: OPENPROJECT_HOST
     value: https://{{ .Values.openproject.host }}
-  - name: OPENPROJECT_CLIENT_ID
+  - name: XWIKI_OAUTH_CLIENT_ID
     value: {{ .Values.openproject.xwiki.clientId | quote }}
-  - name: OPENPROJECT_CLIENT_SECRET
+  - name: XWIKI_OAUTH_CLIENT_SECRET
     value: {{ .Values.openproject.xwiki.clientSecret | quote }}
+  - name: OPENPROJECT_OAUTH_CLIENT_ID
+    value: {{ .Values.xwiki.openproject.clientId | quote }}
+  - name: OPENPROJECT_OAUTH_CLIENT_SECRET
+    value: {{ .Values.xwiki.openproject.clientSecret | quote }}
   {{- if not (.Values.previewMode | default false) }}
   - name: CURL_CA_BUNDLE
     value: {{ .Values.ingress.caCertFileMountPath }}

@@ -64,5 +64,5 @@ environment:
 
   # xwiki provider
   {{ if .Values.xwiki.enabled }}
-  OPENPROJECT_WIKI__PROVIDERS: '[{"type":"xwiki", "name":"xwiki", "url":"https://{{ .Values.xwiki.host }}", "openproject_oauth":{"client_id":"{{ .Values.openproject.xwiki.clientId }}", "client_secret":"{{ .Values.openproject.xwiki.clientSecret }}"}, "xwiki_oauth":{ "client_id":"openproject", "client_secret":"secret" }}]'
+  OPENPROJECT_WIKI__PROVIDERS: '[{"type":"xwiki", "name":"xwiki", "url":"https://{{ .Values.xwiki.host }}", "openproject_oauth":{"client_id":"{{ .Values.openproject.xwiki.clientId }}", "client_secret":"{{ .Values.openproject.xwiki.clientSecret }}"}, "xwiki_oauth":{ "client_id":"{{ .Values.xwiki.openproject.clientId }}", "client_secret":"{{ .Values.xwiki.openproject.clientSecret }}"}}]'
   {{ end }}

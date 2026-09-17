@@ -26,8 +26,13 @@ if [ -z "$OPENPROJECT_HOST" ]; then
     exit 1
 fi
 
-if [ -z "$OPENPROJECT_CLIENT_ID" ] || [ -z "$OPENPROJECT_CLIENT_SECRET" ]; then
-    echo "[ERROR] OPENPROJECT_CLIENT_ID and OPENPROJECT_CLIENT_SECRET are not set."
+if [ -z "$XWIKI_OAUTH_CLIENT_ID" ] || [ -z "$XWIKI_OAUTH_CLIENT_SECRET" ]; then
+    echo "[ERROR] XWIKI_OAUTH_CLIENT_ID or XWIKI_OAUTH_CLIENT_SECRET is not set."
+    exit 1
+fi
+
+if [ -z "$OPENPROJECT_OAUTH_CLIENT_ID" ] || [ -z "$OPENPROJECT_OAUTH_CLIENT_SECRET" ]; then
+    echo "[ERROR] OPENPROJECT_OAUTH_CLIENT_ID or OPENPROJECT_OAUTH_CLIENT_SECRET is not set."
     exit 1
 fi
 
@@ -344,8 +349,8 @@ function setup_openproject_connection() {
             -d "{
                 \"connectionName\": \"openproject\",
                 \"serverURL\": \"$OPENPROJECT_HOST\",
-                \"clientId\": \"$OPENPROJECT_CLIENT_ID\",
-                \"clientSecret\": \"$OPENPROJECT_CLIENT_SECRET\"
+                \"clientId\": \"$XWIKI_OAUTH_CLIENT_ID\",
+                \"clientSecret\": \"$XWIKI_OAUTH_CLIENT_SECRET\"
             }" \
             -u "$SUPER_ADMIN_AUTH" -w "%{http_code}" -o /dev/null)
 
@@ -360,6 +365,44 @@ function setup_openproject_connection() {
     done
 
     echo "[ERROR] Giving up on OpenProject connection setup."
+    return 1
+}
+
+function add_openproject_oidc_client() {
+    local attempt=1
+
+    while [ "$attempt" -le "$RETRY_MAX_ATTEMPTS" ]; do
+        local client_status
+
+        FORM_TOKEN=$(get_form_token) || FORM_TOKEN=""
+        if [ -z "$FORM_TOKEN" ]; then
+            echo "[INFO] Form token unavailable. Retrying ($attempt/$RETRY_MAX_ATTEMPTS)."
+            sleep "$RETRY_SLEEP_SECONDS"
+            attempt=$((attempt + 1))
+            continue
+        fi
+
+        client_status=$(curl -sS -XPOST "$REST_URL/wikis/xwiki/spaces/XWiki/spaces/OIDC/spaces/Provider/pages/Clients/objects" \
+            -H "XWiki-Form-Token: $FORM_TOKEN" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "className=XWiki.OIDC.Provider.ClientClass" \
+            -d "property#id=$OPENPROJECT_OAUTH_CLIENT_ID" \
+            -d "property#secret=$OPENPROJECT_OAUTH_CLIENT_SECRET" \
+            -d "property#redirectURIs=$OPENPROJECT_HOST/oauth_clients/openproject-$OPENPROJECT_OAUTH_CLIENT_ID/callback" \
+            -d "property#enabled=1" \
+            -u "$SUPER_ADMIN_AUTH" -w "%{http_code}" -o /dev/null)
+
+        if [ "$client_status" -eq 201 ] || [ "$client_status" -eq 409 ]; then
+            echo "[INFO] OIDC client registered successfully."
+            return 0
+        fi
+
+        echo "[WARN] Failed to register OIDC client. Code: $client_status (attempt $attempt/$RETRY_MAX_ATTEMPTS)"
+        sleep "$RETRY_SLEEP_SECONDS"
+        attempt=$((attempt + 1))
+    done
+
+    echo "[ERROR] Giving up on OIDC client registration."
     return 1
 }
 
@@ -378,6 +421,8 @@ echo "############################################"
 echo "# Setup OpenProject Connection             #"
 echo "############################################"
 setup_openproject_connection || true
+
+add_openproject_oidc_client || true
 
 # Keep Tomcat in the foreground even when setup steps are still retrying or failed.
 wait
