@@ -17,7 +17,7 @@ EXTENSION_REPO="/usr/local/xwiki/data/extension/repository"
 FLAVOR_NAME="xwiki-platform-distribution-flavor-xip"
 XWIKI_DOWNLOAD_URL="https://nexus.xwiki.org/nexus/content/repositories/releases/org/xwiki"
 
-WIKI_INIT_MAX_ATTEMPTS=120
+RETRY_API_CHECK_MAX_ATTEMPTS=10
 RETRY_MAX_ATTEMPTS=60
 RETRY_SLEEP_SECONDS=5
 
@@ -39,6 +39,7 @@ wait_xwiki_installation() {
     local install_job_started=""
     local installing_doc=""
     local install_complete=""
+    local ext_install_error=""
     local job_init_timeout=600  # 10 minutes timeout for XWiki job initialization
     local s_time=$SECONDS
     local sleep_time=30
@@ -51,7 +52,12 @@ wait_xwiki_installation() {
             installing_doc=$(grep "Installing document" "$XWIKI_LOG_FILE")
         fi
         install_complete=$(grep "Finished job of type \[install\]" "$XWIKI_LOG_FILE")
+        ext_install_error=$(grep "Failed to send Active Installation ping" "$XWIKI_LOG_FILE")
 
+        if [ -n "$install_complete" ] && [ -n "$ext_install_error" ]; then
+            echo "[INFO] XWiki installation failed with errors."
+            exit 1
+        fi
         if [ -n "$install_complete" ]; then
             echo "[INFO] XWiki installation completed."
             return 0
@@ -87,12 +93,12 @@ wait_for_url() {
     local label="$2"
     local attempt=1
 
-    while [ "$attempt" -le "$WIKI_INIT_MAX_ATTEMPTS" ]; do
+    while [ "$attempt" -le "$RETRY_API_CHECK_MAX_ATTEMPTS" ]; do
         if curl -sf "$url" >/dev/null 2>&1; then
             echo "[INFO] $label is ready."
             return 0
         fi
-        echo "[INFO] Waiting for $label... ($attempt/$WIKI_INIT_MAX_ATTEMPTS)"
+        echo "[INFO] Waiting for $label... ($attempt/$RETRY_API_CHECK_MAX_ATTEMPTS)"
         sleep "$RETRY_SLEEP_SECONDS"
         attempt=$((attempt + 1))
     done
@@ -105,12 +111,12 @@ wait_for_openproject_metadata() {
     local url="$REST_URL/openproject/metadata"
     local attempt=1
 
-    while [ "$attempt" -le "$WIKI_INIT_MAX_ATTEMPTS" ]; do
+    while [ "$attempt" -le "$RETRY_API_CHECK_MAX_ATTEMPTS" ]; do
         if curl -sf "$url" | grep -q '"instanceId"'; then
             echo "[INFO] OpenProject metadata endpoint is ready."
             return 0
         fi
-        echo "[INFO] Waiting for OpenProject metadata endpoint... ($attempt/$WIKI_INIT_MAX_ATTEMPTS)"
+        echo "[INFO] Waiting for OpenProject metadata endpoint... ($attempt/$RETRY_API_CHECK_MAX_ATTEMPTS)"
         sleep "$RETRY_SLEEP_SECONDS"
         attempt=$((attempt + 1))
     done
@@ -135,6 +141,22 @@ else
     echo "[INFO] Standard flavor downloaded to $EXTENSION_REPO"
 fi
 
+if [ -n "$CURL_CA_BUNDLE" ]; then
+    echo ""
+    echo "############################################"
+    echo "# Import CA Certificate to Java Keystore   #"
+    echo "############################################"
+    keytool \
+        --importcert \
+        -noprompt \
+        -trustcacerts \
+        -alias ingress-ca \
+        -file /certs/ca.crt \
+        -cacerts \
+        -storepass changeit
+fi
+
+echo ""
 echo "############################################"
 echo "# Start XWiki With Standard Flavor         #"
 echo "############################################"
