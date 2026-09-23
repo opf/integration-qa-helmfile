@@ -80,7 +80,7 @@ cases:
     category: tool_selection
     tool: search_users
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2206
 
   - id: TS-13
     title: 'Tool select: search_versions'
@@ -88,7 +88,7 @@ cases:
     category: tool_selection
     tool: search_versions
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2207
 
   - id: TS-14
     title: 'Tool select: search_portfolios'
@@ -96,7 +96,7 @@ cases:
     category: tool_selection
     tool: search_portfolios
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2208
 
   - id: TS-15
     title: 'Tool select: search_programs'
@@ -104,7 +104,7 @@ cases:
     category: tool_selection
     tool: search_programs
     active: true
-    squash_test_case_id: null
+    squash_test_case_id: 2209
 
   - id: TS-16
     title: 'Tool select: search_custom_fields'
@@ -112,7 +112,7 @@ cases:
     category: tool_selection
     tool: search_custom_fields
     active: false
-    squash_test_case_id: null
+    squash_test_case_id: 2210
 
   - id: TS-18
     title: 'Tool select: create_work_package'
