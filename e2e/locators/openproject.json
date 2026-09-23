@@ -248,7 +248,7 @@
     },
     "projectActionsCopyItem": {
       "by": "locator",
-      "value": "span.ActionListItem-label:has-text('Copy')"
+      "value": "span.ActionListItem-label:has-text('Duplicate')"
     },
     "copyProjectNameInput": {
       "by": "locator",
