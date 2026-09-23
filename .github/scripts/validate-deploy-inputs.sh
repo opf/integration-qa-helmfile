@@ -169,14 +169,23 @@ effective_xwiki_ver="${IN_XWIKI_VER:-17.10.10}"
 effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0}"
 
 check_branch_exists "openproject_branch" "https://github.com/opf/openproject.git" "${IN_OP_BRANCH:-}"
-check_branch_exists "nextcloud_branch" "https://github.com/nextcloud/server.git" "${IN_NC_BRANCH:-}"
-check_branch_exists "integration_openproject_branch" "https://github.com/nextcloud/integration_openproject.git" "${IN_IO_BRANCH:-}"
+if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
+  check_branch_exists "nextcloud_branch" "https://github.com/nextcloud/server.git" "${IN_NC_BRANCH:-}"
+  check_branch_exists "integration_openproject_branch" "https://github.com/nextcloud/integration_openproject.git" "${IN_IO_BRANCH:-}"
+fi
 check_image_exists "openproject_version" "docker.io/openproject/openproject:${effective_op_ver}"
-check_image_exists "nextcloud_version" "docker.io/library/nextcloud:${effective_nc_ver}"
+if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
+  check_image_exists "nextcloud_version" "docker.io/library/nextcloud:${effective_nc_ver}"
+fi
 if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
   check_image_exists "xwiki_version" "docker.io/library/xwiki:${effective_xwiki_ver}"
 fi
-resolve_integration_openproject_source
+if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
+  resolve_integration_openproject_source
+else
+  effective_io_ver="${IN_IO_VER:-}"
+  effective_io_branch="${IN_IO_BRANCH:-}"
+fi
 
 {
   echo "openproject_version=${effective_op_ver}"
@@ -213,11 +222,13 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     if [[ -n "${IN_OP_BRANCH:-}" ]]; then
       echo "| OpenProject branch | \`${IN_OP_BRANCH}\` | \`${IN_OP_BRANCH}\` |"
     fi
-    echo "| Nextcloud | \`${nc_requested}\` | \`${effective_nc_ver}\` |"
-    if [[ -n "${IN_NC_BRANCH:-}" ]]; then
-      echo "| Nextcloud branch | \`${IN_NC_BRANCH}\` | \`${IN_NC_BRANCH}\` |"
+    if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
+      echo "| Nextcloud | \`${nc_requested}\` | \`${effective_nc_ver}\` |"
+      if [[ -n "${IN_NC_BRANCH:-}" ]]; then
+        echo "| Nextcloud branch | \`${IN_NC_BRANCH}\` | \`${IN_NC_BRANCH}\` |"
+      fi
+      echo "| integration_openproject | \`${requested_io}\` | \`${resolved_io}\` |"
     fi
-    echo "| integration_openproject | \`${requested_io}\` | \`${resolved_io}\` |"
     if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
       echo "| XWiki | \`${xw_requested}\` | \`${effective_xwiki_ver}\` |"
       echo "| XWiki OP extension | \`${xw_ext_requested}\` | \`${effective_xwiki_ext}\` |"

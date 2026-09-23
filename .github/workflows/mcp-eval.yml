@@ -86,6 +86,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      - name: Validate and resolve deploy inputs
+        id: validate
+        env:
+          IN_OP_VER: ${{ github.event.inputs.openproject_version }}
+          IN_XWIKI_ENABLED: "false"
+          IN_NEXTCLOUD_ENABLED: "false"
+        run: .github/scripts/validate-deploy-inputs.sh
+
       - name: Resolve enterprise token
         id: enterprise_token
         env:
@@ -224,6 +232,8 @@ jobs:
         uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: e2e/mcp-eval/pyproject.toml
 
       - name: Resolve LLM provider
         id: llm
@@ -283,6 +293,7 @@ jobs:
           python3 scripts/expectations.test.py
           mkdir -p reports
           mcp-eval run tests/ --json reports/results.json --html reports/report.html
+          [[ -f reports/results.json ]] || { echo "::error::mcp-eval produced no results.json (no tests discovered?)"; exit 1; }
 
       - name: Record run metadata
         id: record
