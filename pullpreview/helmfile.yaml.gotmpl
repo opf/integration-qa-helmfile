@@ -53,7 +53,7 @@ releases:
     chart: bitnami/keycloak
     version: ~24.7.5
     timeout: 900
-    installed: {{ not .Values.openproject.standalone }}
+    installed: {{ .Values.keycloak.enabled }}
     values:
       - ../values/kc-values.gotmpl
     needs:
@@ -79,7 +79,9 @@ releases:
       - ../values/nc-values.gotmpl
     needs:
       - opnc-integration
+      {{- if .Values.keycloak.enabled }}
       - keycloak
+      {{- end }}
       {{- if ne (.Values.nextcloud.gitSourceBranch | default "") "" }}
       - nextcloud-pvc
       {{- end }}
@@ -93,8 +95,12 @@ releases:
       - ../values/opnc-setup-job.gotmpl
     needs:
       - openproject
+      {{- if .Values.keycloak.enabled }}
       - keycloak
+      {{- end }}
+      {{- if not .Values.openproject.standalone }}
       - nextcloud
+      {{- end }}
 
   - name: xwiki
     chart: xwiki-helm/xwiki

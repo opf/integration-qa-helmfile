@@ -30,8 +30,12 @@ if [[ -n "${preview_url}" ]]; then
   preview_host="$("$(dirname "${BASH_SOURCE[0]}")/preview-parse-host.sh")"
   {
     echo "- OpenProject: ${preview_url}"
-    echo "- Nextcloud: https://nextcloud.${preview_host}"
-    echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
+    if [[ "${SKIP_NEXTCLOUD:-false}" != "true" ]]; then
+      echo "- Nextcloud: https://nextcloud.${preview_host}"
+    fi
+    if [[ "${SKIP_KEYCLOAK:-false}" != "true" ]]; then
+      echo "- Keycloak: https://keycloak.${preview_host}/realms/opnc"
+    fi
     if [[ "${SKIP_XWIKI:-false}" != "true" ]]; then
       echo "- XWiki: https://xwiki.${preview_host}"
     fi

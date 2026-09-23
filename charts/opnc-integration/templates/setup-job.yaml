@@ -1,10 +1,14 @@
 {{- if include "opnc.renderSetupJob" . }}
+{{- $mcp := .Values.mcp | default (dict "enabled" true "oauthToken" "bob_ai_mcp_test_token_1234567890") }}
+{{- $standalone := .Values.openproject.standalone | default false }}
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: setup-job
 spec:
-  backoffLimit: 10
+  backoffLimit: {{ .Values.setupJob.backoffLimit | default 2 }}
+  activeDeadlineSeconds: {{ .Values.setupJob.activeDeadlineSeconds | default 780 }}
+  {{- if not $standalone }}
   podFailurePolicy:
     rules:
       # Exit code 42 marks a deterministic, non-retryable setup failure
@@ -14,11 +18,38 @@ spec:
           containerName: setup-integration
           operator: In
           values: [42]
+  {{- end }}
   template:
     spec:
       restartPolicy: Never
-      {{- if .Values.xwiki.enabled }}
       initContainers:
+      {{- if $mcp.enabled }}
+        - name: mcp-setup
+          image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - bundle
+            - exec
+            - rails
+            - runner
+            - /scripts/setup-mcp.rb
+          env:
+            - name: RAILS_ENV
+              value: "production"
+            - name: DATABASE_URL
+              value: {{ required "environment.DATABASE_URL is required for MCP setup" .Values.environment.DATABASE_URL | quote }}
+            - name: DATABASE_HOST
+              value: {{ .Values.environment.DATABASE_HOST | quote }}
+            - name: OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK
+              value: "true"
+            - name: MCP_OAUTH_TOKEN
+              value: {{ ($mcp.oauthToken | default "bob_ai_mcp_test_token_1234567890") | quote }}
+          volumeMounts:
+            - name: setup-script
+              mountPath: /scripts/setup-mcp.rb
+              subPath: setup-mcp.rb
+      {{- end }}
+      {{- if .Values.xwiki.enabled }}
         - name: xwiki-oauth-setup
           image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
           imagePullPolicy: IfNotPresent
@@ -50,6 +81,7 @@ spec:
               subPath: setup-xwiki-oauth.rb
       {{- end }}
       containers:
+      {{- if not $standalone }}
         - name: setup-integration
           image: ddev/ddev-utilities
           command: ['/scripts/setup-integration.sh']
@@ -84,11 +116,19 @@ spec:
               mountPath: /scripts/setup-integration.sh
               subPath: setup-integration.sh
             {{- include "opnc.volumes.extraVolumeMounts" . | indent 12 }}
+      {{- else }}
+        # Jobs require a main container; initContainers (mcp-setup) do the real work in standalone.
+        - name: setup-complete
+          image: ddev/ddev-utilities
+          command: ['true']
+      {{- end }}
 
       volumes:
         - name: setup-script
           configMap:
             name: opnc-setup-configmap
             defaultMode: 0755
+        {{- if not $standalone }}
         {{- include "opnc.volumes.extraVolumes" . | indent 8 }}
+        {{- end }}
 {{- end }}
