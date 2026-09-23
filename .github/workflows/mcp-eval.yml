@@ -329,6 +329,9 @@ jobs:
           pip install -e .
           python3 scripts/expectations.test.py
           mkdir -p reports
+          # Sibling imports (eval_config, expectations, seed_data) are loaded by
+          # importlib from tests/*.py, which does not add that directory itself.
+          export PYTHONPATH="${PWD}/tests${PYTHONPATH:+:${PYTHONPATH}}"
           mcp-eval run tests/ --json reports/results.json --html reports/report.html
           [[ -f reports/results.json ]] || { echo "::error::mcp-eval produced no results.json (no tests discovered?)"; exit 1; }
 

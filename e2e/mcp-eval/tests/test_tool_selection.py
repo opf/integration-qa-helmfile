@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+# mcp-eval loads this file by path and does not add tests/ to sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from mcp_eval import task, Expect
 from eval_config import configure
 from expectations import (
