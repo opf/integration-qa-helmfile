@@ -2,7 +2,7 @@
 # Per-run values (LLM_*, OPENPROJECT_URL, MCP_BEARER_TOKEN) are applied by
 # tests/eval_config.py at import time — mcp-eval does not expand ${VAR} in YAML.
 provider: openai
-model: Llama-3.3-70b-instruct
+model: qwen3.6-35b-a3b
 
 default_agent:
   name: mcp_eval_agent
@@ -13,7 +13,7 @@ default_agent:
 
 judge:
   provider: openai
-  model: Llama-3.3-70b-instruct
+  model: qwen3.6-35b-a3b
   min_score: 0.7
   max_tokens: 1000
   system_prompt: >-

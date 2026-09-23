@@ -30,15 +30,17 @@ on:
           - llm-stack
           - openrouter
       llm_model:
-        description: "Model. Suffix must match llm_provider. Cheap choices first, then strong. OpenRouter ids are from its public catalog (tool-capable)."
+        description: "Model. Suffix must match llm_provider. llm-stack choices are the Scaleway gateway names only."
         required: true
-        default: llama-3.3-70b-llmstack
+        default: qwen3.6-35b-a3b-llmstack
         type: choice
         options:
-          - qwen-2.5-7b-llmstack
-          - llama-3.1-8b-llmstack
-          - llama-3.3-70b-llmstack
-          - deepseek-v3-llmstack
+          - qwen3.6-35b-a3b-llmstack
+          - gemma-4-26b-a4b-it-llmstack
+          - glm-5.2-llmstack
+          - deepseek-v4-flash-0731-llmstack
+          - qwen3.5-397b-a17b-llmstack
+          - mistral-medium-3.5-128b-llmstack
           - deepseek-v4-flash-openrouter
           - gemini-2.5-flash-lite-openrouter
           - gpt-4o-mini-openrouter
@@ -57,10 +59,12 @@ on:
         type: choice
         options:
           - same-as-agent
-          - qwen-2.5-7b-llmstack
-          - llama-3.1-8b-llmstack
-          - llama-3.3-70b-llmstack
-          - deepseek-v3-llmstack
+          - qwen3.6-35b-a3b-llmstack
+          - gemma-4-26b-a4b-it-llmstack
+          - glm-5.2-llmstack
+          - deepseek-v4-flash-0731-llmstack
+          - qwen3.5-397b-a17b-llmstack
+          - mistral-medium-3.5-128b-llmstack
           - deepseek-v4-flash-openrouter
           - gemini-2.5-flash-lite-openrouter
           - gpt-4o-mini-openrouter

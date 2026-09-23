@@ -120,10 +120,12 @@ CI (`mcp-eval.yml`) accepts optional `squash_iteration_id` / `squash_sync_test_p
 
 | Choice | Tier | API model id |
 |--------|------|----------------|
-| `qwen-2.5-7b-llmstack` | cheap | `Qwen/Qwen2.5-7B-Instruct` |
-| `llama-3.1-8b-llmstack` | cheap | `Llama-3.1-8B-Instruct` |
-| `llama-3.3-70b-llmstack` | strong | `Llama-3.3-70b-instruct` |
-| `deepseek-v3-llmstack` | strong | `deepseek-v3` |
+| `qwen3.6-35b-a3b-llmstack` | llm-stack | `qwen3.6-35b-a3b` |
+| `gemma-4-26b-a4b-it-llmstack` | llm-stack | `gemma-4-26b-a4b-it` |
+| `glm-5.2-llmstack` | llm-stack | `glm-5.2` |
+| `deepseek-v4-flash-0731-llmstack` | llm-stack | `deepseek-v4-flash-0731` |
+| `qwen3.5-397b-a17b-llmstack` | llm-stack | `qwen3.5-397b-a17b` |
+| `mistral-medium-3.5-128b-llmstack` | llm-stack | `mistral-medium-3.5-128b` |
 | `deepseek-v4-flash-openrouter` | cheap | `deepseek/deepseek-v4-flash` |
 | `gemini-2.5-flash-lite-openrouter` | cheap | `google/gemini-2.5-flash-lite` |
 | `gpt-4o-mini-openrouter` | cheap | `openai/gpt-4o-mini` |
@@ -159,7 +161,7 @@ GitHub Actions cannot load OpenRouter’s full model catalog into the dropdown a
 | `LLM_PROVIDER` | `llm-stack` or `openrouter` | `llm-stack` |
 | `LLM_API_KEY` | Generic OpenAI-compatible API key for mcp-eval | none |
 | `LLM_BASE_URL` | OpenAI-compatible base URL override | provider default |
-| `LLM_MODEL` | Model id (`provider-default`, OpenRouter-style id, or legacy `Llama-3.3-70b-instruct`) | provider default |
+| `LLM_MODEL` | Model id (`provider-default`, a `*-llmstack` / `*-openrouter` choice, or a raw OpenRouter id) | provider default |
 | `LLM_JUDGE_MODEL` | Judge model (`same-as-agent`, or id on the same base URL as the agent) | `same-as-agent` (agent model) |
 | `LLM_STACK_API_KEY` | llm-stack key (used when `LLM_PROVIDER=llm-stack`) | none |
 | `LLM_STACK_URL` | llm-stack base URL | `https://llm-stack.openproject-edge.eu/v1` |

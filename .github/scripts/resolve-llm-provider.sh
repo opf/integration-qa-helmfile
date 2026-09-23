@@ -34,7 +34,7 @@ requested_model="${LLM_MODEL:-}"
 case "${provider}" in
   llm-stack)
     default_url="https://llm-stack.openproject-edge.eu/v1"
-    default_model="Llama-3.3-70b-instruct"
+    default_model="qwen3.6-35b-a3b"
     api_key="${LLM_API_KEY:-${LLM_STACK_API_KEY:-}}"
     ;;
   openrouter)
@@ -87,15 +87,16 @@ resolve_model() {
     return
   fi
 
-  # ponytail: llm-stack ids are the gateway's /v1/models names. The four slugs
-  # are the dropdown; fix the right-hand side when the gateway catalog changes.
+  # Scaleway models on llm-stack. The API id is the gateway name; anything else is rejected.
   case "${provider}:${slug}" in
-    llm-stack:qwen-2.5-7b) echo "Qwen/Qwen2.5-7B-Instruct" ;;
-    llm-stack:llama-3.1-8b) echo "Llama-3.1-8B-Instruct" ;;
-    llm-stack:llama-3.3-70b|llm-stack:Llama-3.3-70b-instruct|llm-stack:meta-llama/llama-3.3-70b-instruct)
-      echo "Llama-3.3-70b-instruct"
+    llm-stack:qwen3.6-35b-a3b|\
+    llm-stack:gemma-4-26b-a4b-it|\
+    llm-stack:glm-5.2|\
+    llm-stack:deepseek-v4-flash-0731|\
+    llm-stack:qwen3.5-397b-a17b|\
+    llm-stack:mistral-medium-3.5-128b)
+      echo "${slug}"
       ;;
-    llm-stack:deepseek-v3) echo "deepseek-v3" ;;
     openrouter:deepseek-v4-flash|openrouter:deepseek/deepseek-v4-flash) echo "deepseek/deepseek-v4-flash" ;;
     openrouter:gemini-2.5-flash-lite|openrouter:google/gemini-2.5-flash-lite) echo "google/gemini-2.5-flash-lite" ;;
     openrouter:gpt-4o-mini|openrouter:openai/gpt-4o-mini) echo "openai/gpt-4o-mini" ;;
@@ -114,7 +115,7 @@ resolve_model() {
       echo "${slug}"
       ;;
     *)
-      echo "::error::Unknown llm-stack model '${req}'. Choices: qwen-2.5-7b-llmstack, llama-3.1-8b-llmstack, llama-3.3-70b-llmstack, deepseek-v3-llmstack." >&2
+      echo "::error::Unknown llm-stack model '${req}'. Choices: qwen3.6-35b-a3b-llmstack, gemma-4-26b-a4b-it-llmstack, glm-5.2-llmstack, deepseek-v4-flash-0731-llmstack, qwen3.5-397b-a17b-llmstack, mistral-medium-3.5-128b-llmstack." >&2
       exit 1
       ;;
   esac

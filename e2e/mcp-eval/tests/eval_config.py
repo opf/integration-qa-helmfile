@@ -31,7 +31,7 @@ def configure() -> None:
     base_url = (
         os.environ.get("LLM_BASE_URL") or "https://llm-stack.openproject-edge.eu/v1"
     ).strip()
-    model = (os.environ.get("LLM_MODEL") or "Llama-3.3-70b-instruct").strip()
+    model = (os.environ.get("LLM_MODEL") or "qwen3.6-35b-a3b").strip()
     judge_raw = (os.environ.get("LLM_JUDGE_MODEL") or "").strip()
     if not judge_raw or judge_raw in {"same-as-agent", "provider-default"}:
         judge_model = model
