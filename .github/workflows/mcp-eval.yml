@@ -94,6 +94,15 @@ jobs:
           IN_NEXTCLOUD_ENABLED: "false"
         run: .github/scripts/validate-deploy-inputs.sh
 
+      - name: Check LLM credentials
+        env:
+          LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
+          LLM_MODEL: ${{ github.event.inputs.llm_model }}
+          LLM_STACK_API_KEY: ${{ secrets.LLM_STACK_API_KEY }}
+          LLM_STACK_URL: ${{ vars.LLM_STACK_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: .github/scripts/check-llm-credentials.sh
+
       - name: Resolve enterprise token
         id: enterprise_token
         env:
