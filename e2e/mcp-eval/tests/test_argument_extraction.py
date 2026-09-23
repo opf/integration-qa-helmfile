@@ -5,10 +5,7 @@ from expectations import (
     assert_quality,
     rubric_argument_extraction,
 )
-from seed_data import (
-    MCP_USER,
-    supported_case,
-)
+from seed_data import MCP_USER
 
 configure()
 
@@ -63,37 +60,9 @@ ARGUMENT_CASES = [
         # demo-project is seeded
         "result_must_contain": ["Demo project", "demo-project"],
     },
-    {
-        "id": "AE-06",
-        "prompt": (
-            "Add a comment 'Argument extraction test' to work package "
-            "'Organize open source conference'"
-        ),
-        "tool": "create_work_package_comment",
-        "expected_args": {},  # WP ID resolved dynamically from name
-        "result_must_contain": ["comment"],
-    },
-    {
-        "id": "AE-07",
-        "prompt": (
-            "Create a 'blocks' relation from 'Contact sponsoring partners' "
-            "to 'Invite attendees to conference'"
-        ),
-        "tool": "create_work_package_relation",
-        "expected_args": {},  # WP IDs resolved dynamically
-        "result_must_contain": ["blocks"],
-    },
-    {
-        "id": "AE-08",
-        "prompt": "List relations for the work package 'Setup conference website'",
-        "tool": "list_work_package_relations",
-        "expected_args": {},  # WP ID resolved dynamically
-        # This WP has a seeded "follows" relation
-        "result_must_contain": ["follows"],
-    },
 ]
 
-for case in filter(supported_case, ARGUMENT_CASES):
+for case in ARGUMENT_CASES:
     @task(f"[{case['id']}] LLM extracts args for '{case['tool']}' from: \"{case['prompt']}\"")
     async def test_argument_extraction(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])

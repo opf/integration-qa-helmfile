@@ -5,8 +5,6 @@ from expectations import (
     assert_quality,
     rubric_multi_step,
 )
-from seed_data import supported_case
-
 configure()
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -30,26 +28,6 @@ MULTI_STEP_CASES = [
         "result_must_contain": ["conference"],
     },
     {
-        "id": "MS-02",
-        "prompt": (
-            "Create a task called 'Multi-step eval task' "
-            "in the Demo project, then add a comment "
-            "'Created via multi-step eval'"
-        ),
-        "tools": ["create_work_package", "create_work_package_comment"],
-        "result_must_contain": ["Multi-step eval task"],
-    },
-    {
-        "id": "MS-03",
-        "prompt": (
-            "Find the work package 'Setup conference website' in the Demo project, "
-            "then show its relations"
-        ),
-        "tools": ["search_work_packages", "list_work_package_relations"],
-        # Seeded relation: "Setup conference website" follows "Set date and location"
-        "result_must_contain": ["follows"],
-    },
-    {
         "id": "MS-04",
         "prompt": (
             "Look up all Bug types, then find bugs in the Scrum project"
@@ -60,7 +38,7 @@ MULTI_STEP_CASES = [
     },
 ]
 
-for case in filter(supported_case, MULTI_STEP_CASES):
+for case in MULTI_STEP_CASES:
     @task(f"[{case['id']}] Multi-step chain: {', '.join(case['tools'])}")
     async def test_multi_step(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])

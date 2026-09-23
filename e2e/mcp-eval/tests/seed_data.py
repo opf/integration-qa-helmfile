@@ -15,26 +15,6 @@ MCP_USER = {
     "admin": True,
 }
 
-SUPPORTED_TOOLS = {
-    "current_user",
-    "list_statuses",
-    "list_types",
-    "search_portfolios",
-    "search_programs",
-    "search_projects",
-    "search_users",
-    "search_versions",
-    "search_work_packages",
-}
-
-
-def supported_case(case):
-    if "tool" in case:
-        return case["tool"] in SUPPORTED_TOOLS
-    if "tools" in case:
-        return all(t in SUPPORTED_TOOLS for t in case["tools"])
-    return True
-
 # --- Projects ---
 DEMO_PROJECT = {
     "name": "Demo project",

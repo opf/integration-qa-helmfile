@@ -1,6 +1,5 @@
 # Map mcp-eval local case IDs to Squash TM numeric test case IDs.
 # Fill squash_test_case_id after creating matching Squash TM cases.
-# active=false means the case is defined but filtered by SUPPORTED_TOOLS today.
 cases:
   - id: TS-01
     title: 'Tool select: current_user (who am I)'
@@ -106,62 +105,6 @@ cases:
     active: true
     squash_test_case_id: 2209
 
-  - id: TS-16
-    title: 'Tool select: search_custom_fields'
-    prompt: 'What custom fields are defined?'
-    category: tool_selection
-    tool: search_custom_fields
-    active: false
-    squash_test_case_id: 2210
-
-  - id: TS-18
-    title: 'Tool select: create_work_package'
-    prompt: 'Create a new Task work package titled ''MCP Eval Smoke Test'' in the Demo project'
-    category: tool_selection
-    tool: create_work_package
-    active: false
-    squash_test_case_id: null
-
-  - id: TS-19
-    title: 'Tool select: update_work_package'
-    prompt: 'Find the work package titled ''Setup conference website'' and update its subject to ''Setup conference website - Updated'''
-    category: tool_selection
-    tool: update_work_package
-    active: false
-    squash_test_case_id: null
-
-  - id: TS-20
-    title: 'Tool select: create_work_package_comment'
-    prompt: 'Find work package ''Organize open source conference'' and add a comment saying ''MCP eval test comment'''
-    category: tool_selection
-    tool: create_work_package_comment
-    active: false
-    squash_test_case_id: null
-
-  - id: TS-21
-    title: 'Tool select: list_work_package_comments'
-    prompt: 'Show me all comments on the work package ''Organize open source conference'''
-    category: tool_selection
-    tool: list_work_package_comments
-    active: false
-    squash_test_case_id: null
-
-  - id: TS-22
-    title: 'Tool select: create_work_package_relation'
-    prompt: 'Create a ''relates'' relation between ''Contact sponsoring partners'' and ''Create sponsorship brochure and hand-outs'''
-    category: tool_selection
-    tool: create_work_package_relation
-    active: false
-    squash_test_case_id: null
-
-  - id: TS-23
-    title: 'Tool select: list_work_package_relations'
-    prompt: 'What relations does ''Setup conference website'' have?'
-    category: tool_selection
-    tool: list_work_package_relations
-    active: false
-    squash_test_case_id: null
-
   - id: AE-01
     title: 'Arg extract: search_work_packages (subject)'
     prompt: 'Search for work packages with subject containing ''conference'''
@@ -202,52 +145,12 @@ cases:
     active: true
     squash_test_case_id: null
 
-  - id: AE-06
-    title: 'Arg extract: create_work_package_comment'
-    prompt: 'Add a comment ''Argument extraction test'' to work package ''Organize open source conference'''
-    category: argument_extraction
-    tool: create_work_package_comment
-    active: false
-    squash_test_case_id: null
-
-  - id: AE-07
-    title: 'Arg extract: create_work_package_relation'
-    prompt: 'Create a ''blocks'' relation from ''Contact sponsoring partners'' to ''Invite attendees to conference'''
-    category: argument_extraction
-    tool: create_work_package_relation
-    active: false
-    squash_test_case_id: null
-
-  - id: AE-08
-    title: 'Arg extract: list_work_package_relations'
-    prompt: 'List relations for the work package ''Setup conference website'''
-    category: argument_extraction
-    tool: list_work_package_relations
-    active: false
-    squash_test_case_id: null
-
   - id: MS-01
     title: 'Multi-step: Demo project then work packages'
     prompt: 'Find the Demo project, then list its work packages'
     category: multi_step
     tools: [search_projects, search_work_packages]
     active: true
-    squash_test_case_id: null
-
-  - id: MS-02
-    title: 'Multi-step: create WP then comment'
-    prompt: 'Create a task called ''Multi-step eval task'' in the Demo project, then add a comment ''Created via multi-step eval'''
-    category: multi_step
-    tools: [create_work_package, create_work_package_comment]
-    active: false
-    squash_test_case_id: null
-
-  - id: MS-03
-    title: 'Multi-step: find WP then relations'
-    prompt: 'Find the work package ''Setup conference website'' in the Demo project, then show its relations'
-    category: multi_step
-    tools: [search_work_packages, list_work_package_relations]
-    active: false
     squash_test_case_id: null
 
   - id: MS-04

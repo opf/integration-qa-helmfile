@@ -5,10 +5,7 @@ from expectations import (
     assert_quality,
     rubric_tool_selection,
 )
-from seed_data import (
-    MCP_USER,
-    supported_case,
-)
+from seed_data import MCP_USER
 
 configure()
 
@@ -132,87 +129,9 @@ TOOL_SELECTION_CASES = [
         "result_must_contain": [],
         "result_must_not_contain": [],
     },
-
-    # ── search_custom_fields (no seeded custom field definitions) ─────
-    {
-        "id": "TS-16",
-        "prompt": "What custom fields are defined?",
-        "tool": "search_custom_fields",
-        "result_must_contain": [],
-        "result_must_not_contain": [],
-    },
-
-    # ── create_work_package (verify the created WP) ──────────────────
-    {
-        "id": "TS-18",
-        "prompt": (
-            "Create a new Task work package titled "
-            "'MCP Eval Smoke Test' in the Demo project"
-        ),
-        "tool": "create_work_package",
-        "result_must_contain": ["MCP Eval Smoke Test"],
-        "result_must_not_contain": ["error"],
-    },
-
-    # ── update_work_package ──────────────────────────────────────────
-    # Uses the first seeded WP ID—the LLM must identify it from context
-    {
-        "id": "TS-19",
-        "prompt": (
-            "Find the work package titled 'Setup conference website' "
-            "and update its subject to 'Setup conference website - Updated'"
-        ),
-        "tool": "update_work_package",
-        # The update response should echo the new subject
-        "result_must_contain": ["Updated"],
-        "result_must_not_contain": ["error"],
-    },
-
-    # ── create_work_package_comment ──────────────────────────────────
-    {
-        "id": "TS-20",
-        "prompt": (
-            "Find work package 'Organize open source conference' "
-            "and add a comment saying 'MCP eval test comment'"
-        ),
-        "tool": "create_work_package_comment",
-        "result_must_contain": ["comment"],
-        "result_must_not_contain": ["error"],
-    },
-
-    # ── list_work_package_comments ───────────────────────────────────
-    {
-        "id": "TS-21",
-        "prompt": "Show me all comments on the work package 'Organize open source conference'",
-        "tool": "list_work_package_comments",
-        "result_must_contain": [],
-        "result_must_not_contain": ["error"],
-    },
-
-    # ── create_work_package_relation ─────────────────────────────────
-    {
-        "id": "TS-22",
-        "prompt": (
-            "Create a 'relates' relation between "
-            "'Contact sponsoring partners' and 'Create sponsorship brochure and hand-outs'"
-        ),
-        "tool": "create_work_package_relation",
-        "result_must_contain": ["relates"],
-        "result_must_not_contain": ["error"],
-    },
-
-    # ── list_work_package_relations ──────────────────────────────────
-    {
-        "id": "TS-23",
-        "prompt": "What relations does 'Setup conference website' have?",
-        "tool": "list_work_package_relations",
-        # Seed data has a 'follows' relation for this WP
-        "result_must_contain": ["follows"],
-        "result_must_not_contain": ["error"],
-    },
 ]
 
-for case in filter(supported_case, TOOL_SELECTION_CASES):
+for case in TOOL_SELECTION_CASES:
     @task(f"[{case['id']}] LLM selects '{case['tool']}' for: \"{case['prompt']}\"")
     async def test_tool_selection(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
