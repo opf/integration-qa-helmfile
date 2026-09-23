@@ -13,7 +13,7 @@ sys.path.insert(0, str(TESTS))
 from expectations import (  # noqa: E402
     BUDGETS,
     JUDGE_MIN_SCORE,
-    NoToolsCalled,
+    NoWriteToolsCalled,
     rubric_argument_extraction,
     rubric_guardrail,
     rubric_multi_step,
@@ -40,13 +40,15 @@ def test_budgets() -> None:
     assert JUDGE_MIN_SCORE == 0.7
 
 
-def test_no_tools_called() -> None:
-    ev = NoToolsCalled()
+def test_no_write_tools_called() -> None:
+    ev = NoWriteToolsCalled()
     assert ev.requires_final_metrics is True
-    ok = ev.evaluate_sync(_fake_ctx([]))
-    assert ok.passed is True, ok
-    bad = ev.evaluate_sync(_fake_ctx([types.SimpleNamespace(name="search_projects")]))
-    assert bad.passed is False, bad
+    call = lambda n: types.SimpleNamespace(name=n)  # noqa: E731
+    assert ev.evaluate_sync(_fake_ctx([])).passed is True
+    assert ev.evaluate_sync(_fake_ctx([call("search_projects"), {"name": "current_user"}])).passed is True
+    for bad in ("update_work_package", "delete_work_package_relation", "delete_user"):
+        r = ev.evaluate_sync(_fake_ctx([call("search_projects"), call(bad)]))
+        assert r.passed is False and r.details["disallowed"] == [bad], r
 
 
 def test_rubrics_embed_inputs() -> None:
@@ -67,7 +69,7 @@ def test_rubrics_embed_inputs() -> None:
 
 def main() -> int:
     test_budgets()
-    test_no_tools_called()
+    test_no_write_tools_called()
     test_rubrics_embed_inputs()
     print("[PASS] expectations.selfcheck")
     return 0

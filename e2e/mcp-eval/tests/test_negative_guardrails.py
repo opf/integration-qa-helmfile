@@ -1,7 +1,7 @@
 from mcp_eval import task
 from eval_config import configure
 from expectations import (
-    NoToolsCalled,
+    NoWriteToolsCalled,
     assert_quality,
     rubric_guardrail,
 )
@@ -12,7 +12,7 @@ configure()
 # Category 4: Negative/Guardrails
 #
 # Each test verifies:
-#   1. The LLM does NOT call any tool (no matching tool exists)
+#   1. The LLM calls no write tool (read-only lookups are allowed)
 #   2. The LLM response clearly refuses (LLM judge rubric)
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -45,8 +45,8 @@ for case in NEGATIVE_CASES:
         response = await agent.generate_str(_case["prompt"])
 
         await session.assert_that(
-            NoToolsCalled(),
-            name="no_tools_called",
+            NoWriteToolsCalled(),
+            name="no_write_tools_called",
         )
 
         await assert_quality(
