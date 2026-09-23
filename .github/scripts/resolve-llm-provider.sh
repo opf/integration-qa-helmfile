@@ -10,13 +10,13 @@
 #   LLM_STACK_API_KEY, LLM_STACK_URL          (llm-stack legacy)
 #   OPENROUTER_API_KEY                       (openrouter)
 #
-# LLM_MODEL:
+# LLM_MODEL / LLM_JUDGE_MODEL dropdown choices are "<slug>-llmstack" or
+# "<slug>-openrouter" (GitHub shows that string as the option). The suffix must
+# match LLM_PROVIDER. The slug maps to the API model id below.
 #   empty | provider-default  → provider default model
-#   meta-llama/llama-3.3-70b-instruct → Llama-3.3-70b-instruct on llm-stack;
-#                                       passthrough on openrouter
-#   other OpenRouter ids → openrouter only; rejected on llm-stack
-# LLM_JUDGE_MODEL:
-#   empty | same-as-agent → resolved agent model; otherwise resolved like LLM_MODEL
+#   same-as-agent (judge only) → resolved agent model
+# Legacy raw ids (no suffix) still resolve: OpenRouter ids pass through;
+# llm-stack still accepts only its mapped ids.
 #
 # Default output (stdout, key=value for GITHUB_OUTPUT):
 #   llm_provider, llm_api_key, llm_base_url, llm_model, llm_judge_model
@@ -55,33 +55,66 @@ if [[ "${provider}" == "llm-stack" && -z "${LLM_BASE_URL:-}" && -n "${LLM_STACK_
   base_url="${LLM_STACK_URL}"
 fi
 
+# Dropdown suffix, or empty when the value is a raw model id.
+choice_provider_of() {
+  case "$1" in
+    *-llmstack) echo "llm-stack" ;;
+    *-openrouter) echo "openrouter" ;;
+    *) echo "" ;;
+  esac
+}
+
+assert_same_provider() {
+  local label="$1"
+  local req="$2"
+  local implied
+  implied="$(choice_provider_of "${req}")"
+  if [[ -n "${implied}" && "${implied}" != "${provider}" ]]; then
+    echo "::error::${label} '${req}' belongs to ${implied}, but llm_provider is ${provider}." >&2
+    exit 1
+  fi
+}
+
 resolve_model() {
   local req="$1"
-  if [[ -z "${req}" || "${req}" == "provider-default" ]]; then
+  local slug="${req}"
+  case "${req}" in
+    *-llmstack|*-openrouter) slug="${req%-llmstack}"; slug="${slug%-openrouter}" ;;
+  esac
+
+  if [[ -z "${slug}" || "${slug}" == "provider-default" ]]; then
     echo "${default_model}"
     return
   fi
 
-  if [[ "${provider}" == "llm-stack" ]]; then
-    case "${req}" in
-      meta-llama/llama-3.3-70b-instruct|Llama-3.3-70b-instruct)
-        echo "Llama-3.3-70b-instruct"
-        ;;
-      *)
-        echo "::error::llm-stack only supports Llama-3.3-70b-instruct (got: ${req}). Use llm_provider=openrouter for other models." >&2
-        exit 1
-        ;;
-    esac
-    return
-  fi
-
-  # openrouter: map legacy llm-stack id to OpenRouter id
-  if [[ "${req}" == "Llama-3.3-70b-instruct" ]]; then
-    echo "meta-llama/llama-3.3-70b-instruct"
-    return
-  fi
-  echo "${req}"
+  # ponytail: llm-stack ids are the gateway's /v1/models names. The four slugs
+  # are the dropdown; fix the right-hand side when the gateway catalog changes.
+  case "${provider}:${slug}" in
+    llm-stack:qwen-2.5-7b) echo "Qwen/Qwen2.5-7B-Instruct" ;;
+    llm-stack:llama-3.1-8b) echo "Llama-3.1-8B-Instruct" ;;
+    llm-stack:llama-3.3-70b|llm-stack:Llama-3.3-70b-instruct|llm-stack:meta-llama/llama-3.3-70b-instruct)
+      echo "Llama-3.3-70b-instruct"
+      ;;
+    llm-stack:deepseek-v3) echo "deepseek-v3" ;;
+    openrouter:gpt-4.1-mini|openrouter:openai/gpt-4.1-mini) echo "openai/gpt-4.1-mini" ;;
+    openrouter:gemini-2.5-flash|openrouter:google/gemini-2.5-flash) echo "google/gemini-2.5-flash" ;;
+    openrouter:claude-sonnet-4.5|openrouter:anthropic/claude-sonnet-4.5) echo "anthropic/claude-sonnet-4.5" ;;
+    openrouter:gpt-4.1|openrouter:openai/gpt-4.1) echo "openai/gpt-4.1" ;;
+    openrouter:Llama-3.3-70b-instruct|openrouter:meta-llama/llama-3.3-70b-instruct)
+      echo "meta-llama/llama-3.3-70b-instruct"
+      ;;
+    openrouter:*)
+      echo "${slug}"
+      ;;
+    *)
+      echo "::error::Unknown llm-stack model '${req}'. Choices: qwen-2.5-7b-llmstack, llama-3.1-8b-llmstack, llama-3.3-70b-llmstack, deepseek-v3-llmstack." >&2
+      exit 1
+      ;;
+  esac
 }
+
+assert_same_provider "llm_model" "${requested_model}"
+assert_same_provider "llm_judge_model" "${LLM_JUDGE_MODEL:-}"
 
 model="$(resolve_model "${requested_model}")"
 

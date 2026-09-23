@@ -132,7 +132,7 @@ TOOL_SELECTION_CASES = [
 ]
 
 for case in TOOL_SELECTION_CASES:
-    @task(f"[{case['id']}] LLM selects '{case['tool']}' for: \"{case['prompt']}\"")
+    # mcp-eval discovers tasks by function name; one shared name keeps only the last case.
     async def test_tool_selection(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
@@ -167,3 +167,11 @@ for case in TOOL_SELECTION_CASES:
                 _case["result_must_contain"],
             ),
         )
+
+    _name = f"test_tool_selection_{case['id'].replace('-', '_').lower()}"
+    test_tool_selection.__name__ = _name
+    globals()[_name] = task(
+        f"[{case['id']}] LLM selects '{case['tool']}' for: \"{case['prompt']}\""
+    )(test_tool_selection)
+
+del test_tool_selection

@@ -30,28 +30,34 @@ on:
           - llm-stack
           - openrouter
       llm_model:
-        description: "Model (provider-default, or OpenRouter-style id; llm-stack only supports Llama 3.3 70B)"
+        description: "Model. Suffix must match llm_provider (-llmstack or -openrouter). Two cheap then two strong per provider."
         required: true
-        default: provider-default
+        default: llama-3.3-70b-llmstack
         type: choice
         options:
-          - provider-default
-          - meta-llama/llama-3.3-70b-instruct
-          - openai/gpt-4o-mini
-          - openai/gpt-4.1-mini
-          - anthropic/claude-sonnet-4.5
-          - google/gemini-2.5-flash
+          - qwen-2.5-7b-llmstack
+          - llama-3.1-8b-llmstack
+          - llama-3.3-70b-llmstack
+          - deepseek-v3-llmstack
+          - gpt-4.1-mini-openrouter
+          - gemini-2.5-flash-openrouter
+          - claude-sonnet-4.5-openrouter
+          - gpt-4.1-openrouter
       llm_judge_model:
-        description: "LLM judge model (same-as-agent, or OpenRouter-style id on the same base URL)"
+        description: "Judge model. same-as-agent, or a choice with the same provider suffix as llm_model."
         required: true
         default: same-as-agent
         type: choice
         options:
           - same-as-agent
-          - meta-llama/llama-3.3-70b-instruct
-          - openai/gpt-4o-mini
-          - openai/gpt-4.1-mini
-          - google/gemini-2.5-flash
+          - qwen-2.5-7b-llmstack
+          - llama-3.1-8b-llmstack
+          - llama-3.3-70b-llmstack
+          - deepseek-v3-llmstack
+          - gpt-4.1-mini-openrouter
+          - gemini-2.5-flash-openrouter
+          - claude-sonnet-4.5-openrouter
+          - gpt-4.1-openrouter
       squash_iteration_id:
         description: "Squash TM iteration ID for mcp-eval result import (optional)"
         required: false
