@@ -96,10 +96,17 @@ resolve_model() {
       echo "Llama-3.3-70b-instruct"
       ;;
     llm-stack:deepseek-v3) echo "deepseek-v3" ;;
+    openrouter:deepseek-v4-flash|openrouter:deepseek/deepseek-v4-flash) echo "deepseek/deepseek-v4-flash" ;;
+    openrouter:gemini-2.5-flash-lite|openrouter:google/gemini-2.5-flash-lite) echo "google/gemini-2.5-flash-lite" ;;
+    openrouter:gpt-4o-mini|openrouter:openai/gpt-4o-mini) echo "openai/gpt-4o-mini" ;;
     openrouter:gpt-4.1-mini|openrouter:openai/gpt-4.1-mini) echo "openai/gpt-4.1-mini" ;;
     openrouter:gemini-2.5-flash|openrouter:google/gemini-2.5-flash) echo "google/gemini-2.5-flash" ;;
-    openrouter:claude-sonnet-4.5|openrouter:anthropic/claude-sonnet-4.5) echo "anthropic/claude-sonnet-4.5" ;;
+    openrouter:deepseek-v4-pro|openrouter:deepseek/deepseek-v4-pro) echo "deepseek/deepseek-v4-pro" ;;
+    openrouter:gemini-2.5-pro|openrouter:google/gemini-2.5-pro) echo "google/gemini-2.5-pro" ;;
     openrouter:gpt-4.1|openrouter:openai/gpt-4.1) echo "openai/gpt-4.1" ;;
+    openrouter:gpt-5.4|openrouter:openai/gpt-5.4) echo "openai/gpt-5.4" ;;
+    openrouter:claude-sonnet-4.5|openrouter:anthropic/claude-sonnet-4.5) echo "anthropic/claude-sonnet-4.5" ;;
+    openrouter:claude-opus-4.6|openrouter:anthropic/claude-opus-4.6) echo "anthropic/claude-opus-4.6" ;;
     openrouter:Llama-3.3-70b-instruct|openrouter:meta-llama/llama-3.3-70b-instruct)
       echo "meta-llama/llama-3.3-70b-instruct"
       ;;

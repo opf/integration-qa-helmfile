@@ -30,7 +30,7 @@ on:
           - llm-stack
           - openrouter
       llm_model:
-        description: "Model. Suffix must match llm_provider (-llmstack or -openrouter). Two cheap then two strong per provider."
+        description: "Model. Suffix must match llm_provider. Cheap choices first, then strong. OpenRouter ids are from its public catalog (tool-capable)."
         required: true
         default: llama-3.3-70b-llmstack
         type: choice
@@ -39,10 +39,17 @@ on:
           - llama-3.1-8b-llmstack
           - llama-3.3-70b-llmstack
           - deepseek-v3-llmstack
+          - deepseek-v4-flash-openrouter
+          - gemini-2.5-flash-lite-openrouter
+          - gpt-4o-mini-openrouter
           - gpt-4.1-mini-openrouter
           - gemini-2.5-flash-openrouter
-          - claude-sonnet-4.5-openrouter
+          - deepseek-v4-pro-openrouter
+          - gemini-2.5-pro-openrouter
           - gpt-4.1-openrouter
+          - gpt-5.4-openrouter
+          - claude-sonnet-4.5-openrouter
+          - claude-opus-4.6-openrouter
       llm_judge_model:
         description: "Judge model. same-as-agent, or a choice with the same provider suffix as llm_model."
         required: true
@@ -54,10 +61,17 @@ on:
           - llama-3.1-8b-llmstack
           - llama-3.3-70b-llmstack
           - deepseek-v3-llmstack
+          - deepseek-v4-flash-openrouter
+          - gemini-2.5-flash-lite-openrouter
+          - gpt-4o-mini-openrouter
           - gpt-4.1-mini-openrouter
           - gemini-2.5-flash-openrouter
-          - claude-sonnet-4.5-openrouter
+          - deepseek-v4-pro-openrouter
+          - gemini-2.5-pro-openrouter
           - gpt-4.1-openrouter
+          - gpt-5.4-openrouter
+          - claude-sonnet-4.5-openrouter
+          - claude-opus-4.6-openrouter
       squash_iteration_id:
         description: "Squash TM iteration ID for mcp-eval result import (optional)"
         required: false

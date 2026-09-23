@@ -153,6 +153,18 @@ assert_output "openrouter cheap dropdown" openrouter \
   -- \
   "llm_model=openai/gpt-4.1-mini"
 
+assert_output "openrouter deepseek flash dropdown" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_MODEL=deepseek-v4-flash-openrouter \
+  -- \
+  "llm_model=deepseek/deepseek-v4-flash"
+
+assert_output "openrouter opus dropdown" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_MODEL=claude-opus-4.6-openrouter \
+  -- \
+  "llm_model=anthropic/claude-opus-4.6"
+
 assert_output "openrouter strong dropdown" openrouter \
   OPENROUTER_API_KEY=or-key \
   LLM_MODEL=claude-sonnet-4.5-openrouter \

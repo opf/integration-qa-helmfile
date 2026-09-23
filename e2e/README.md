@@ -124,10 +124,17 @@ CI (`mcp-eval.yml`) accepts optional `squash_iteration_id` / `squash_sync_test_p
 | `llama-3.1-8b-llmstack` | cheap | `Llama-3.1-8B-Instruct` |
 | `llama-3.3-70b-llmstack` | strong | `Llama-3.3-70b-instruct` |
 | `deepseek-v3-llmstack` | strong | `deepseek-v3` |
+| `deepseek-v4-flash-openrouter` | cheap | `deepseek/deepseek-v4-flash` |
+| `gemini-2.5-flash-lite-openrouter` | cheap | `google/gemini-2.5-flash-lite` |
+| `gpt-4o-mini-openrouter` | cheap | `openai/gpt-4o-mini` |
 | `gpt-4.1-mini-openrouter` | cheap | `openai/gpt-4.1-mini` |
 | `gemini-2.5-flash-openrouter` | cheap | `google/gemini-2.5-flash` |
-| `claude-sonnet-4.5-openrouter` | strong | `anthropic/claude-sonnet-4.5` |
+| `deepseek-v4-pro-openrouter` | strong | `deepseek/deepseek-v4-pro` |
+| `gemini-2.5-pro-openrouter` | strong | `google/gemini-2.5-pro` |
 | `gpt-4.1-openrouter` | strong | `openai/gpt-4.1` |
+| `gpt-5.4-openrouter` | strong | `openai/gpt-5.4` |
+| `claude-sonnet-4.5-openrouter` | strong | `anthropic/claude-sonnet-4.5` |
+| `claude-opus-4.6-openrouter` | strong | `anthropic/claude-opus-4.6` |
 
 `llm_judge_model` defaults to `same-as-agent` (uses the resolved agent model on the same base URL).
 
