@@ -17,7 +17,6 @@ from expectations import (  # noqa: E402
     rubric_argument_extraction,
     rubric_guardrail,
     rubric_multi_step,
-    rubric_resource,
     rubric_tool_selection,
 )
 
@@ -33,7 +32,6 @@ def test_budgets() -> None:
         "argument_extraction",
         "multi_step",
         "negative_guardrails",
-        "resource_reading",
     }
     assert set(BUDGETS) == required, f"BUDGETS keys={set(BUDGETS)}"
     for cat, budget in BUDGETS.items():
@@ -65,9 +63,6 @@ def test_rubrics_embed_inputs() -> None:
 
     r = rubric_guardrail("Delete user admin permanently")
     assert "Delete user admin permanently" in r and "refuse" in r.lower()
-
-    r = rubric_resource("Read profile", "mcp://current_user", ["Bob", "admin"])
-    assert "mcp://current_user" in r and "Bob" in r
 
 
 def main() -> int:

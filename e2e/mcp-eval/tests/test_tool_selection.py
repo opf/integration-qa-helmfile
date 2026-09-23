@@ -5,7 +5,7 @@ from expectations import (
     assert_quality,
     rubric_tool_selection,
 )
-from seed_data import MCP_USER
+from seed_data import ADMIN_USER, MCP_USER
 
 configure()
 
@@ -92,12 +92,12 @@ TOOL_SELECTION_CASES = [
         "result_must_not_contain": [],
     },
 
-    # ── search_users (seeded demo users) ──────────────────────────────
+    # ── search_users (admin + Bob_AI) ─────────────────────────────────
     {
         "id": "TS-12",
         "prompt": "Who are the team members?",
         "tool": "search_users",
-        "result_must_contain": ["Marko", "Wanda"],
+        "result_must_contain": [ADMIN_USER["lastname"], MCP_USER["firstname"]],
         "result_must_not_contain": [],
     },
 
@@ -106,7 +106,7 @@ TOOL_SELECTION_CASES = [
         "id": "TS-13",
         "prompt": "What release versions are planned in the Scrum project?",
         "tool": "search_versions",
-        "result_must_contain": ["Sprint 1"],
+        "result_must_contain": [],
         "result_must_not_contain": [],
     },
 

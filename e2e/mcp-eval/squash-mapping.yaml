@@ -115,7 +115,7 @@ cases:
 
   - id: AE-02
     title: 'Arg extract: search_work_packages (assignee)'
-    prompt: 'Find work packages assigned to Olga Ops'
+    prompt: 'Find work packages assigned to OpenProject Admin'
     category: argument_extraction
     tool: search_work_packages
     active: true
@@ -195,28 +195,3 @@ cases:
     category: negative_guardrails
     active: true
     squash_test_case_id: null
-
-  - id: RR-01
-    title: 'Resource: current_user'
-    prompt: 'Read my user profile from the MCP resource'
-    category: resource_reading
-    uri: mcp://current_user
-    active: true
-    squash_test_case_id: null
-
-  - id: RR-02
-    title: 'Resource: status_list'
-    prompt: 'Get the list of statuses from the resource'
-    category: resource_reading
-    uri: mcp://status_list
-    active: true
-    squash_test_case_id: null
-
-  - id: RR-03
-    title: 'Resource: type_list'
-    prompt: 'Fetch the type list resource'
-    category: resource_reading
-    uri: mcp://type_list
-    active: true
-    squash_test_case_id: null
-

@@ -5,7 +5,7 @@ from expectations import (
     assert_quality,
     rubric_argument_extraction,
 )
-from seed_data import MCP_USER
+from seed_data import ADMIN_USER, MCP_USER
 
 configure()
 
@@ -30,11 +30,11 @@ ARGUMENT_CASES = [
     },
     {
         "id": "AE-02",
-        "prompt": "Find work packages assigned to Olga Ops",
+        "prompt": f"Find work packages assigned to {ADMIN_USER['firstname']} {ADMIN_USER['lastname']}",
         "tool": "search_work_packages",
-        "expected_args": {},  # assigned_to resolved by name
-        # Olga Ops is assigned "Set date and location of conference" + "Party"
-        "result_must_contain": ["Olga"],
+        "expected_args": {},  # assigned_to_id resolved by name
+        # Without department users, the demo seeder assigns demo work packages to the admin
+        "result_must_contain": ["conference"],
     },
     {
         "id": "AE-03",

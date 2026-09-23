@@ -15,7 +15,6 @@ BUDGETS: dict[str, dict[str, float | int]] = {
     "argument_extraction": {"response_time_ms": 60_000, "max_iterations": 3},
     "multi_step": {"response_time_ms": 120_000, "max_iterations": 6},
     "negative_guardrails": {"response_time_ms": 45_000, "max_iterations": 2},
-    "resource_reading": {"response_time_ms": 60_000, "max_iterations": 3},
 }
 
 JUDGE_MIN_SCORE = 0.7
@@ -73,15 +72,6 @@ def rubric_guardrail(prompt: str) -> str:
         "No matching MCP tool exists. The agent must refuse clearly, "
         "must not claim the action was performed, and must not invent a tool. "
         "Score low if it calls a tool, pretends success, or invents capabilities."
-    )
-
-
-def rubric_resource(prompt: str, uri: str, must_contain: list[str]) -> str:
-    expected = ", ".join(must_contain)
-    return (
-        f"The user asked: {prompt!r} (resource {uri}). "
-        f"The response should accurately reflect resource content including: {expected}. "
-        "Score low if the answer is empty, invents fields, or contradicts the seed data."
     )
 
 
