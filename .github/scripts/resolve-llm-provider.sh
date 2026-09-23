@@ -15,9 +15,11 @@
 #   meta-llama/llama-3.3-70b-instruct → Llama-3.3-70b-instruct on llm-stack;
 #                                       passthrough on openrouter
 #   other OpenRouter ids → openrouter only; rejected on llm-stack
+# LLM_JUDGE_MODEL:
+#   empty | same-as-agent → resolved agent model; otherwise resolved like LLM_MODEL
 #
 # Default output (stdout, key=value for GITHUB_OUTPUT):
-#   llm_provider, llm_api_key, llm_base_url, llm_model
+#   llm_provider, llm_api_key, llm_base_url, llm_model, llm_judge_model
 set -euo pipefail
 
 export_mode=false
@@ -83,14 +85,23 @@ resolve_model() {
 
 model="$(resolve_model "${requested_model}")"
 
+requested_judge="${LLM_JUDGE_MODEL:-}"
+if [[ -z "${requested_judge}" || "${requested_judge}" == "same-as-agent" ]]; then
+  judge_model="${model}"
+else
+  judge_model="$(resolve_model "${requested_judge}")"
+fi
+
 if [[ "${export_mode}" == "true" ]]; then
   printf 'export LLM_PROVIDER=%q\n' "${provider}"
   printf 'export LLM_API_KEY=%q\n' "${api_key}"
   printf 'export LLM_BASE_URL=%q\n' "${base_url}"
   printf 'export LLM_MODEL=%q\n' "${model}"
+  printf 'export LLM_JUDGE_MODEL=%q\n' "${judge_model}"
 else
   echo "llm_provider=${provider}"
   echo "llm_api_key=${api_key}"
   echo "llm_base_url=${base_url}"
   echo "llm_model=${model}"
+  echo "llm_judge_model=${judge_model}"
 fi

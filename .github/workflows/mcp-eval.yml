@@ -98,6 +98,7 @@ jobs:
         env:
           LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
           LLM_MODEL: ${{ github.event.inputs.llm_model }}
+          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
           LLM_STACK_API_KEY: ${{ secrets.LLM_STACK_API_KEY }}
           LLM_STACK_URL: ${{ vars.LLM_STACK_URL }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -249,6 +250,7 @@ jobs:
         env:
           LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
           LLM_MODEL: ${{ github.event.inputs.llm_model }}
+          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
           LLM_STACK_API_KEY: ${{ secrets.LLM_STACK_API_KEY }}
           LLM_STACK_URL: ${{ vars.LLM_STACK_URL }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -260,6 +262,7 @@ jobs:
           llm_api_key="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_api_key=//p')"
           llm_base_url="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_base_url=//p')"
           llm_model="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_model=//p')"
+          llm_judge_model="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_judge_model=//p')"
           llm_provider="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_provider=//p')"
 
           if [[ -z "${llm_api_key}" ]]; then
@@ -276,6 +279,7 @@ jobs:
             echo "- Provider: \`${llm_provider}\`"
             echo "- Base URL: \`${llm_base_url}\`"
             echo "- Model: \`${llm_model}\`"
+            echo "- Judge model: \`${llm_judge_model}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Run mcp-eval
@@ -287,7 +291,7 @@ jobs:
           LLM_API_KEY: ${{ steps.llm.outputs.llm_api_key }}
           LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
           LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
-          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
+          LLM_JUDGE_MODEL: ${{ steps.llm.outputs.llm_judge_model }}
         run: |
           set -euo pipefail
           if [[ -z "${LLM_API_KEY:-}" ]]; then
@@ -313,7 +317,7 @@ jobs:
           LLM_PROVIDER: ${{ steps.llm.outputs.llm_provider }}
           LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
           LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
-          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
+          LLM_JUDGE_MODEL: ${{ steps.llm.outputs.llm_judge_model }}
           OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
         run: python3 scripts/record-run-metadata.py
 

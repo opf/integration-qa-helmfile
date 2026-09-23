@@ -106,6 +106,35 @@ assert_output "openrouter remaps legacy llama id" openrouter \
 
 assert_fails "bogus provider" bogus
 
+assert_output "judge defaults to agent model" llm-stack \
+  LLM_STACK_API_KEY=k \
+  -- \
+  "llm_judge_model=Llama-3.3-70b-instruct"
+
+assert_output "judge same-as-agent follows agent" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_MODEL=openai/gpt-4o-mini \
+  LLM_JUDGE_MODEL=same-as-agent \
+  -- \
+  "llm_judge_model=openai/gpt-4o-mini"
+
+assert_output "judge remapped on llm-stack" llm-stack \
+  LLM_STACK_API_KEY=k \
+  LLM_JUDGE_MODEL=meta-llama/llama-3.3-70b-instruct \
+  -- \
+  "llm_judge_model=Llama-3.3-70b-instruct"
+
+assert_output "judge override on openrouter" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_JUDGE_MODEL=google/gemini-2.5-flash \
+  -- \
+  "llm_model=meta-llama/llama-3.3-70b-instruct" \
+  "llm_judge_model=google/gemini-2.5-flash"
+
+assert_fails "llm-stack rejects non-llama judge" llm-stack \
+  LLM_STACK_API_KEY=k \
+  LLM_JUDGE_MODEL=openai/gpt-4o-mini
+
 export_out="$(env -i PATH="${PATH}" OPENROUTER_API_KEY=or-key "${SCRIPT}" --export openrouter)"
 echo "${export_out}" | grep -qxF "export LLM_PROVIDER=openrouter" || fail "export missing LLM_PROVIDER"
 echo "${export_out}" | grep -qxF "export LLM_API_KEY=or-key" || fail "export missing LLM_API_KEY"

@@ -75,7 +75,7 @@ Each case asserts:
 3. **Performance** (`response_time_under`, `max_iterations`)
 4. **LLM judge** (`Expect.judge.llm`) via the same OpenAI-compatible base URL as the agent
 
-Default judge on llm-stack is **`Llama-3.3-70b-instruct`** (only model that provider exposes; keyed by `LLM_STACK_API_KEY`). Override with `LLM_JUDGE_MODEL` when the base URL supports another id (e.g. OpenRouter `google/gemini-2.5-flash`).
+Default judge on llm-stack is **`Llama-3.3-70b-instruct`** (only model that provider exposes; keyed by `LLM_STACK_API_KEY`). Override with `LLM_JUDGE_MODEL` when the base URL supports another id (e.g. OpenRouter `google/gemini-2.5-flash`). `LLM_JUDGE_MODEL` is resolved by `resolve-llm-provider.sh` with the same provider rules as `LLM_MODEL`, and CI's pre-deploy `check-llm-credentials.sh` verifies both ids against the provider's `/models` list.
 
 Resolve provider presets with `.github/scripts/resolve-llm-provider.sh` (`llm-stack` default, or `openrouter`), then run:
 
