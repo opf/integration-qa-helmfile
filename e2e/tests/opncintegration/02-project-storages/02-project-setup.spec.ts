@@ -3,7 +3,7 @@ import { test, expect, openProjectUrl, integrationTags } from '../../base-test';
 import { OpenProjectLoginPage, OpenProjectHomePage, OpenProjectProjectListPage } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { ALICE_USER } from '../../../utils/test-users';
-import { deleteProject } from '../../../utils/test-helpers';
+import { deleteProject, ensureProjectHasNextcloudStorage } from '../../../utils/test-helpers';
 import { logInfo, logWarn } from '../../../utils/logger';
 import { 
   captureAliceAdminStatus, 
@@ -12,6 +12,9 @@ import {
 } from '../shared';
 
 test.describe('Project Setup', integrationTags, () => {
+  // Copy + AMPF folder provisioning needs more than the default 30s.
+  test.describe.configure({ timeout: 90_000 });
+
   test.beforeAll(async () => {
     await captureAliceAdminStatus();
   });
@@ -36,6 +39,10 @@ test.describe('Project Setup', integrationTags, () => {
           await ensureAliceAdminForCurrentSession(page, homePage);
         }
       );
+
+      // Prerequisite (not a Squash step): demo must already have Nextcloud/AMPF
+      // linked so the copy includes file storages. storage-config is a separate TC.
+      await ensureProjectHasNextcloudStorage('demo-project', page);
 
       await test.step(
         'Copy the existing project with Nextcloud storage via the UI to a new project',

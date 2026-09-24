@@ -44,19 +44,16 @@ export class OpenProjectProjectListPage extends OpenProjectBasePage {
   }
 
   /**
-   * Copy the demo project via UI: waits for home, navigates to all projects, copies demo project to the given identifier.
+   * Copy the demo project via UI: open the projects list, then duplicate demo to the given identifier.
+   * Uses a direct goto so this works after other flows (e.g. ensureProjectHasNextcloudStorage)
+   * that leave the browser on a project settings page where the home sidebar link is absent.
    */
   async copyDemoProjectViaUi(newIdentifier: string): Promise<void> {
-    await this.waitForReady();
-    
-    const viewAllProjectsButton = this.getLocator('viewAllProjectsButton').first();
-    await viewAllProjectsButton.waitFor({ state: 'visible', timeout: 10000 });
-
-    await Promise.all([
-      this.page.waitForURL(/\/projects\/?$/, { timeout: 15000 }),
-      viewAllProjectsButton.click(),
-    ]);
-
+    await this.page.goto(`${this.baseUrl}/projects`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+    });
+    await this.page.waitForURL(/\/projects\/?$/, { timeout: 15000 });
     await this.copyDemoProjectTo(newIdentifier);
   }
 }
