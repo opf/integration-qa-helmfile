@@ -76,15 +76,6 @@ on:
           - gpt-5.4-openrouter
           - claude-sonnet-4.5-openrouter
           - claude-opus-4.6-openrouter
-      squash_iteration_id:
-        description: "Squash TM iteration ID for mcp-eval result import (optional)"
-        required: false
-        type: string
-      squash_sync_test_plan:
-        description: "Add mapped mcp-eval Squash test cases to the iteration before import"
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: mcp-eval
@@ -368,8 +359,8 @@ jobs:
         working-directory: e2e/mcp-eval
         env:
           SQUASH_TM_API_TOKEN: ${{ secrets.SQUASH_TM_API_TOKEN }}
-          SQUASH_TM_ITERATION_ID: ${{ github.event.inputs.squash_iteration_id != '' && github.event.inputs.squash_iteration_id || vars.SQUASH_TM_ITERATION_ID }}
-          SQUASH_TM_SYNC_TEST_PLAN: ${{ github.event.inputs.squash_sync_test_plan == 'true' && 'true' || 'false' }}
+          SQUASH_TM_ITERATION_ID: "15"
+          SQUASH_TM_SYNC_TEST_PLAN: "true"
           SQUASH_TM_SKIP_MISSING_AUTH: "true"
         run: python3 scripts/publish-mcp-eval-squash.py --json reports/results.json
 

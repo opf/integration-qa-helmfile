@@ -68,26 +68,76 @@ def _call_attr(call: Any, key: str, default: Any = None) -> Any:
     return getattr(call, key, default)
 
 
+def _is_opaque_resource_stub(result: Any) -> bool:
+    """OTEL metrics often store MCP resource tools as content=[{type: resource}] without the body."""
+    if not isinstance(result, dict):
+        return False
+    content = result.get("content")
+    if not isinstance(content, list) or not content:
+        return False
+    for item in content:
+        if not isinstance(item, dict):
+            return False
+        if item.get("type") == "text" and item.get("text"):
+            return False
+        if item.get("type") == "resource" and (
+            item.get("resource") or item.get("uri") or item.get("text")
+        ):
+            return False
+    return all(isinstance(i, dict) and i.get("type") == "resource" for i in content)
+
+
+def _result_text_payload(result: Any) -> Any:
+    """Prefer content[].text payloads over the outer CallToolResult wrapper."""
+    if not isinstance(result, dict):
+        return result
+    content = result.get("content")
+    if not isinstance(content, list):
+        return result
+    texts = [
+        item.get("text")
+        for item in content
+        if isinstance(item, dict) and item.get("type") == "text" and item.get("text")
+    ]
+    if len(texts) == 1:
+        try:
+            return json.loads(texts[0])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return texts[0]
+    if len(texts) > 1:
+        return texts
+    return result
+
+
 def _format_result(result: Any, max_chars: int) -> str:
     if result is None:
-        text = ""
-    elif isinstance(result, str):
-        text = result
+        return ""
+    if _is_opaque_resource_stub(result):
+        return (
+            "[opaque MCP resource: body not present in eval metrics; "
+            "do not treat answer details as invented solely because they are missing here]"
+        )
+    payload = _result_text_payload(result)
+    if isinstance(payload, str):
+        text = payload
     else:
         try:
-            text = json.dumps(result, default=str)
+            text = json.dumps(payload, default=str)
         except (TypeError, ValueError):
-            text = str(result)
+            text = str(payload)
     if len(text) > max_chars:
-        return text[:max_chars] + "…[truncated]"
+        return (
+            text[:max_chars]
+            + "…[truncated; later fields may exist—do not treat them as invented]"
+        )
     return text
 
 
 def tool_transcript(
     tool_calls: list[Any],
     *,
-    max_result_chars: int = 2000,
-    max_total_chars: int = 12000,
+    max_result_chars: int = 8000,
+    max_total_chars: int = 24000,
 ) -> str:
     """Render tool name/arguments/result for the LLM judge (truncated for size)."""
     if not tool_calls:
@@ -123,7 +173,11 @@ class LLMJudgeWithToolResults(LLMJudge):
             self.rubric = (
                 f"{self.rubric}\n\n"
                 "Tool calls the agent actually made (name, arguments, result):\n"
-                f"{transcript}"
+                f"{transcript}\n\n"
+                "Notes for scoring: if a result is marked opaque MCP resource, the agent "
+                "may still have seen the full resource body—do not fail for specifics "
+                "absent from that stub. If a result is truncated, missing later fields "
+                "are not evidence of invention."
             )
         return await super().evaluate(ctx)
 

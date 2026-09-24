@@ -114,7 +114,7 @@ python3 scripts/publish-mcp-eval-squash.py --json reports/results.json
 # dry-run / missing auth: SQUASH_TM_DRY_RUN=true or SQUASH_TM_SKIP_MISSING_AUTH=true
 ```
 
-CI (`mcp-eval.yml`) accepts optional `squash_iteration_id` / `squash_sync_test_plan` and writes `reports/squash-results.json` into the artifact. Unmapped local IDs are skipped with a warning until you fill `squash_test_case_id`. First import after tightening assertions should use dry-run / no iteration id.
+CI (`mcp-eval.yml`) always publishes to Squash TM iteration `15` and fills the iteration with mapped test cases before import. Unmapped local IDs are skipped with a warning until you fill `squash_test_case_id`.
 
 **Curated `llm_model` choices.** GitHub shows the option string as the label, so each choice ends with `-llmstack` or `-openrouter`. That suffix must match `llm_provider`. The script maps the slug to the API model id.
 

@@ -2,6 +2,7 @@
 """Assert-based self-check for mcp-eval expectations helpers (no LLM calls)."""
 from __future__ import annotations
 
+import json
 import sys
 import types
 from pathlib import Path
@@ -66,14 +67,67 @@ def test_tool_transcript() -> None:
     assert "Scrum" in text
     assert "1.0" in text
 
+    # Prefer content[].text over the CallToolResult wrapper.
+    wrapped = types.SimpleNamespace(
+        name="search_projects",
+        arguments={},
+        result={
+            "isError": False,
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {"items": [{"name": "Demo project"}, {"name": "Scrum project"}]}
+                    ),
+                }
+            ],
+        },
+    )
+    wrapped_text = tool_transcript([wrapped])
+    assert "Demo project" in wrapped_text and "Scrum project" in wrapped_text
+    assert '"type": "text"' not in wrapped_text
+
+    # OTEL stub for resource tools must not look like empty/invented data.
+    stub = types.SimpleNamespace(
+        name="current_user",
+        arguments={},
+        result={"isError": False, "content": [{"type": "resource"}]},
+    )
+    stub_text = tool_transcript([stub])
+    assert "opaque MCP resource" in stub_text
+    assert '{"type": "resource"}' not in stub_text or "opaque" in stub_text
+
     huge = types.SimpleNamespace(
         name="list_statuses",
         arguments={},
         result="x" * 5000,
     )
     truncated = tool_transcript([huge], max_result_chars=50)
-    assert "…[truncated]" in truncated
+    assert "…[truncated" in truncated
+    assert "do not treat them as invented" in truncated
     assert "list_statuses" in truncated
+
+    # Default budget must keep a ~4k two-project payload intact.
+    long_payload = {
+        "isError": False,
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "items": [
+                            {"name": "Demo project", "pad": "D" * 1500},
+                            {"name": "Scrum project", "pad": "S" * 1500},
+                        ]
+                    }
+                ),
+            }
+        ],
+    }
+    long_call = types.SimpleNamespace(name="search_projects", arguments={}, result=long_payload)
+    long_text = tool_transcript([long_call])
+    assert "Scrum project" in long_text
+    assert "Demo project" in long_text
 
 
 def test_llm_judge_with_tool_results() -> None:
