@@ -17,6 +17,9 @@ from typing import Any
 
 LOCAL_ID_RE = re.compile(r"\[([A-Z]{2}-\d+)\]")
 DEFAULT_SQUASH_URL = "https://squashtm.openproject.org/squash"
+# Same shape as e2e/utils/squash-metadata.ts squashAutomatedReference().
+# Squash matches an iteration result on this string, not on the test case id.
+AUTOMATED_REFERENCE_PREFIX = "integration-qa-helmfile/e2e/mcp-eval/tests"
 
 
 def env_flag(name: str) -> bool:
@@ -82,7 +85,7 @@ def extract_tasks(results: Any) -> list[dict[str, Any]]:
         return [t for t in results if isinstance(t, dict)]
     if not isinstance(results, dict):
         return []
-    for key in ("tasks", "results", "test_results", "evaluations"):
+    for key in ("decorator_tests", "tasks", "results", "test_results", "evaluations"):
         val = results.get(key)
         if isinstance(val, list):
             return [t for t in val if isinstance(t, dict)]
@@ -92,6 +95,10 @@ def extract_tasks(results: Any) -> list[dict[str, Any]]:
 def local_id_from_name(name: str) -> str | None:
     match = LOCAL_ID_RE.search(name or "")
     return match.group(1) if match else None
+
+
+def automated_reference(file_name: str, description: str) -> str:
+    return f"{AUTOMATED_REFERENCE_PREFIX}#{Path(file_name).name}#{description}"
 
 
 def map_status(task: dict[str, Any]) -> str:
@@ -219,7 +226,13 @@ def build_payload(
     warnings: list[str] = []
 
     for task in tasks:
-        name = str(task.get("name") or task.get("title") or "")
+        name = str(
+            task.get("description")
+            or task.get("name")
+            or task.get("title")
+            or task.get("test_name")
+            or ""
+        )
         local_id = local_id_from_name(name)
         if not local_id:
             warnings.append(f"No local id in task name: {name!r}")
@@ -234,7 +247,12 @@ def build_payload(
             continue
 
         title = str(meta.get("title") or local_id)
-        reference = f"mcp-eval#{local_id}#{title}"
+        file_name = str(task.get("file") or "")
+        reference = (
+            automated_reference(file_name, name)
+            if file_name
+            else f"mcp-eval#{local_id}#{title}"
+        )
         entry: dict[str, Any] = {
             "reference": reference,
             "status": map_status(task),

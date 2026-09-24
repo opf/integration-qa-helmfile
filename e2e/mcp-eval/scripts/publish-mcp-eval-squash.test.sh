@@ -72,4 +72,48 @@ SQUASH_TM_DRY_RUN=true SQUASH_TM_SKIP_MISSING_AUTH=true \
   python3 "${SCRIPT}" --json "${TMP}/reports/results.json" --mapping "${TMP}/mapping.yaml" >/dev/null
 pass "dry-run without secrets"
 
+# mcp-eval writes decorator_tests with description + passed, not tasks/name/status.
+cat >"${TMP}/reports/results.json" <<'EOF'
+{
+  "decorator_tests": [
+    {
+      "test_name": "test_tool_selection_ts_01",
+      "file": "test_tool_selection.py",
+      "description": "[TS-01] LLM selects 'current_user' for: \"Who am I?\"",
+      "passed": false,
+      "duration_ms": 19174.4,
+      "error": "quality_llm_judge: expected score >= 0.7, got score = 0.4"
+    },
+    {
+      "test_name": "test_tool_selection_ts_02",
+      "description": "[TS-02] LLM selects 'current_user'",
+      "passed": true,
+      "duration_ms": 1200
+    }
+  ]
+}
+EOF
+
+SQUASH_TM_DRY_RUN=true SQUASH_TM_SKIP_MISSING_AUTH=true \
+  python3 "${SCRIPT}" \
+    --json "${TMP}/reports/results.json" \
+    --mapping "${TMP}/mapping.yaml" \
+    --metadata "${TMP}/reports/run-metadata.json"
+
+python3 - <<PY
+import json
+from pathlib import Path
+data = json.loads(Path("${out}").read_text())
+tests = data["tests"]
+assert len(tests) == 1, tests
+assert tests[0]["reference"] == (
+    "integration-qa-helmfile/e2e/mcp-eval/tests#test_tool_selection.py#"
+    "[TS-01] LLM selects 'current_user' for: \"Who am I?\""
+)
+assert tests[0]["status"] == "FAILURE"
+assert tests[0]["duration"] == 19174
+assert "0.4" in tests[0]["failure_details"][0]
+PY
+pass "decorator_tests mapping"
+
 echo "[PASS] publish-mcp-eval-squash"

@@ -59,12 +59,24 @@ class NoWriteToolsCalled(SyncEvaluator):
 
 
 def rubric_tool_selection(prompt: str, tool: str, must_contain: list[str]) -> str:
-    expected = ", ".join(must_contain) if must_contain else "(any coherent result)"
+    if must_contain:
+        expected = (
+            "The answer must include these values from the tool result: "
+            + ", ".join(must_contain)
+            + ". "
+        )
+    else:
+        expected = (
+            "An empty tool result is a correct answer. "
+            "Do not require the agent to invent rows. "
+        )
     return (
         f"The user asked: {prompt!r}. "
         f"The agent should select tool '{tool}' and answer using its result. "
-        f"The response should reflect seed data including: {expected}. "
-        "Score low if the wrong tool was used, the answer invents data, or it ignores the tool result."
+        f"{expected}"
+        "Other fields that appear in the tool result are valid, including login, id, and admin. "
+        "Score low only if the wrong tool was used, the answer contradicts the tool result, "
+        "or it adds facts that are not in the tool result."
     )
 
 
