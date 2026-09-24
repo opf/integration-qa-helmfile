@@ -256,6 +256,8 @@ jobs:
   mcp_eval:
     needs: [deploy]
     if: always() && needs.deploy.outputs.tests_should_run == 'true'
+    outputs:
+      results_ready: ${{ steps.tests.outputs.results_ready }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -332,8 +334,18 @@ jobs:
           # Sibling imports (eval_config, expectations, seed_data) are loaded by
           # importlib from tests/*.py, which does not add that directory itself.
           export PYTHONPATH="${PWD}/tests${PYTHONPATH:+:${PYTHONPATH}}"
+          set +e
           mcp-eval run tests/ --json reports/results.json --html reports/report.html
-          [[ -f reports/results.json ]] || { echo "::error::mcp-eval produced no results.json (no tests discovered?)"; exit 1; }
+          run_status=$?
+          set -e
+          if [[ -f reports/results.json ]]; then
+            echo "results_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "results_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::error::mcp-eval produced no results.json (no tests discovered?)"
+            exit 1
+          fi
+          exit "${run_status}"
 
       - name: Record run metadata
         id: record
@@ -366,3 +378,77 @@ jobs:
           path: e2e/mcp-eval/reports/
           if-no-files-found: ignore
           retention-days: 14
+
+  teardown:
+    needs: [deploy, mcp_eval]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+    steps:
+      - name: Compute teardown policy
+        id: policy
+        if: always()
+        env:
+          LIVE: ${{ needs.deploy.outputs.live }}
+          PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
+          RESULTS_READY: ${{ needs.mcp_eval.outputs.results_ready }}
+        run: |
+          set -euo pipefail
+          should_teardown=false
+          if [[ -z "${PREVIEW_NAME:-}" ]]; then
+            echo "should_teardown=false" >> "$GITHUB_OUTPUT"
+            echo "No preview label; skip teardown."
+            exit 0
+          fi
+          if [[ "${LIVE}" != "true" ]]; then
+            should_teardown=true
+          elif [[ "${RESULTS_READY}" == "true" ]]; then
+            should_teardown=true
+          fi
+          echo "should_teardown=${should_teardown}" >> "$GITHUB_OUTPUT"
+          echo "Computed: live=${LIVE:-} results_ready=${RESULTS_READY:-} -> should_teardown=${should_teardown}"
+
+      - name: Trigger PullPreview teardown
+        if: >-
+          always() &&
+          steps.policy.outputs.should_teardown == 'true' &&
+          needs.deploy.outputs.preview_name != ''
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+        with:
+          provider: hetzner
+          label: ${{ needs.deploy.outputs.preview_name }}
+          force_action: down
+          deployment_target: helm
+        env:
+          PULLPREVIEW_LOGGER_LEVEL: ERROR
+
+      - name: Keep environment notice
+        if: >-
+          always() &&
+          needs.deploy.outputs.live == 'true' &&
+          needs.deploy.outputs.preview_name != '' &&
+          steps.policy.outputs.should_teardown == 'false'
+        env:
+          PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
+          OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### PullPreview environment kept"
+            echo ""
+            echo "Tests did not produce a report. Preview kept for 24h (TTL), then auto-expires."
+            echo ""
+            echo "- Preview label: \`${PREVIEW_NAME}\`"
+            if [[ -n "${OPENPROJECT_URL}" ]]; then
+              echo "- OpenProject: ${OPENPROJECT_URL}"
+            fi
+            echo ""
+            echo "To tear down later, run workflow **PullPreview Cleanup**:"
+            echo "- \`target=mcpeval\`"
+            echo "- \`mode=teardown\`"
+            echo "- \`confirm_teardown=true\`"
+          } >> "$GITHUB_STEP_SUMMARY"
