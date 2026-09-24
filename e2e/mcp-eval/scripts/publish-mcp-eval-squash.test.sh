@@ -107,13 +107,50 @@ data = json.loads(Path("${out}").read_text())
 tests = data["tests"]
 assert len(tests) == 1, tests
 assert tests[0]["reference"] == (
-    "integration-qa-helmfile/e2e/mcp-eval/tests#test_tool_selection.py#"
-    "[TS-01] LLM selects 'current_user' for: \"Who am I?\""
+    "mcp-eval#TS-01#Tool select: current_user (who am I)"
 )
 assert tests[0]["status"] == "FAILURE"
 assert tests[0]["duration"] == 19174
 assert "0.4" in tests[0]["failure_details"][0]
 PY
 pass "decorator_tests mapping"
+
+# Unmatched-reference import (HTTP 207) must fail — otherwise ITPIs stay READY.
+python3 - <<PY
+import importlib.util
+
+spec = importlib.util.spec_from_file_location("pub", "${SCRIPT}")
+pub = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pub)
+
+payload = {
+    "tests": [
+        {
+            "reference": "mcp-eval#TS-01#Tool select: current_user (who am I)",
+            "status": "SUCCESS",
+        }
+    ]
+}
+
+
+def fake_http(method, url, token, body=None, max_attempts=3):
+    return 207, (
+        '{"iteration_id":6,"tests":[{"test_case_id":null,'
+        '"reference":"mcp-eval#TS-01#x",'
+        '"error":"No test found with this reference."}]}'
+    )
+
+
+pub.http_json = fake_http
+try:
+    pub.publish("https://example.test/squash", "token", "6", payload)
+    raise SystemExit("expected RuntimeError for HTTP 207")
+except RuntimeError as exc:
+    msg = str(exc)
+    assert "READY" in msg or "reference" in msg.lower(), msg
+    assert "No test found" in msg, msg
+print("ok")
+PY
+pass "http 207 unmatched reference fails"
 
 echo "[PASS] publish-mcp-eval-squash"

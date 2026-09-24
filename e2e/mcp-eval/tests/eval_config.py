@@ -76,4 +76,9 @@ def configure() -> None:
             "Content-Type": "application/json",
         }
 
+    # Transient 504/empty judge responses: retry before failing the case.
+    from llm_retry import install as install_llm_retry
+
+    install_llm_retry()
+
     _configured = True

@@ -17,13 +17,20 @@ from typing import Any
 
 LOCAL_ID_RE = re.compile(r"\[([A-Z]{2}-\d+)\]")
 DEFAULT_SQUASH_URL = "https://squashtm.openproject.org/squash"
-# Same shape as e2e/utils/squash-metadata.ts squashAutomatedReference().
-# Squash matches an iteration result on this string, not on the test case id.
-AUTOMATED_REFERENCE_PREFIX = "integration-qa-helmfile/e2e/mcp-eval/tests"
 
 
 def env_flag(name: str) -> bool:
     return (os.environ.get(name) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def canonical_reference(local_id: str, title: str) -> str:
+    """Stable Squash automated test reference for an mcp-eval case.
+
+    Squash matches import results on this string (not on test case id).
+    Keep it tied to squash-mapping.yaml id+title so prompt/description
+    rewording in the Python tests does not orphan iteration statuses.
+    """
+    return f"mcp-eval#{local_id}#{title}"
 
 
 def load_mapping(path: Path) -> dict[str, dict[str, Any]]:
@@ -95,10 +102,6 @@ def extract_tasks(results: Any) -> list[dict[str, Any]]:
 def local_id_from_name(name: str) -> str | None:
     match = LOCAL_ID_RE.search(name or "")
     return match.group(1) if match else None
-
-
-def automated_reference(file_name: str, description: str) -> str:
-    return f"{AUTOMATED_REFERENCE_PREFIX}#{Path(file_name).name}#{description}"
 
 
 def map_status(task: dict[str, Any]) -> str:
@@ -220,9 +223,9 @@ def build_payload(
     tasks: list[dict[str, Any]],
     mapping: dict[str, dict[str, Any]],
     run_meta: dict[str, Any] | None,
-) -> tuple[dict[str, Any], list[int], list[str]]:
+) -> tuple[dict[str, Any], list[tuple[int, str]], list[str]]:
     tests: list[dict[str, Any]] = []
-    sync_ids: list[int] = []
+    sync_items: list[tuple[int, str]] = []
     warnings: list[str] = []
 
     for task in tasks:
@@ -247,11 +250,13 @@ def build_payload(
             continue
 
         title = str(meta.get("title") or local_id)
-        file_name = str(task.get("file") or "")
+        # Prefer explicit mapping override; else stable id+title (not the
+        # mcp-eval description / file path — those change and leave ITPIs READY).
+        override = meta.get("automated_reference")
         reference = (
-            automated_reference(file_name, name)
-            if file_name
-            else f"mcp-eval#{local_id}#{title}"
+            str(override).strip()
+            if isinstance(override, str) and override.strip()
+            else canonical_reference(local_id, title)
         )
         entry: dict[str, Any] = {
             "reference": reference,
@@ -264,17 +269,67 @@ def build_payload(
         if fails:
             entry["failure_details"] = fails
         tests.append(entry)
-        sync_ids.append(int(squash_id))
+        sync_items.append((int(squash_id), reference))
 
     attachment = suite_attachment(run_meta)
     payload: dict[str, Any] = {"tests": tests}
     if attachment:
         payload["automated_test_suite"] = {"attachments": [attachment]}
-    return payload, sync_ids, warnings
+    return payload, sync_items, warnings
 
 
-def sync_test_plan(base_url: str, token: str, iteration_id: str, case_ids: list[int]) -> None:
-    unique = sorted(set(case_ids))
+def ensure_automated_reference(
+    base_url: str, token: str, case_id: int, reference: str
+) -> None:
+    """PATCH Squash test case so import can match by reference."""
+    status, body = http_json(
+        "GET",
+        build_url(base_url, f"test-cases/{case_id}"),
+        token,
+    )
+    if status >= 400:
+        raise RuntimeError(
+            f"Failed to read test case {case_id}: HTTP {status} {body}"
+        )
+    current = ""
+    try:
+        data = json.loads(body) if body else {}
+        current = str(
+            data.get("automated_test_reference")
+            or data.get("automatedTestReference")
+            or ""
+        ).strip()
+    except json.JSONDecodeError:
+        pass
+    if current == reference:
+        print(f"[Squash TM] Test case {case_id} automated reference already set.")
+        return
+
+    status, body = http_json(
+        "PATCH",
+        build_url(base_url, f"test-cases/{case_id}"),
+        token,
+        {"automated_test_reference": reference},
+    )
+    if status >= 400:
+        raise RuntimeError(
+            f"Failed to set automated_test_reference on test case {case_id}: "
+            f"HTTP {status} {body}"
+        )
+    print(
+        f"[Squash TM] Set automated reference on test case {case_id}: {reference!r}"
+    )
+
+
+def sync_test_plan(
+    base_url: str,
+    token: str,
+    iteration_id: str,
+    sync_items: list[tuple[int, str]],
+) -> None:
+    unique: dict[int, str] = {}
+    for case_id, reference in sync_items:
+        unique[case_id] = reference
     if not unique:
         print("[Squash TM] No Squash test case IDs to sync.")
         return
@@ -303,7 +358,8 @@ def sync_test_plan(base_url: str, token: str, iteration_id: str, case_ids: list[
     except json.JSONDecodeError:
         pass
 
-    for case_id in unique:
+    for case_id, reference in sorted(unique.items()):
+        ensure_automated_reference(base_url, token, case_id, reference)
         if case_id in existing:
             print(f"[Squash TM] Test case {case_id} already in iteration test plan.")
             continue
@@ -331,7 +387,27 @@ def publish(base_url: str, token: str, iteration_id: str, payload: dict[str, Any
     status, body = http_json("POST", url, token, payload)
     if status >= 400:
         raise RuntimeError(f"Import failed: HTTP {status} {body}")
-    print(f"[Squash TM] Results imported into iteration {iteration_id}.")
+    # 207 = partial success: unmatched references leave ITPIs as READY.
+    unmatched: list[str] = []
+    if status == 207 or (body and "No test found with this reference" in body):
+        try:
+            data = json.loads(body) if body else {}
+            for item in data.get("tests") or []:
+                if isinstance(item, dict) and item.get("error"):
+                    unmatched.append(
+                        f"{item.get('reference')!r}: {item.get('error')}"
+                    )
+        except json.JSONDecodeError:
+            unmatched.append(body[:500])
+        if not unmatched:
+            unmatched.append(body[:500] if body else f"HTTP {status}")
+        raise RuntimeError(
+            "Import did not match Squash automated references (statuses stay READY). "
+            "Set each case's Automation → Automated test reference to mcp-eval#<id>#<title> "
+            f"from squash-mapping.yaml (or re-run with SQUASH_TM_SYNC_TEST_PLAN=true). "
+            f"Details: {'; '.join(unmatched)}"
+        )
+    print(f"[Squash TM] Results imported into iteration {iteration_id} (HTTP {status}).")
 
 
 def main() -> int:
@@ -371,7 +447,7 @@ def main() -> int:
     results = json.loads(results_path.read_text(encoding="utf-8"))
     mapping = load_mapping(mapping_path)
     tasks = extract_tasks(results)
-    payload, sync_ids, warnings = build_payload(tasks, mapping, run_meta)
+    payload, sync_items, warnings = build_payload(tasks, mapping, run_meta)
 
     for warning in warnings:
         print(f"[Squash TM] Warning: {warning}")
@@ -404,8 +480,13 @@ def main() -> int:
         print("[Squash TM] Dry run: payload written; not posting to Squash TM.")
         return 0
 
+    # Always align Squash automated references before import so ITPIs leave READY.
+    # Full test-plan membership sync remains gated by SQUASH_TM_SYNC_TEST_PLAN.
     if env_flag("SQUASH_TM_SYNC_TEST_PLAN"):
-        sync_test_plan(base_url, token, iteration_id, sync_ids)
+        sync_test_plan(base_url, token, iteration_id, sync_items)
+    else:
+        for case_id, reference in sync_items:
+            ensure_automated_reference(base_url, token, case_id, reference)
 
     publish(base_url, token, iteration_id, payload)
     return 0

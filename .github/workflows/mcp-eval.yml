@@ -259,7 +259,7 @@ jobs:
     outputs:
       results_ready: ${{ steps.tests.outputs.results_ready }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -318,6 +318,8 @@ jobs:
           LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
           LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
           LLM_JUDGE_MODEL: ${{ steps.llm.outputs.llm_judge_model }}
+          LLM_MAX_RETRIES: "4"
+          LLM_RETRY_BASE_DELAY: "2"
         run: |
           set -euo pipefail
           if [[ -z "${LLM_API_KEY:-}" ]]; then
@@ -330,6 +332,7 @@ jobs:
           fi
           pip install -e .
           python3 scripts/expectations.test.py
+          python3 scripts/llm_retry.test.py
           mkdir -p reports
           # Sibling imports (eval_config, expectations, seed_data) are loaded by
           # importlib from tests/*.py, which does not add that directory itself.

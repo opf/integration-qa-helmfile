@@ -1,4 +1,7 @@
 # Map mcp-eval local case IDs to Squash TM numeric test case IDs.
+# Squash Automation → Automated test reference must be:
+#   mcp-eval#<id>#<title>
+# (publisher sets this via API before import; do not use Playwright-style paths).
 # Fill squash_test_case_id after creating matching Squash TM cases.
 cases:
   - id: TS-01

@@ -103,7 +103,7 @@ Or export `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` directly. `tests/eval_c
 
 CI writes `reports/run-metadata.json` (provider, model, judge model, base URL, OpenProject URL) and adds a `run` object to `results.json` so artifacts show which model produced and judged the run.
 
-**Squash TM (optional):** Create Squash cases from titles/prompts in [`mcp-eval/squash-mapping.yaml`](mcp-eval/squash-mapping.yaml) (no manual steps), then fill numeric `squash_test_case_id` values there. Publish pass/fail results (no `test_steps`) with:
+**Squash TM (optional):** Create Squash cases from titles/prompts in [`mcp-eval/squash-mapping.yaml`](mcp-eval/squash-mapping.yaml) (no manual steps), then fill numeric `squash_test_case_id` values there. Each case's **Automation → Automated test reference** must be exactly `mcp-eval#<id>#<title>` (e.g. `mcp-eval#TS-01#Tool select: current_user (who am I)`). The publisher sets/repairs that field via API before import. Publish pass/fail results (no `test_steps`) with:
 
 ```bash
 cd mcp-eval
