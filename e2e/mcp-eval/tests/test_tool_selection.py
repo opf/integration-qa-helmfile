@@ -98,6 +98,8 @@ TOOL_SELECTION_CASES = [
         "tool": "search_work_packages",
         "result_must_contain": ["Bug"],
         "result_must_not_contain": [],
+        # Tolerate list_types/list_statuses discovery before the single search.
+        "allow_extra_steps": 3,
     },
 
     # ── search_users (admin + Bob_AI) ─────────────────────────────────
@@ -163,7 +165,11 @@ for case in TOOL_SELECTION_CASES:
                 response=response,
             )
 
-        await assert_path(session, tools=[_case["tool"]], allow_extra_steps=1)
+        await assert_path(
+            session,
+            tools=[_case["tool"]],
+            allow_extra_steps=_case.get("allow_extra_steps", 1),
+        )
         await assert_quality(
             session,
             response,

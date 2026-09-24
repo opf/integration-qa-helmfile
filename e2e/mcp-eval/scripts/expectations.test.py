@@ -13,11 +13,13 @@ sys.path.insert(0, str(TESTS))
 from expectations import (  # noqa: E402
     BUDGETS,
     JUDGE_MIN_SCORE,
+    LLMJudgeWithToolResults,
     NoWriteToolsCalled,
     rubric_argument_extraction,
     rubric_guardrail,
     rubric_multi_step,
     rubric_tool_selection,
+    tool_transcript,
 )
 
 
@@ -52,10 +54,40 @@ def test_no_write_tools_called() -> None:
         assert r.passed is False and r.details["disallowed"] == [bad], r
 
 
+def test_tool_transcript() -> None:
+    assert tool_transcript([]) == ""
+    call = types.SimpleNamespace(
+        name="search_versions",
+        arguments={"project": "Scrum"},
+        result={"items": [{"name": "1.0"}]},
+    )
+    text = tool_transcript([call])
+    assert "search_versions" in text
+    assert "Scrum" in text
+    assert "1.0" in text
+
+    huge = types.SimpleNamespace(
+        name="list_statuses",
+        arguments={},
+        result="x" * 5000,
+    )
+    truncated = tool_transcript([huge], max_result_chars=50)
+    assert "…[truncated]" in truncated
+    assert "list_statuses" in truncated
+
+
+def test_llm_judge_with_tool_results() -> None:
+    ev = LLMJudgeWithToolResults(rubric="test", min_score=0.7, include_input=True)
+    assert ev.requires_final_metrics is True
+
+
 def test_rubrics_embed_inputs() -> None:
     prompt = "Who am I logged in as?"
     r = rubric_tool_selection(prompt, "current_user", ["Bob", "admin"])
     assert prompt in r and "current_user" in r and "Bob" in r
+    assert "invents specific data" in r
+    assert "adds facts that are not in the tool result" not in r
+    assert "Neutral summarization" in r
 
     r = rubric_argument_extraction(prompt, "search_users", {"search_term": "Bob"})
     assert "search_users" in r and "search_term" in r
@@ -71,6 +103,8 @@ def test_rubrics_embed_inputs() -> None:
 def main() -> int:
     test_budgets()
     test_no_write_tools_called()
+    test_tool_transcript()
+    test_llm_judge_with_tool_results()
     test_rubrics_embed_inputs()
     print("[PASS] expectations.selfcheck")
     return 0
