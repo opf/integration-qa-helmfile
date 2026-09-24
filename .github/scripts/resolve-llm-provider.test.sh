@@ -48,13 +48,13 @@ assert_output "llm-stack defaults" llm-stack \
   "llm_provider=llm-stack" \
   "llm_api_key=stack-key" \
   "llm_base_url=https://llm-stack.openproject-edge.eu/v1" \
-  "llm_model=Llama-3.3-70b-instruct"
+  "llm_model=qwen3.6-35b-a3b"
 
 assert_output "llm-stack provider-default" llm-stack \
   LLM_STACK_API_KEY=stack-key \
   LLM_MODEL=provider-default \
   -- \
-  "llm_model=Llama-3.3-70b-instruct"
+  "llm_model=qwen3.6-35b-a3b"
 
 assert_output "llm-stack LLM_API_KEY wins" llm-stack \
   LLM_API_KEY=generic-key \
@@ -68,15 +68,29 @@ assert_output "llm-stack URL override via LLM_STACK_URL" llm-stack \
   -- \
   "llm_base_url=https://custom-stack.example/v1"
 
-assert_output "llm-stack remaps OpenRouter llama id" llm-stack \
+assert_fails "llm-stack rejects llama id" llm-stack \
   LLM_STACK_API_KEY=k \
-  LLM_MODEL=meta-llama/llama-3.3-70b-instruct \
-  -- \
-  "llm_model=Llama-3.3-70b-instruct"
+  LLM_MODEL=meta-llama/llama-3.3-70b-instruct
 
-assert_fails "llm-stack rejects non-llama" llm-stack \
+assert_fails "llm-stack rejects unknown id" llm-stack \
   LLM_STACK_API_KEY=k \
   LLM_MODEL=openai/gpt-4o-mini
+
+assert_output "llm-stack dropdown" llm-stack \
+  LLM_STACK_API_KEY=k \
+  LLM_MODEL=gemma-4-26b-a4b-it-llmstack \
+  -- \
+  "llm_model=gemma-4-26b-a4b-it"
+
+assert_output "llm-stack large dropdown" llm-stack \
+  LLM_STACK_API_KEY=k \
+  LLM_MODEL=qwen3.5-397b-a17b-llmstack \
+  -- \
+  "llm_model=qwen3.5-397b-a17b"
+
+assert_fails "dropdown suffix must match provider" llm-stack \
+  LLM_STACK_API_KEY=k \
+  LLM_MODEL=gpt-4.1-mini-openrouter
 
 assert_output "openrouter defaults" openrouter \
   OPENROUTER_API_KEY=or-key \
@@ -105,6 +119,65 @@ assert_output "openrouter remaps legacy llama id" openrouter \
   "llm_model=meta-llama/llama-3.3-70b-instruct"
 
 assert_fails "bogus provider" bogus
+
+assert_output "judge defaults to agent model" llm-stack \
+  LLM_STACK_API_KEY=k \
+  -- \
+  "llm_judge_model=qwen3.6-35b-a3b"
+
+assert_output "judge same-as-agent follows agent" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_MODEL=openai/gpt-4o-mini \
+  LLM_JUDGE_MODEL=same-as-agent \
+  -- \
+  "llm_judge_model=openai/gpt-4o-mini"
+
+assert_output "judge choice on llm-stack" llm-stack \
+  LLM_STACK_API_KEY=k \
+  LLM_JUDGE_MODEL=glm-5.2-llmstack \
+  -- \
+  "llm_judge_model=glm-5.2"
+
+assert_output "judge override on openrouter" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_JUDGE_MODEL=google/gemini-2.5-flash \
+  -- \
+  "llm_model=meta-llama/llama-3.3-70b-instruct" \
+  "llm_judge_model=google/gemini-2.5-flash"
+
+assert_output "openrouter cheap dropdown" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_MODEL=gpt-4.1-mini-openrouter \
+  -- \
+  "llm_model=openai/gpt-4.1-mini"
+
+assert_output "openrouter deepseek flash dropdown" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_MODEL=deepseek-v4-flash-openrouter \
+  -- \
+  "llm_model=deepseek/deepseek-v4-flash"
+
+assert_output "openrouter opus dropdown" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_MODEL=claude-opus-4.6-openrouter \
+  -- \
+  "llm_model=anthropic/claude-opus-4.6"
+
+assert_output "openrouter strong dropdown" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_MODEL=claude-sonnet-4.5-openrouter \
+  LLM_JUDGE_MODEL=gpt-4.1-openrouter \
+  -- \
+  "llm_model=anthropic/claude-sonnet-4.5" \
+  "llm_judge_model=openai/gpt-4.1"
+
+assert_fails "judge suffix must match provider" openrouter \
+  OPENROUTER_API_KEY=or-key \
+  LLM_JUDGE_MODEL=deepseek-v3-llmstack
+
+assert_fails "llm-stack rejects non-llama judge" llm-stack \
+  LLM_STACK_API_KEY=k \
+  LLM_JUDGE_MODEL=openai/gpt-4o-mini
 
 export_out="$(env -i PATH="${PATH}" OPENROUTER_API_KEY=or-key "${SCRIPT}" --export openrouter)"
 echo "${export_out}" | grep -qxF "export LLM_PROVIDER=openrouter" || fail "export missing LLM_PROVIDER"

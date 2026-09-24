@@ -1,17 +1,21 @@
 """Shared mcp-eval assertions: LLM judge, performance, path efficiency."""
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
 from mcp_eval import Expect
 from mcp_eval.evaluators.base import SyncEvaluator, EvaluatorContext
+from mcp_eval.evaluators.llm_judge import LLMJudge
 from mcp_eval.evaluators.shared import EvaluatorResult
 
-# ponytail: generous latency/iteration ceilings until 2–3 CI baselines exist;
-# then tighten BUDGETS from reports/results.json p95 latency + iteration counts.
+# ponytail: tool_selection max_iterations=4 from CI (qwen often does
+# list_types/list_statuses before search_*); tighten other budgets from
+# reports/results.json p95 latency once more baselines exist.
 BUDGETS: dict[str, dict[str, float | int]] = {
-    "tool_selection": {"response_time_ms": 60_000, "max_iterations": 3},
+    # 4: models often list_types/list_statuses before search_work_packages on bug prompts.
+    "tool_selection": {"response_time_ms": 60_000, "max_iterations": 4},
     "argument_extraction": {"response_time_ms": 60_000, "max_iterations": 3},
     "multi_step": {"response_time_ms": 120_000, "max_iterations": 6},
     "negative_guardrails": {"response_time_ms": 45_000, "max_iterations": 3},
@@ -58,13 +62,146 @@ class NoWriteToolsCalled(SyncEvaluator):
         )
 
 
+def _call_attr(call: Any, key: str, default: Any = None) -> Any:
+    if isinstance(call, dict):
+        return call.get(key, default)
+    return getattr(call, key, default)
+
+
+def _is_opaque_resource_stub(result: Any) -> bool:
+    """OTEL metrics often store MCP resource tools as content=[{type: resource}] without the body."""
+    if not isinstance(result, dict):
+        return False
+    content = result.get("content")
+    if not isinstance(content, list) or not content:
+        return False
+    for item in content:
+        if not isinstance(item, dict):
+            return False
+        if item.get("type") == "text" and item.get("text"):
+            return False
+        if item.get("type") == "resource" and (
+            item.get("resource") or item.get("uri") or item.get("text")
+        ):
+            return False
+    return all(isinstance(i, dict) and i.get("type") == "resource" for i in content)
+
+
+def _result_text_payload(result: Any) -> Any:
+    """Prefer content[].text payloads over the outer CallToolResult wrapper."""
+    if not isinstance(result, dict):
+        return result
+    content = result.get("content")
+    if not isinstance(content, list):
+        return result
+    texts = [
+        item.get("text")
+        for item in content
+        if isinstance(item, dict) and item.get("type") == "text" and item.get("text")
+    ]
+    if len(texts) == 1:
+        try:
+            return json.loads(texts[0])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return texts[0]
+    if len(texts) > 1:
+        return texts
+    return result
+
+
+def _format_result(result: Any, max_chars: int) -> str:
+    if result is None:
+        return ""
+    if _is_opaque_resource_stub(result):
+        return (
+            "[opaque MCP resource: body not present in eval metrics; "
+            "do not treat answer details as invented solely because they are missing here]"
+        )
+    payload = _result_text_payload(result)
+    if isinstance(payload, str):
+        text = payload
+    else:
+        try:
+            text = json.dumps(payload, default=str)
+        except (TypeError, ValueError):
+            text = str(payload)
+    if len(text) > max_chars:
+        return (
+            text[:max_chars]
+            + "…[truncated; later fields may exist—do not treat them as invented]"
+        )
+    return text
+
+
+def tool_transcript(
+    tool_calls: list[Any],
+    *,
+    max_result_chars: int = 8000,
+    max_total_chars: int = 24000,
+) -> str:
+    """Render tool name/arguments/result for the LLM judge (truncated for size)."""
+    if not tool_calls:
+        return ""
+    blocks: list[str] = []
+    total = 0
+    for i, call in enumerate(tool_calls, start=1):
+        name = _call_attr(call, "name") or "?"
+        args = _call_attr(call, "arguments") or {}
+        try:
+            args_text = json.dumps(args, default=str)
+        except (TypeError, ValueError):
+            args_text = str(args)
+        result_text = _format_result(_call_attr(call, "result"), max_result_chars)
+        block = f"{i}. {name}\n   arguments: {args_text}\n   result: {result_text}"
+        if total + len(block) > max_total_chars and blocks:
+            blocks.append("…[truncated further tool calls]")
+            break
+        blocks.append(block)
+        total += len(block) + 1
+    return "\n".join(blocks)
+
+
+@dataclass
+class LLMJudgeWithToolResults(LLMJudge):
+    """LLMJudge that appends actual tool call results so the rubric can be checked against evidence."""
+
+    requires_final_metrics: bool = True
+
+    async def evaluate(self, ctx: EvaluatorContext) -> EvaluatorResult:
+        transcript = tool_transcript(ctx.metrics.tool_calls or [])
+        if transcript:
+            self.rubric = (
+                f"{self.rubric}\n\n"
+                "Tool calls the agent actually made (name, arguments, result):\n"
+                f"{transcript}\n\n"
+                "Notes for scoring: if a result is marked opaque MCP resource, the agent "
+                "may still have seen the full resource body—do not fail for specifics "
+                "absent from that stub. If a result is truncated, missing later fields "
+                "are not evidence of invention."
+            )
+        return await super().evaluate(ctx)
+
+
 def rubric_tool_selection(prompt: str, tool: str, must_contain: list[str]) -> str:
-    expected = ", ".join(must_contain) if must_contain else "(any coherent result)"
+    if must_contain:
+        expected = (
+            "The answer must include these values from the tool result: "
+            + ", ".join(must_contain)
+            + ". "
+        )
+    else:
+        expected = (
+            "An empty tool result is a correct answer. "
+            "Do not require the agent to invent rows. "
+        )
     return (
         f"The user asked: {prompt!r}. "
         f"The agent should select tool '{tool}' and answer using its result. "
-        f"The response should reflect seed data including: {expected}. "
-        "Score low if the wrong tool was used, the answer invents data, or it ignores the tool result."
+        f"{expected}"
+        "Other fields that appear in the tool result are valid, including login, id, and admin. "
+        "Score low only if the wrong tool was used, the answer contradicts the tool results "
+        "shown below, or it invents specific data (names, dates, rows) that do not appear in them. "
+        "Neutral summarization, formatting, or framing of returned data is acceptable."
     )
 
 
@@ -108,8 +245,8 @@ async def assert_quality(
 ) -> None:
     budget = BUDGETS[category]
     await session.assert_that(
-        Expect.judge.llm(
-            rubric,
+        LLMJudgeWithToolResults(
+            rubric=rubric,
             min_score=JUDGE_MIN_SCORE,
             include_input=True,
         ),

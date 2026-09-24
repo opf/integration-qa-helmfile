@@ -75,7 +75,7 @@ Each case asserts:
 3. **Performance** (`response_time_under`, `max_iterations`)
 4. **LLM judge** (`Expect.judge.llm`) via the same OpenAI-compatible base URL as the agent
 
-Default judge on llm-stack is **`Llama-3.3-70b-instruct`** (only model that provider exposes; keyed by `LLM_STACK_API_KEY`). Override with `LLM_JUDGE_MODEL` when the base URL supports another id (e.g. OpenRouter `google/gemini-2.5-flash`).
+Default judge is the agent model (`same-as-agent`). A judge choice must use the same provider suffix as `llm_model`. `resolve-llm-provider.sh` maps the dropdown slug to the API id, and CI's pre-deploy `check-llm-credentials.sh` verifies both ids against that provider's `/models` list.
 
 Resolve provider presets with `.github/scripts/resolve-llm-provider.sh` (`llm-stack` default, or `openrouter`), then run:
 
@@ -103,7 +103,7 @@ Or export `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` directly. `tests/eval_c
 
 CI writes `reports/run-metadata.json` (provider, model, judge model, base URL, OpenProject URL) and adds a `run` object to `results.json` so artifacts show which model produced and judged the run.
 
-**Squash TM (optional):** Create Squash cases from titles/prompts in [`mcp-eval/squash-mapping.yaml`](mcp-eval/squash-mapping.yaml) (no manual steps), then fill numeric `squash_test_case_id` values there. Publish pass/fail results (no `test_steps`) with:
+**Squash TM (optional):** Create Squash cases from titles/prompts in [`mcp-eval/squash-mapping.yaml`](mcp-eval/squash-mapping.yaml) (no manual steps), then fill numeric `squash_test_case_id` values there. Each case's **Automation → Automated test reference** must be exactly `mcp-eval#<id>#<title>` (e.g. `mcp-eval#TS-01#Tool select: current_user (who am I)`). The publisher sets/repairs that field via API before import. Publish pass/fail results (no `test_steps`) with:
 
 ```bash
 cd mcp-eval
@@ -114,18 +114,29 @@ python3 scripts/publish-mcp-eval-squash.py --json reports/results.json
 # dry-run / missing auth: SQUASH_TM_DRY_RUN=true or SQUASH_TM_SKIP_MISSING_AUTH=true
 ```
 
-CI (`mcp-eval.yml`) accepts optional `squash_iteration_id` / `squash_sync_test_plan` and writes `reports/squash-results.json` into the artifact. Unmapped local IDs are skipped with a warning until you fill `squash_test_case_id`. First import after tightening assertions should use dry-run / no iteration id.
+CI (`mcp-eval.yml`) always publishes to Squash TM iteration `15` and fills the iteration with mapped test cases before import. Unmapped local IDs are skipped with a warning until you fill `squash_test_case_id`.
 
-**Curated `llm_model` choices** (workflow dropdown; no duplicate Llama entries):
+**Curated `llm_model` choices.** GitHub shows the option string as the label, so each choice ends with `-llmstack` or `-openrouter`. That suffix must match `llm_provider`. The script maps the slug to the API model id.
 
-| Choice | llm-stack | openrouter |
-|--------|-----------|------------|
-| `provider-default` | `Llama-3.3-70b-instruct` | `meta-llama/llama-3.3-70b-instruct` |
-| `meta-llama/llama-3.3-70b-instruct` | remapped to `Llama-3.3-70b-instruct` | as-is |
-| `openai/gpt-4o-mini` | rejected | as-is |
-| `openai/gpt-4.1-mini` | rejected | as-is |
-| `anthropic/claude-sonnet-4.5` | rejected | as-is |
-| `google/gemini-2.5-flash` | rejected | as-is |
+| Choice | Tier | API model id |
+|--------|------|----------------|
+| `qwen3.6-35b-a3b-llmstack` | llm-stack | `qwen3.6-35b-a3b` |
+| `gemma-4-26b-a4b-it-llmstack` | llm-stack | `gemma-4-26b-a4b-it` |
+| `glm-5.2-llmstack` | llm-stack | `glm-5.2` |
+| `deepseek-v4-flash-0731-llmstack` | llm-stack | `deepseek-v4-flash-0731` |
+| `qwen3.5-397b-a17b-llmstack` | llm-stack | `qwen3.5-397b-a17b` |
+| `mistral-medium-3.5-128b-llmstack` | llm-stack | `mistral-medium-3.5-128b` |
+| `deepseek-v4-flash-openrouter` | cheap | `deepseek/deepseek-v4-flash` |
+| `gemini-2.5-flash-lite-openrouter` | cheap | `google/gemini-2.5-flash-lite` |
+| `gpt-4o-mini-openrouter` | cheap | `openai/gpt-4o-mini` |
+| `gpt-4.1-mini-openrouter` | cheap | `openai/gpt-4.1-mini` |
+| `gemini-2.5-flash-openrouter` | cheap | `google/gemini-2.5-flash` |
+| `deepseek-v4-pro-openrouter` | strong | `deepseek/deepseek-v4-pro` |
+| `gemini-2.5-pro-openrouter` | strong | `google/gemini-2.5-pro` |
+| `gpt-4.1-openrouter` | strong | `openai/gpt-4.1` |
+| `gpt-5.4-openrouter` | strong | `openai/gpt-5.4` |
+| `claude-sonnet-4.5-openrouter` | strong | `anthropic/claude-sonnet-4.5` |
+| `claude-opus-4.6-openrouter` | strong | `anthropic/claude-opus-4.6` |
 
 `llm_judge_model` defaults to `same-as-agent` (uses the resolved agent model on the same base URL).
 
@@ -150,7 +161,7 @@ GitHub Actions cannot load OpenRouter’s full model catalog into the dropdown a
 | `LLM_PROVIDER` | `llm-stack` or `openrouter` | `llm-stack` |
 | `LLM_API_KEY` | Generic OpenAI-compatible API key for mcp-eval | none |
 | `LLM_BASE_URL` | OpenAI-compatible base URL override | provider default |
-| `LLM_MODEL` | Model id (`provider-default`, OpenRouter-style id, or legacy `Llama-3.3-70b-instruct`) | provider default |
+| `LLM_MODEL` | Model id (`provider-default`, a `*-llmstack` / `*-openrouter` choice, or a raw OpenRouter id) | provider default |
 | `LLM_JUDGE_MODEL` | Judge model (`same-as-agent`, or id on the same base URL as the agent) | `same-as-agent` (agent model) |
 | `LLM_STACK_API_KEY` | llm-stack key (used when `LLM_PROVIDER=llm-stack`) | none |
 | `LLM_STACK_URL` | llm-stack base URL | `https://llm-stack.openproject-edge.eu/v1` |

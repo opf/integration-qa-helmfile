@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from mcp_eval import task, Expect
 from eval_config import configure
 from expectations import (
@@ -63,7 +68,6 @@ ARGUMENT_CASES = [
 ]
 
 for case in ARGUMENT_CASES:
-    @task(f"[{case['id']}] LLM extracts args for '{case['tool']}' from: \"{case['prompt']}\"")
     async def test_argument_extraction(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
@@ -97,3 +101,11 @@ for case in ARGUMENT_CASES:
                 _case["expected_args"],
             ),
         )
+
+    _name = f"test_argument_extraction_{case['id'].replace('-', '_').lower()}"
+    test_argument_extraction.__name__ = _name
+    globals()[_name] = task(
+        f"[{case['id']}] LLM extracts args for '{case['tool']}' from: \"{case['prompt']}\""
+    )(test_argument_extraction)
+
+del test_argument_extraction

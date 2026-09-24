@@ -6,3 +6,9 @@ dependencies = [
     "mcpevals>=0.1.10",
     "mcp<2",
 ]
+
+# mcp-eval loads tests via importlib.spec_from_file_location without adding
+# tests/ to sys.path; install helpers so `from eval_config import configure` works.
+[tool.setuptools]
+package-dir = {"" = "tests"}
+py-modules = ["eval_config", "expectations", "llm_retry", "seed_data"]

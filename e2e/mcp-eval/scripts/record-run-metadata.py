@@ -13,7 +13,7 @@ def pass_fail_counts(results: object) -> tuple[int | None, int | None]:
     """Best-effort pass/fail from mcp-eval JSON (schema varies by version)."""
     tasks: list = []
     if isinstance(results, dict):
-        for key in ("tasks", "results", "test_results", "evaluations"):
+        for key in ("decorator_tests", "tasks", "results", "test_results", "evaluations"):
             val = results.get(key)
             if isinstance(val, list):
                 tasks = val

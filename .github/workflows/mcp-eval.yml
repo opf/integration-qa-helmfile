@@ -30,37 +30,52 @@ on:
           - llm-stack
           - openrouter
       llm_model:
-        description: "Model (provider-default, or OpenRouter-style id; llm-stack only supports Llama 3.3 70B)"
+        description: "Model. Suffix must match llm_provider. llm-stack choices are the Scaleway gateway names only."
         required: true
-        default: provider-default
+        default: qwen3.6-35b-a3b-llmstack
         type: choice
         options:
-          - provider-default
-          - meta-llama/llama-3.3-70b-instruct
-          - openai/gpt-4o-mini
-          - openai/gpt-4.1-mini
-          - anthropic/claude-sonnet-4.5
-          - google/gemini-2.5-flash
+          - qwen3.6-35b-a3b-llmstack
+          - gemma-4-26b-a4b-it-llmstack
+          - glm-5.2-llmstack
+          - deepseek-v4-flash-0731-llmstack
+          - qwen3.5-397b-a17b-llmstack
+          - mistral-medium-3.5-128b-llmstack
+          - deepseek-v4-flash-openrouter
+          - gemini-2.5-flash-lite-openrouter
+          - gpt-4o-mini-openrouter
+          - gpt-4.1-mini-openrouter
+          - gemini-2.5-flash-openrouter
+          - deepseek-v4-pro-openrouter
+          - gemini-2.5-pro-openrouter
+          - gpt-4.1-openrouter
+          - gpt-5.4-openrouter
+          - claude-sonnet-4.5-openrouter
+          - claude-opus-4.6-openrouter
       llm_judge_model:
-        description: "LLM judge model (same-as-agent, or OpenRouter-style id on the same base URL)"
+        description: "Judge model. same-as-agent, or a choice with the same provider suffix as llm_model."
         required: true
         default: same-as-agent
         type: choice
         options:
           - same-as-agent
-          - meta-llama/llama-3.3-70b-instruct
-          - openai/gpt-4o-mini
-          - openai/gpt-4.1-mini
-          - google/gemini-2.5-flash
-      squash_iteration_id:
-        description: "Squash TM iteration ID for mcp-eval result import (optional)"
-        required: false
-        type: string
-      squash_sync_test_plan:
-        description: "Add mapped mcp-eval Squash test cases to the iteration before import"
-        required: false
-        default: false
-        type: boolean
+          - qwen3.6-35b-a3b-llmstack
+          - gemma-4-26b-a4b-it-llmstack
+          - glm-5.2-llmstack
+          - deepseek-v4-flash-0731-llmstack
+          - qwen3.5-397b-a17b-llmstack
+          - mistral-medium-3.5-128b-llmstack
+          - deepseek-v4-flash-openrouter
+          - gemini-2.5-flash-lite-openrouter
+          - gpt-4o-mini-openrouter
+          - gpt-4.1-mini-openrouter
+          - gemini-2.5-flash-openrouter
+          - deepseek-v4-pro-openrouter
+          - gemini-2.5-pro-openrouter
+          - gpt-4.1-openrouter
+          - gpt-5.4-openrouter
+          - claude-sonnet-4.5-openrouter
+          - claude-opus-4.6-openrouter
 
 concurrency:
   group: mcp-eval
@@ -85,6 +100,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Validate and resolve deploy inputs
+        id: validate
+        env:
+          IN_OP_VER: ${{ github.event.inputs.openproject_version }}
+          IN_XWIKI_ENABLED: "false"
+          IN_NEXTCLOUD_ENABLED: "false"
+        run: .github/scripts/validate-deploy-inputs.sh
+
+      - name: Check LLM credentials
+        env:
+          LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
+          LLM_MODEL: ${{ github.event.inputs.llm_model }}
+          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
+          LLM_STACK_API_KEY: ${{ secrets.LLM_STACK_API_KEY }}
+          LLM_STACK_URL: ${{ vars.LLM_STACK_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: .github/scripts/check-llm-credentials.sh
 
       - name: Resolve enterprise token
         id: enterprise_token
@@ -214,8 +247,10 @@ jobs:
   mcp_eval:
     needs: [deploy]
     if: always() && needs.deploy.outputs.tests_should_run == 'true'
+    outputs:
+      results_ready: ${{ steps.tests.outputs.results_ready }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -224,12 +259,15 @@ jobs:
         uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: e2e/mcp-eval/pyproject.toml
 
       - name: Resolve LLM provider
         id: llm
         env:
           LLM_PROVIDER: ${{ github.event.inputs.llm_provider }}
           LLM_MODEL: ${{ github.event.inputs.llm_model }}
+          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
           LLM_STACK_API_KEY: ${{ secrets.LLM_STACK_API_KEY }}
           LLM_STACK_URL: ${{ vars.LLM_STACK_URL }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -241,6 +279,7 @@ jobs:
           llm_api_key="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_api_key=//p')"
           llm_base_url="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_base_url=//p')"
           llm_model="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_model=//p')"
+          llm_judge_model="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_judge_model=//p')"
           llm_provider="$(printf '%s\n' "${resolved}" | sed -n 's/^llm_provider=//p')"
 
           if [[ -z "${llm_api_key}" ]]; then
@@ -257,6 +296,7 @@ jobs:
             echo "- Provider: \`${llm_provider}\`"
             echo "- Base URL: \`${llm_base_url}\`"
             echo "- Model: \`${llm_model}\`"
+            echo "- Judge model: \`${llm_judge_model}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Run mcp-eval
@@ -268,7 +308,9 @@ jobs:
           LLM_API_KEY: ${{ steps.llm.outputs.llm_api_key }}
           LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
           LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
-          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
+          LLM_JUDGE_MODEL: ${{ steps.llm.outputs.llm_judge_model }}
+          LLM_MAX_RETRIES: "4"
+          LLM_RETRY_BASE_DELAY: "2"
         run: |
           set -euo pipefail
           if [[ -z "${LLM_API_KEY:-}" ]]; then
@@ -281,8 +323,23 @@ jobs:
           fi
           pip install -e .
           python3 scripts/expectations.test.py
+          python3 scripts/llm_retry.test.py
           mkdir -p reports
+          # Sibling imports (eval_config, expectations, seed_data) are loaded by
+          # importlib from tests/*.py, which does not add that directory itself.
+          export PYTHONPATH="${PWD}/tests${PYTHONPATH:+:${PYTHONPATH}}"
+          set +e
           mcp-eval run tests/ --json reports/results.json --html reports/report.html
+          run_status=$?
+          set -e
+          if [[ -f reports/results.json ]]; then
+            echo "results_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "results_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::error::mcp-eval produced no results.json (no tests discovered?)"
+            exit 1
+          fi
+          exit "${run_status}"
 
       - name: Record run metadata
         id: record
@@ -293,7 +350,7 @@ jobs:
           LLM_PROVIDER: ${{ steps.llm.outputs.llm_provider }}
           LLM_MODEL: ${{ steps.llm.outputs.llm_model }}
           LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
-          LLM_JUDGE_MODEL: ${{ github.event.inputs.llm_judge_model }}
+          LLM_JUDGE_MODEL: ${{ steps.llm.outputs.llm_judge_model }}
           OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
         run: python3 scripts/record-run-metadata.py
 
@@ -302,8 +359,8 @@ jobs:
         working-directory: e2e/mcp-eval
         env:
           SQUASH_TM_API_TOKEN: ${{ secrets.SQUASH_TM_API_TOKEN }}
-          SQUASH_TM_ITERATION_ID: ${{ github.event.inputs.squash_iteration_id != '' && github.event.inputs.squash_iteration_id || vars.SQUASH_TM_ITERATION_ID }}
-          SQUASH_TM_SYNC_TEST_PLAN: ${{ github.event.inputs.squash_sync_test_plan == 'true' && 'true' || 'false' }}
+          SQUASH_TM_ITERATION_ID: "15"
+          SQUASH_TM_SYNC_TEST_PLAN: "true"
           SQUASH_TM_SKIP_MISSING_AUTH: "true"
         run: python3 scripts/publish-mcp-eval-squash.py --json reports/results.json
 
@@ -315,3 +372,77 @@ jobs:
           path: e2e/mcp-eval/reports/
           if-no-files-found: ignore
           retention-days: 14
+
+  teardown:
+    needs: [deploy, mcp_eval]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
+    steps:
+      - name: Compute teardown policy
+        id: policy
+        if: always()
+        env:
+          LIVE: ${{ needs.deploy.outputs.live }}
+          PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
+          RESULTS_READY: ${{ needs.mcp_eval.outputs.results_ready }}
+        run: |
+          set -euo pipefail
+          should_teardown=false
+          if [[ -z "${PREVIEW_NAME:-}" ]]; then
+            echo "should_teardown=false" >> "$GITHUB_OUTPUT"
+            echo "No preview label; skip teardown."
+            exit 0
+          fi
+          if [[ "${LIVE}" != "true" ]]; then
+            should_teardown=true
+          elif [[ "${RESULTS_READY}" == "true" ]]; then
+            should_teardown=true
+          fi
+          echo "should_teardown=${should_teardown}" >> "$GITHUB_OUTPUT"
+          echo "Computed: live=${LIVE:-} results_ready=${RESULTS_READY:-} -> should_teardown=${should_teardown}"
+
+      - name: Trigger PullPreview teardown
+        if: >-
+          always() &&
+          steps.policy.outputs.should_teardown == 'true' &&
+          needs.deploy.outputs.preview_name != ''
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+        with:
+          provider: hetzner
+          label: ${{ needs.deploy.outputs.preview_name }}
+          force_action: down
+          deployment_target: helm
+        env:
+          PULLPREVIEW_LOGGER_LEVEL: ERROR
+
+      - name: Keep environment notice
+        if: >-
+          always() &&
+          needs.deploy.outputs.live == 'true' &&
+          needs.deploy.outputs.preview_name != '' &&
+          steps.policy.outputs.should_teardown == 'false'
+        env:
+          PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
+          OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### PullPreview environment kept"
+            echo ""
+            echo "Tests did not produce a report. Preview kept for 24h (TTL), then auto-expires."
+            echo ""
+            echo "- Preview label: \`${PREVIEW_NAME}\`"
+            if [[ -n "${OPENPROJECT_URL}" ]]; then
+              echo "- OpenProject: ${OPENPROJECT_URL}"
+            fi
+            echo ""
+            echo "To tear down later, run workflow **PullPreview Cleanup**:"
+            echo "- \`target=mcpeval\`"
+            echo "- \`mode=teardown\`"
+            echo "- \`confirm_teardown=true\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+# mcp-eval loads this file by path and does not add tests/ to sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from mcp_eval import task, Expect
 from eval_config import configure
 from expectations import (
@@ -24,7 +30,9 @@ TOOL_SELECTION_CASES = [
         "id": "TS-01",
         "prompt": "Who am I logged in as?",
         "tool": "current_user",
-        "result_must_contain": [MCP_USER["firstname"], MCP_USER["email"]],
+        # current_user often returns an opaque MCP resource; email may not be in
+        # the text the agent sees. Identity via firstname (+ login in TS-02).
+        "result_must_contain": [MCP_USER["firstname"]],
         "result_must_not_contain": [],
     },
     {
@@ -90,6 +98,8 @@ TOOL_SELECTION_CASES = [
         "tool": "search_work_packages",
         "result_must_contain": ["Bug"],
         "result_must_not_contain": [],
+        # Tolerate list_types/list_statuses discovery before the single search.
+        "allow_extra_steps": 3,
     },
 
     # ── search_users (admin + Bob_AI) ─────────────────────────────────
@@ -132,7 +142,7 @@ TOOL_SELECTION_CASES = [
 ]
 
 for case in TOOL_SELECTION_CASES:
-    @task(f"[{case['id']}] LLM selects '{case['tool']}' for: \"{case['prompt']}\"")
+    # mcp-eval discovers tasks by function name; one shared name keeps only the last case.
     async def test_tool_selection(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
@@ -155,7 +165,11 @@ for case in TOOL_SELECTION_CASES:
                 response=response,
             )
 
-        await assert_path(session, tools=[_case["tool"]], allow_extra_steps=1)
+        await assert_path(
+            session,
+            tools=[_case["tool"]],
+            allow_extra_steps=_case.get("allow_extra_steps", 1),
+        )
         await assert_quality(
             session,
             response,
@@ -167,3 +181,11 @@ for case in TOOL_SELECTION_CASES:
                 _case["result_must_contain"],
             ),
         )
+
+    _name = f"test_tool_selection_{case['id'].replace('-', '_').lower()}"
+    test_tool_selection.__name__ = _name
+    globals()[_name] = task(
+        f"[{case['id']}] LLM selects '{case['tool']}' for: \"{case['prompt']}\""
+    )(test_tool_selection)
+
+del test_tool_selection

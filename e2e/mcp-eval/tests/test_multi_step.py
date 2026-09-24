@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from mcp_eval import task, Expect
 from eval_config import configure
 from expectations import (
@@ -39,7 +44,6 @@ MULTI_STEP_CASES = [
 ]
 
 for case in MULTI_STEP_CASES:
-    @task(f"[{case['id']}] Multi-step chain: {', '.join(case['tools'])}")
     async def test_multi_step(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
@@ -73,3 +77,11 @@ for case in MULTI_STEP_CASES:
             prompt=_case["prompt"],
             rubric=rubric_multi_step(_case["prompt"], _case["tools"]),
         )
+
+    _name = f"test_multi_step_{case['id'].replace('-', '_').lower()}"
+    test_multi_step.__name__ = _name
+    globals()[_name] = task(
+        f"[{case['id']}] Multi-step chain: {', '.join(case['tools'])}"
+    )(test_multi_step)
+
+del test_multi_step

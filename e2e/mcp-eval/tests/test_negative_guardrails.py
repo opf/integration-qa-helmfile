@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from mcp_eval import task
 from eval_config import configure
 from expectations import (
@@ -40,7 +45,6 @@ NEGATIVE_CASES = [
 ]
 
 for case in NEGATIVE_CASES:
-    @task(f"[{case['id']}] Negative guardrail: Refuse \"{case['prompt']}\"")
     async def test_negative_guardrails(agent, session, _case=case):
         response = await agent.generate_str(_case["prompt"])
 
@@ -56,3 +60,11 @@ for case in NEGATIVE_CASES:
             prompt=_case["prompt"],
             rubric=rubric_guardrail(_case["prompt"]),
         )
+
+    _name = f"test_negative_guardrails_{case['id'].replace('-', '_').lower()}"
+    test_negative_guardrails.__name__ = _name
+    globals()[_name] = task(
+        f"[{case['id']}] Negative guardrail: Refuse \"{case['prompt']}\""
+    )(test_negative_guardrails)
+
+del test_negative_guardrails
