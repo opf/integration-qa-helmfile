@@ -299,6 +299,10 @@
     "tutorialNextButton": {
       "by": "locator",
       "value": "text=Next"
+    },
+    "wikiTab": {
+      "by": "locator",
+      "value": ".op-tab-wiki, [data-test-selector='op-tab-wiki']"
     }
   }
 }
