@@ -302,7 +302,7 @@ def ensure_automated_reference(
     except json.JSONDecodeError:
         pass
     if current == reference:
-        print(f"[Squash TM] Test case {case_id} automated reference already set.")
+        print(f"[Squash TM] Test case {case_id} automated reference already set.", flush=True)
         return
 
     status, body = http_json(
@@ -317,8 +317,132 @@ def ensure_automated_reference(
             f"HTTP {status} {body}"
         )
     print(
-        f"[Squash TM] Set automated reference on test case {case_id}: {reference!r}"
+        f"[Squash TM] Set automated reference on test case {case_id}: {reference!r}",
+        flush=True,
     )
+
+
+def _collect_test_plan_items(value: Any, out: list[tuple[int, int]]) -> None:
+    """Collect (itpi_id, test_case_id) from a Squash test-plan JSON tree."""
+    if isinstance(value, list):
+        for child in value:
+            _collect_test_plan_items(child, out)
+        return
+    if not isinstance(value, dict):
+        return
+
+    tc = (
+        value.get("referenced_test_case")
+        or value.get("test_case")
+        or value.get("testCase")
+        or value.get("referencedTestCase")
+    )
+    tc_id = None
+    if isinstance(tc, dict) and isinstance(tc.get("id"), int):
+        tc_id = tc["id"]
+    elif isinstance(value.get("testCaseId"), int):
+        tc_id = value["testCaseId"]
+
+    itpi_id = value.get("id") if isinstance(value.get("id"), int) else None
+    # Squash ITPI rows are typed; avoid treating nested test-case objects as ITPIs.
+    type_name = str(value.get("_type") or "").lower()
+    looks_like_itpi = (
+        "test-plan" in type_name
+        or "itpi" in type_name
+        or ("referenced_test_case" in value)
+        or ("test_case" in value and type_name != "test-case")
+    )
+    if looks_like_itpi and itpi_id is not None and tc_id is not None:
+        out.append((itpi_id, tc_id))
+
+    for child in value.values():
+        if isinstance(child, (dict, list)):
+            _collect_test_plan_items(child, out)
+
+
+def list_test_plan_items(body: str) -> list[tuple[int, int]]:
+    """Parse GET /iterations/{id}/test-plan into (itpi_id, test_case_id) pairs."""
+    try:
+        data = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        return []
+    embedded = data.get("_embedded") if isinstance(data, dict) else None
+    items: Any = None
+    if isinstance(embedded, dict):
+        items = (
+            embedded.get("test-plan-items")
+            or embedded.get("test-plan")
+            or embedded.get("testPlanItems")
+        )
+    if items is None and isinstance(data, dict):
+        items = data.get("data") or data
+    out: list[tuple[int, int]] = []
+    _collect_test_plan_items(items if items is not None else data, out)
+    # De-dupe identical pairs while preserving order.
+    seen: set[tuple[int, int]] = set()
+    unique: list[tuple[int, int]] = []
+    for pair in out:
+        if pair in seen:
+            continue
+        seen.add(pair)
+        unique.append(pair)
+    return unique
+
+
+def fetch_test_plan(
+    base_url: str, token: str, iteration_id: str
+) -> list[tuple[int, int]]:
+    status, body = http_json(
+        "GET",
+        build_url(base_url, f"iterations/{iteration_id}/test-plan?size=1000"),
+        token,
+    )
+    if status >= 400:
+        raise RuntimeError(f"Failed to read iteration test plan: HTTP {status} {body}")
+    return list_test_plan_items(body)
+
+
+def dedupe_test_plan(
+    base_url: str, token: str, iteration_id: str, *, case_ids: set[int] | None = None
+) -> int:
+    """Delete extra ITPIs that share the same test case id. Returns removals count."""
+    items = fetch_test_plan(base_url, token, iteration_id)
+    by_case: dict[int, list[int]] = {}
+    for itpi_id, tc_id in items:
+        if case_ids is not None and tc_id not in case_ids:
+            continue
+        by_case.setdefault(tc_id, []).append(itpi_id)
+
+    removed = 0
+    for tc_id, itpi_ids in sorted(by_case.items()):
+        if len(itpi_ids) <= 1:
+            continue
+        keep, *extras = itpi_ids
+        for extra in extras:
+            status, body = http_json(
+                "DELETE",
+                build_url(base_url, f"iterations/{iteration_id}/test-plan/{extra}"),
+                token,
+            )
+            if status >= 400:
+                # Older Squash builds use test-plan-items/{id}.
+                status2, body2 = http_json(
+                    "DELETE",
+                    build_url(base_url, f"test-plan-items/{extra}"),
+                    token,
+                )
+                if status2 >= 400:
+                    raise RuntimeError(
+                        f"Failed to delete duplicate ITPI {extra} "
+                        f"(test case {tc_id}): HTTP {status} {body} / {status2} {body2}"
+                    )
+            removed += 1
+            print(
+                f"[Squash TM] Removed duplicate ITPI {extra} "
+                f"(kept {keep}) for test case {tc_id}.",
+                flush=True,
+            )
+    return removed
 
 
 def sync_test_plan(
@@ -331,37 +455,29 @@ def sync_test_plan(
     for case_id, reference in sync_items:
         unique[case_id] = reference
     if not unique:
-        print("[Squash TM] No Squash test case IDs to sync.")
+        print("[Squash TM] No Squash test case IDs to sync.", flush=True)
         return
 
-    status, body = http_json(
-        "GET",
-        build_url(base_url, f"iterations/{iteration_id}/test-plan?size=1000"),
-        token,
+    # Prior SYNC_TEST_PLAN runs may have added the same cases repeatedly.
+    removed = dedupe_test_plan(
+        base_url, token, iteration_id, case_ids=set(unique)
     )
-    if status >= 400:
-        raise RuntimeError(f"Failed to read iteration test plan: HTTP {status} {body}")
+    if removed:
+        print(
+            f"[Squash TM] Removed {removed} duplicate test-plan item(s) "
+            f"from iteration {iteration_id}.",
+            flush=True,
+        )
 
-    existing: set[int] = set()
-    try:
-        data = json.loads(body) if body else {}
-        items = data.get("_embedded", {}).get("test-plan", data.get("data", []))
-        if isinstance(items, list):
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                tc = item.get("test_case") or item.get("referencedTestCase") or {}
-                if isinstance(tc, dict) and isinstance(tc.get("id"), int):
-                    existing.add(tc["id"])
-                elif isinstance(item.get("testCaseId"), int):
-                    existing.add(item["testCaseId"])
-    except json.JSONDecodeError:
-        pass
+    existing = {tc_id for _, tc_id in fetch_test_plan(base_url, token, iteration_id)}
 
     for case_id, reference in sorted(unique.items()):
         ensure_automated_reference(base_url, token, case_id, reference)
         if case_id in existing:
-            print(f"[Squash TM] Test case {case_id} already in iteration test plan.")
+            print(
+                f"[Squash TM] Test case {case_id} already in iteration test plan.",
+                flush=True,
+            )
             continue
         status, body = http_json(
             "POST",
@@ -373,41 +489,83 @@ def sync_test_plan(
             },
         )
         if status < 400 or status == 409 or "already" in body.lower():
-            print(f"[Squash TM] Added/ensured test case {case_id} in iteration {iteration_id}.")
+            print(
+                f"[Squash TM] Added/ensured test case {case_id} "
+                f"in iteration {iteration_id}.",
+                flush=True,
+            )
+            existing.add(case_id)
             continue
         raise RuntimeError(
-            f"Failed to add test case {case_id} to iteration {iteration_id}: HTTP {status} {body}"
+            f"Failed to add test case {case_id} to iteration {iteration_id}: "
+            f"HTTP {status} {body}"
         )
 
 
-def publish(base_url: str, token: str, iteration_id: str, payload: dict[str, Any]) -> None:
+def _import_errors(status: int, body: str) -> list[str]:
+    """Collect per-test import errors from a 207 / unmatched-reference response."""
+    if status != 207 and not (
+        body
+        and (
+            "No test found with this reference" in body
+            or "found multiple times" in body
+        )
+    ):
+        return []
+    errors: list[str] = []
+    try:
+        data = json.loads(body) if body else {}
+        for item in data.get("tests") or []:
+            if isinstance(item, dict) and item.get("error"):
+                errors.append(f"{item.get('reference')!r}: {item.get('error')}")
+    except json.JSONDecodeError:
+        errors.append(body[:500])
+    if not errors:
+        errors.append(body[:500] if body else f"HTTP {status}")
+    return errors
+
+
+def publish(
+    base_url: str,
+    token: str,
+    iteration_id: str,
+    payload: dict[str, Any],
+    *,
+    sync_case_ids: set[int] | None = None,
+) -> None:
     compact = json.dumps(payload, separators=(",", ":"))
     url = build_url(base_url, f"import/results/{iteration_id}")
-    print(f"[Squash TM] Publishing {len(compact.encode())} byte payload to {url}")
+    print(
+        f"[Squash TM] Publishing {len(compact.encode())} byte payload to {url}",
+        flush=True,
+    )
     status, body = http_json("POST", url, token, payload)
     if status >= 400:
         raise RuntimeError(f"Import failed: HTTP {status} {body}")
-    # 207 = partial success: unmatched references leave ITPIs as READY.
-    unmatched: list[str] = []
-    if status == 207 or (body and "No test found with this reference" in body):
-        try:
-            data = json.loads(body) if body else {}
-            for item in data.get("tests") or []:
-                if isinstance(item, dict) and item.get("error"):
-                    unmatched.append(
-                        f"{item.get('reference')!r}: {item.get('error')}"
-                    )
-        except json.JSONDecodeError:
-            unmatched.append(body[:500])
-        if not unmatched:
-            unmatched.append(body[:500] if body else f"HTTP {status}")
-        raise RuntimeError(
-            "Import did not match Squash automated references (statuses stay READY). "
-            "Set each case's Automation → Automated test reference to mcp-eval#<id>#<title> "
-            f"from squash-mapping.yaml (or re-run with SQUASH_TM_SYNC_TEST_PLAN=true). "
-            f"Details: {'; '.join(unmatched)}"
+
+    errors = _import_errors(status, body)
+    if errors and any("found multiple times" in e for e in errors):
+        print(
+            "[Squash TM] Import saw duplicate ITPIs; deduping and retrying once.",
+            flush=True,
         )
-    print(f"[Squash TM] Results imported into iteration {iteration_id} (HTTP {status}).")
+        dedupe_test_plan(base_url, token, iteration_id, case_ids=sync_case_ids)
+        status, body = http_json("POST", url, token, payload)
+        if status >= 400:
+            raise RuntimeError(f"Import retry failed: HTTP {status} {body}")
+        errors = _import_errors(status, body)
+
+    if errors:
+        raise RuntimeError(
+            "Import did not update Squash iteration statuses. "
+            "References must be unique in the iteration "
+            "(mcp-eval#<id>#<title> from squash-mapping.yaml). "
+            f"Details: {'; '.join(errors)}"
+        )
+    print(
+        f"[Squash TM] Results imported into iteration {iteration_id} (HTTP {status}).",
+        flush=True,
+    )
 
 
 def main() -> int:
@@ -450,14 +608,17 @@ def main() -> int:
     payload, sync_items, warnings = build_payload(tasks, mapping, run_meta)
 
     for warning in warnings:
-        print(f"[Squash TM] Warning: {warning}")
+        print(f"[Squash TM] Warning: {warning}", flush=True)
 
     out_path = results_path.parent / "squash-results.json"
     out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    print(f"[Squash TM] Wrote {out_path} ({len(payload.get('tests', []))} mapped test(s))")
+    print(
+        f"[Squash TM] Wrote {out_path} ({len(payload.get('tests', []))} mapped test(s))",
+        flush=True,
+    )
 
     if not payload.get("tests"):
-        print("[Squash TM] No mapped tests to publish.")
+        print("[Squash TM] No mapped tests to publish.", flush=True)
         return 0
 
     base_url = (os.environ.get("SQUASH_TM_URL") or DEFAULT_SQUASH_URL).strip()
@@ -471,24 +632,39 @@ def main() -> int:
 
     if missing:
         if skip_missing_auth or dry_run:
-            print(f"[Squash TM] Missing {', '.join(missing)}; skipping publish.")
+            print(
+                f"[Squash TM] Missing {', '.join(missing)}; skipping publish.",
+                flush=True,
+            )
             return 0
         print(f"[Squash TM] Missing {', '.join(missing)}.", file=sys.stderr)
         return 1
 
     if dry_run:
-        print("[Squash TM] Dry run: payload written; not posting to Squash TM.")
+        print(
+            "[Squash TM] Dry run: payload written; not posting to Squash TM.",
+            flush=True,
+        )
         return 0
 
+    sync_case_ids = {case_id for case_id, _ in sync_items}
     # Always align Squash automated references before import so ITPIs leave READY.
     # Full test-plan membership sync remains gated by SQUASH_TM_SYNC_TEST_PLAN.
     if env_flag("SQUASH_TM_SYNC_TEST_PLAN"):
         sync_test_plan(base_url, token, iteration_id, sync_items)
     else:
+        # Still clear duplicates from prior sync runs so import can match uniquely.
+        dedupe_test_plan(base_url, token, iteration_id, case_ids=sync_case_ids)
         for case_id, reference in sync_items:
             ensure_automated_reference(base_url, token, case_id, reference)
 
-    publish(base_url, token, iteration_id, payload)
+    publish(
+        base_url,
+        token,
+        iteration_id,
+        payload,
+        sync_case_ids=sync_case_ids,
+    )
     return 0
 
 

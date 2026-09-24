@@ -37,6 +37,7 @@ def test_budgets() -> None:
     for cat, budget in BUDGETS.items():
         assert budget["response_time_ms"] > 0, cat
         assert budget["max_iterations"] >= 1, cat
+    assert BUDGETS["tool_selection"]["max_iterations"] == 4
     assert JUDGE_MIN_SCORE == 0.7
 
 

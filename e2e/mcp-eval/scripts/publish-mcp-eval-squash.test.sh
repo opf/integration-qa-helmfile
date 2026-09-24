@@ -147,10 +147,104 @@ try:
     raise SystemExit("expected RuntimeError for HTTP 207")
 except RuntimeError as exc:
     msg = str(exc)
-    assert "READY" in msg or "reference" in msg.lower(), msg
+    assert "reference" in msg.lower() or "Statuses" in msg, msg
     assert "No test found" in msg, msg
 print("ok")
 PY
 pass "http 207 unmatched reference fails"
+
+# Parse Squash test-plan-items shape (e2e publisher key) and detect duplicates.
+python3 - <<PY
+import importlib.util
+import json
+
+spec = importlib.util.spec_from_file_location("pub", "${SCRIPT}")
+pub = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pub)
+
+body = json.dumps({
+    "_embedded": {
+        "test-plan-items": [
+            {
+                "_type": "test-plan-item",
+                "id": 101,
+                "referenced_test_case": {"_type": "test-case", "id": 2195},
+            },
+            {
+                "_type": "test-plan-item",
+                "id": 102,
+                "referenced_test_case": {"_type": "test-case", "id": 2195},
+            },
+            {
+                "_type": "test-plan-item",
+                "id": 103,
+                "referenced_test_case": {"_type": "test-case", "id": 2196},
+            },
+        ]
+    }
+})
+items = pub.list_test_plan_items(body)
+assert items == [(101, 2195), (102, 2195), (103, 2196)], items
+
+# Deduping deletes extras and keeps the first ITPI.
+deleted = []
+
+
+def fake_http(method, url, token, body=None, max_attempts=3):
+    if method == "GET":
+        return 200, '''{"_embedded":{"test-plan-items":[
+            {"_type":"test-plan-item","id":101,"referenced_test_case":{"id":2195}},
+            {"_type":"test-plan-item","id":102,"referenced_test_case":{"id":2195}},
+            {"_type":"test-plan-item","id":103,"referenced_test_case":{"id":2196}}
+        ]}}'''
+    if method == "DELETE":
+        deleted.append(url)
+        return 204, ""
+    raise AssertionError(f"unexpected {method} {url}")
+
+
+pub.http_json = fake_http
+removed = pub.dedupe_test_plan("https://example.test/squash", "token", "6")
+assert removed == 1, removed
+assert any(u.endswith("/test-plan/102") for u in deleted), deleted
+print("ok")
+PY
+pass "test-plan parse + dedupe"
+
+# Duplicate-reference 207 triggers dedupe + successful retry.
+python3 - <<PY
+import importlib.util
+
+spec = importlib.util.spec_from_file_location("pub", "${SCRIPT}")
+pub = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pub)
+
+payload = {"tests": [{"reference": "mcp-eval#TS-01#x", "status": "SUCCESS"}]}
+calls = {"n": 0}
+
+
+def fake_http(method, url, token, body=None, max_attempts=3):
+    if method == "GET":
+        return 200, '{"_embedded":{"test-plan-items":[]}}'
+    if method == "DELETE":
+        return 204, ""
+    if method == "POST" and "import/results" in url:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return 207, (
+                '{"tests":[{"reference":"mcp-eval#TS-01#x",'
+                '"error":"Test with reference mcp-eval#TS-01#x and an empty '
+                'dataset found multiple times in iteration Manual Run"}]}'
+            )
+        return 204, ""
+    raise AssertionError(f"unexpected {method} {url}")
+
+
+pub.http_json = fake_http
+pub.publish("https://example.test/squash", "token", "6", payload, sync_case_ids={2195})
+assert calls["n"] == 2, calls
+print("ok")
+PY
+pass "duplicate ITPI import retries after dedupe"
 
 echo "[PASS] publish-mcp-eval-squash"

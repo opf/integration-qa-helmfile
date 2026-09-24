@@ -8,10 +8,12 @@ from mcp_eval import Expect
 from mcp_eval.evaluators.base import SyncEvaluator, EvaluatorContext
 from mcp_eval.evaluators.shared import EvaluatorResult
 
-# ponytail: generous latency/iteration ceilings until 2–3 CI baselines exist;
-# then tighten BUDGETS from reports/results.json p95 latency + iteration counts.
+# ponytail: tool_selection max_iterations=4 from CI (qwen often does
+# list_types/list_statuses before search_*); tighten other budgets from
+# reports/results.json p95 latency once more baselines exist.
 BUDGETS: dict[str, dict[str, float | int]] = {
-    "tool_selection": {"response_time_ms": 60_000, "max_iterations": 3},
+    # 4: models often list_types/list_statuses before search_work_packages on bug prompts.
+    "tool_selection": {"response_time_ms": 60_000, "max_iterations": 4},
     "argument_extraction": {"response_time_ms": 60_000, "max_iterations": 3},
     "multi_step": {"response_time_ms": 120_000, "max_iterations": 6},
     "negative_guardrails": {"response_time_ms": 45_000, "max_iterations": 3},

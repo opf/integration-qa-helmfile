@@ -30,7 +30,9 @@ TOOL_SELECTION_CASES = [
         "id": "TS-01",
         "prompt": "Who am I logged in as?",
         "tool": "current_user",
-        "result_must_contain": [MCP_USER["firstname"], MCP_USER["email"]],
+        # current_user often returns an opaque MCP resource; email may not be in
+        # the text the agent sees. Identity via firstname (+ login in TS-02).
+        "result_must_contain": [MCP_USER["firstname"]],
         "result_must_not_contain": [],
     },
     {
