@@ -103,6 +103,9 @@ xwiki:
   enabled: {{ eq $xwikiEnabled "true" }}
   host: {{ printf "xwiki.%s" $publicDns | quote }}
   version: {{ $xwikiVersion | quote }}
+  openproject:
+    clientId: xwiki-client-id
+    clientSecret: xwiki-client-secret
   extensions:
     openproject:
       version: {{ $xwikiExtVersion | quote }}

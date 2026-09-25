@@ -150,7 +150,11 @@ xwiki:
   # Full integration default. Local MCP: override with enabled: false.
   enabled: true
   host: xwiki.test
-  version: '17.10.10'
+  version: '18.4.5'
+  # OIDC client to be registered in XWiki for OpenProject
+  openproject:
+    clientId: op-client-id
+    clientSecret: op-client-secret
   extensions:
     openproject:
       version: '1.2.0'

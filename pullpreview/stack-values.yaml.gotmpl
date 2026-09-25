@@ -240,10 +240,14 @@ xwiki:
       value: {{ $xwikiExtensionOpenProjectVersion | default "1.2.0" | quote }}
     - name: OPENPROJECT_HOST
       value: "https://{{ pullpreview_public_dns }}"
-    - name: OPENPROJECT_CLIENT_ID
+    - name: XWIKI_OAUTH_CLIENT_ID
       value: xwiki-client-id
-    - name: OPENPROJECT_CLIENT_SECRET
+    - name: XWIKI_OAUTH_CLIENT_SECRET
       value: xwiki-client-secret
+    - name: OPENPROJECT_OAUTH_CLIENT_ID
+      value: op-client-id
+    - name: OPENPROJECT_OAUTH_CLIENT_SECRET
+      value: op-client-secret
   extraVolumes:
     - name: xwiki-entrypoint
       configMap:
