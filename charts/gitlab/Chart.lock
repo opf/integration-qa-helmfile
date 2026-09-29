@@ -1,0 +1,12 @@
+dependencies:
+- name: gitlab
+  repository: https://charts.gitlab.io
+  version: 10.4.1
+- name: postgresql
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 18.12.1
+- name: redis
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 28.2.3
+digest: sha256:9ad48977d8bc6a7f12a6781a9ad4f827155c0afd4385e330b5baf94fe57d260e
+generated: "2026-09-25T15:40:23.46258487+05:45"

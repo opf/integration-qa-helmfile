@@ -31,14 +31,16 @@ repositories:
   # NOTE: Remove local openproject and use the following once the issues are resolved:
   # - name: openproject
   #   url: https://charts.openproject.org
-  - name: nextcloud
-    url: https://nextcloud.github.io/helm
-  - name: bitnami
-    url: https://charts.bitnami.com/bitnami
-  - name: cert-manager
-    url: https://charts.jetstack.io
-  - name: xwiki-helm
-    url: https://xwiki-contrib.github.io/xwiki-helm
+  #- name: nextcloud
+  #  url: https://nextcloud.github.io/helm
+  #- name: bitnami
+  #  url: https://charts.bitnami.com/bitnami
+  #- name: cert-manager
+  #  url: https://charts.jetstack.io
+  #- name: xwiki-helm
+  #  url: https://xwiki-contrib.github.io/xwiki-helm
+  - name: gitlab
+    url: https://charts.gitlab.io
 
 namespace: opnc-integration
 
@@ -114,3 +116,7 @@ releases:
       - values/xwiki-values.gotmpl
     strategicMergePatches:
       - patches/xwiki/xwiki.yaml
+  - name: gitlab
+    chart: ./charts/gitlab
+    version: ~10.4.1
+    #installed: {{ not .Values.xwiki.enabled }}

@@ -154,3 +154,8 @@ xwiki:
   extensions:
     openproject:
       version: '1.2.0'
+
+gitlab:
+  enabled: true
+  host: gitlab.test
+  version: '19'

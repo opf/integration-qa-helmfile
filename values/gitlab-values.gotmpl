@@ -1,0 +1,13 @@
+global:
+  hosts:
+    domain: {{ .Values.gitlab.host }}
+  redis:
+    host: redis.example.com
+    auth:
+      secret: psql-password
+      key: password
+  psql:
+    host: psql.example.com
+    password:
+      secret: psql-password
+      key: password
