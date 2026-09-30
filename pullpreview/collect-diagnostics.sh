@@ -16,8 +16,9 @@ redact_stream() {
 #
 # Emits a GitHub Actions ::group:: block with: pod/job/deployment/PVC listing,
 # recent events, op-buildsource-job log tail, setup-job log tail + describe,
-# Nextcloud log tail, and XWiki log tail.  All output is piped through
-# redact_stream to avoid leaking secrets in CI logs.
+# Nextcloud log tail, XWiki log tail, and GitLab webservice dependencies log
+# tail.  All output is piped through redact_stream to avoid leaking secrets in
+# CI logs.
 #
 # CONTEXT  - free-text label shown in the group header
 # NAMESPACE - Kubernetes namespace to inspect
@@ -80,7 +81,13 @@ collect_diagnostics() {
     kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --previous --tail=200 2>&1 | redact_stream || true
   fi
 
-local caddy_pod=""
+  if kubectl get pods -n "${namespace}" -l "app=webservice,release=gitlab" >/dev/null 2>&1; then
+    echo "[pullpreview] GitLab webservice dependencies init container log tail:"
+    kubectl logs -n "${namespace}" -l "app=webservice,release=gitlab" \
+      -c dependencies --tail=60 2>&1 | redact_stream || true
+  fi
+
+  local caddy_pod=""
   caddy_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=pullpreview-caddy" \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   if [[ -z "${caddy_pod}" ]]; then

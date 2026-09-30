@@ -1,3 +1,8 @@
+# gitlab chart's envoy-gateway dependency condition only reads the umbrella's top-level global
+global:
+  gatewayApi:
+    installEnvoy: false
+
 gitlab:
   global:
     hosts:
@@ -7,12 +12,12 @@ gitlab:
       secret: gitlab-root-password
       key: password
     redis:
-      host: gitlab-redis-master.opnc-integration.svc.cluster.local
+      host: gitlab-redis-master
       auth:
         secret: gitlab-redis-password
         key: password
     psql:
-      host: gitlab-postgresql.opnc-integration.svc.cluster.local
+      host: gitlab-postgresql
       username: gitlab
       database: gitlab
       password:
@@ -29,7 +34,7 @@ gitlab:
         enabled: false
     gatewayApi:
       enabled: false
-      installEnvoy: false
+      configureCertmanager: false
     kas:
       enabled: false
     pages:

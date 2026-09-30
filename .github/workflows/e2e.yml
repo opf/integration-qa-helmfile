@@ -163,6 +163,7 @@ permissions:
 
 jobs:
   resolve_playwright:
+    if: github.event.inputs.skip_tests != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -186,8 +187,9 @@ jobs:
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  # Batched OP/NC/IO/XWiki pin validation (not one job per product).
-  # Playwright stays a separate prior job only because container.image must bind from needs.*.outputs.
+  # Batched OP/NC/IO/XWiki/GitLab pin validation (not one job per product).
+  # Playwright stays a separate prior job only because GHA binds container.image from
+  # needs.*.outputs before running_tests starts. Deploy-only skips that job entirely.
   resolve_deploy_inputs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -222,7 +224,7 @@ jobs:
         run: .github/scripts/validate-deploy-inputs.sh
 
   deploy:
-    needs: [resolve_playwright, resolve_deploy_inputs]
+    needs: [resolve_deploy_inputs]
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -543,9 +545,58 @@ jobs:
             echo "gitlab_host=${GITLAB_HOST:-}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Setup-only keep notice
+        if: >-
+          always() &&
+          github.event.inputs.skip_tests == 'true' &&
+          steps.publish.outputs.live == 'true' &&
+          steps.publish.outputs.preview_name != ''
+        env:
+          PREVIEW_NAME: ${{ steps.publish.outputs.preview_name }}
+          OPENPROJECT_URL: ${{ steps.publish.outputs.openproject_url }}
+          NEXTCLOUD_HOST: ${{ steps.publish.outputs.nextcloud_host }}
+          KEYCLOAK_HOST: ${{ steps.publish.outputs.keycloak_host }}
+          XWIKI_HOST: ${{ steps.publish.outputs.xwiki_host }}
+          GITLAB_HOST: ${{ steps.publish.outputs.gitlab_host }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### PullPreview environment kept"
+            echo ""
+            echo "Setup-only deploy (skip_tests)."
+            echo ""
+            echo "- Preview label: \`${PREVIEW_NAME}\`"
+            if [[ -n "${OPENPROJECT_URL}" ]]; then
+              echo "- OpenProject: ${OPENPROJECT_URL}"
+            fi
+            if [[ -n "${NEXTCLOUD_HOST}" ]]; then
+              echo "- Nextcloud: https://${NEXTCLOUD_HOST}"
+            fi
+            if [[ -n "${KEYCLOAK_HOST}" ]]; then
+              echo "- Keycloak: https://${KEYCLOAK_HOST}"
+            fi
+            if [[ -n "${XWIKI_HOST}" ]]; then
+              echo "- XWiki: https://${XWIKI_HOST}"
+            fi
+            if [[ -n "${GITLAB_HOST}" ]]; then
+              echo "- GitLab: https://${GITLAB_HOST}"
+            fi
+            echo ""
+            echo "To tear down later, run workflow **PullPreview Cleanup**:"
+            echo "- \`target=setup\`"
+            echo "- \`mode=teardown\`"
+            echo "- \`confirm_teardown=true\`"
+            echo "- \`preview_label=${PREVIEW_NAME}\`"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice::Setup-only deploy is live. Tear down via **PullPreview Cleanup** (target=setup)."
+
   running_tests:
     needs: [deploy, resolve_playwright]
-    if: always() && needs.resolve_playwright.result == 'success'
+    if: >-
+      github.event.inputs.skip_tests != 'true' &&
+      always() &&
+      needs.resolve_playwright.result == 'success'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.resolve_playwright.outputs.version }}-noble
