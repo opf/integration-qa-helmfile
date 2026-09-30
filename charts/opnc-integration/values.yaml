@@ -8,7 +8,7 @@ previewMode: false
 # Use mcp.enabled: false to skip MCP seed on public previews without disabling CI.
 mcp:
   enabled: true
-  oauthToken: "bob_ai_mcp_test_token_1234567890"
+  oauthToken: 'bob_ai_mcp_test_token_1234567890'
 
 # When defer is true, setup-job is not created by the bootstrap release; install it via a
 # follow-up release with renderScope: setupJob (PullPreview phased deploy).
@@ -27,6 +27,7 @@ openprojectAssetHost: openproject-assets.test
 nextcloudHost: nextcloud.test
 keycloakHost: keycloak.test
 xwikiHost: xwiki.test
+gitlabHost: gitlab.test
 
 oidcProvider:
   name: keycloak
@@ -91,3 +92,11 @@ persistence:
 
 xwiki:
   enabled: false
+
+gitlab:
+  enabled: false
+  initialRootPassword: r00t#dev
+  postgresql:
+    password: gitlab
+  redis:
+    password: gitlab

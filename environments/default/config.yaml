@@ -154,3 +154,13 @@ xwiki:
   extensions:
     openproject:
       version: '1.2.0'
+
+gitlab:
+  enabled: false
+  host: gitlab.test
+  version: v19.4.1
+  initialRootPassword: r00t#dev
+  postgresql:
+    password: gitlab
+  redis:
+    password: gitlab

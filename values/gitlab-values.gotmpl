@@ -1,0 +1,31 @@
+gitlab:
+  global:
+    hosts:
+      domain: {{ .Values.gitlab.host }}
+    image:
+      tag: {{ .Values.gitlab.version }}
+  gitlab:
+    webservice:
+      image:
+        tag: {{ .Values.gitlab.version }}
+    gitlab-shell:
+      image:
+        tag: {{ .Values.gitlab.version }}
+    sidekiq:
+      image:
+        tag: {{ .Values.gitlab.version }}
+    gitaly:
+      image:
+        tag: {{ .Values.gitlab.version }}
+    migrations:
+      image:
+        tag: {{ .Values.gitlab.version }}
+postgresql:
+  global:
+    postgresql:
+      auth:
+        password: {{ .Values.gitlab.postgresql.password }}
+redis:
+  global:
+    redis:
+      password: {{ .Values.gitlab.redis.password }}

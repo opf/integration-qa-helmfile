@@ -28,6 +28,9 @@ spec:
         {{ if .Values.xwiki.enabled }}
         - {{ include "opnc.xwikiHost" . }}
         {{ end }}
+        {{ if .Values.gitlab.enabled }}
+        - {{ include "opnc.gitlabHost" . }}
+        {{ end }}
       secretName: {{ include "opnc.tlsSecretName" . }}
   {{- end }}
   rules:
@@ -87,5 +90,18 @@ spec:
                 name: xwiki
                 port:
                   number: 80
+    {{ end }}
+
+    {{ if .Values.gitlab.enabled }}
+    - host: {{ include "opnc.gitlabHost" . }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitlab-webservice-default
+                port:
+                  number: 8181
     {{ end }}
 {{- end }}

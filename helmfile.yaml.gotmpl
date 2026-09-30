@@ -39,6 +39,8 @@ repositories:
     url: https://charts.jetstack.io
   - name: xwiki-helm
     url: https://xwiki-contrib.github.io/xwiki-helm
+  - name: gitlab
+    url: https://charts.gitlab.io
 
 namespace: opnc-integration
 
@@ -108,9 +110,16 @@ releases:
     version: ~1.7.1
     timeout: 2700
     installed: {{ .Values.xwiki.enabled }}
-    needs:
-      - opnc-integration
     values:
       - values/xwiki-values.gotmpl
     strategicMergePatches:
       - patches/xwiki/xwiki.yaml
+    needs:
+      - opnc-integration
+  - name: gitlab
+    chart: ./charts/gitlab
+    installed: {{ .Values.gitlab.enabled }}
+    values:
+      - values/gitlab-values.gotmpl
+    needs:
+      - opnc-integration

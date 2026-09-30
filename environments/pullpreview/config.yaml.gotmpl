@@ -11,6 +11,8 @@
 {{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.2.0" -}}
 {{- $wikiEnhancements := env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true" -}}
 {{- $xwikiEnabled := env "XWIKI_ENABLED" | default "true" -}}
+{{- $gitlabEnabled := env "GITLAB_ENABLED" | default "false" -}}
+{{- $gitlabVersion := env "GITLAB_VERSION" | default "v19.4.1" -}}
 {{- $profile := env "STACK_PROFILE" | default "full" -}}
 {{- $standalone := ne $profile "full" -}}
 {{- $keycloakEnabled := or (eq $profile "full") (eq $profile "op-keycloak") -}}
@@ -106,3 +108,13 @@ xwiki:
   extensions:
     openproject:
       version: {{ $xwikiExtVersion | quote }}
+
+gitlab:
+  enabled: {{ eq $gitlabEnabled "true" }}
+  host: {{ printf "gitlab.%s" $publicDns | quote }}
+  version: {{ $gitlabVersion | quote }}
+  initialRootPassword: r00t#dev
+  postgresql:
+    password: gitlab
+  redis:
+    password: gitlab

@@ -15,6 +15,8 @@ repositories:
     url: https://traefik.github.io/charts
   - name: xwiki-helm
     url: https://xwiki-contrib.github.io/xwiki-helm
+  - name: gitlab
+    url: https://charts.gitlab.io
 
 namespace: {{ requiredEnv "PULLPREVIEW_NAMESPACE" }}
 
@@ -117,3 +119,12 @@ releases:
       - ../values/xwiki-values.gotmpl
     strategicMergePatches:
       - ../patches/xwiki/xwiki.yaml
+
+  - name: gitlab
+    chart: ../charts/gitlab
+    timeout: 2700
+    installed: {{ .Values.gitlab.enabled }}
+    values:
+      - ../values/gitlab-values.gotmpl
+    needs:
+      - opnc-integration

@@ -21,6 +21,7 @@ helm repo add --force-update nextcloud https://nextcloud.github.io/helm >/dev/nu
 helm repo add --force-update bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
 helm repo add --force-update traefik https://traefik.github.io/charts >/dev/null 2>&1 || true
 helm repo add --force-update xwiki-helm https://xwiki-contrib.github.io/xwiki-helm >/dev/null 2>&1 || true
+helm repo add --force-update gitlab https://charts.gitlab.io >/dev/null 2>&1 || true
 helm repo update >/dev/null 2>&1 || true
 
 critical_releases=(opnc-integration openproject keycloak nextcloud-pvc nextcloud opnc-setup-job)
@@ -40,6 +41,13 @@ if command -v kustomize >/dev/null 2>&1; then
   "${helmfile_common[@]}" -l "name=xwiki" template --skip-deps >/dev/null
 else
   echo "[validate-pullpreview] skip xwiki template (install kustomize for strategicMergePatches)"
+fi
+
+if [[ -d charts/gitlab/charts ]]; then
+  echo "[validate-pullpreview] helmfile template release=gitlab"
+  GITLAB_ENABLED=true "${helmfile_common[@]}" -l "name=gitlab" template --skip-deps >/dev/null
+else
+  echo "[validate-pullpreview] skip gitlab template (run: helm dependency build charts/gitlab)"
 fi
 
 echo "[validate-pullpreview] OK"

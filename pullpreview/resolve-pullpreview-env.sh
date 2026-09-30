@@ -206,6 +206,10 @@ xw_enabled = (opnc.get("xwiki") or {}).get("enabled")
 if xw_enabled is not None:
     values["XWIKI_ENABLED"] = "true" if xw_enabled else "false"
 
+gl_enabled = (opnc.get("gitlab") or {}).get("enabled")
+if gl_enabled is not None:
+    values["GITLAB_ENABLED"] = "true" if gl_enabled else "false"
+
 stack_profile = opnc.get("stackProfile")
 if stack_profile:
     values["STACK_PROFILE"] = str(stack_profile)

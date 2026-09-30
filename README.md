@@ -45,7 +45,7 @@
 
 4. Add these hosts to your `/etc/hosts` file:
    ```bash
-   echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test xwiki.test" | sudo tee -a /etc/hosts
+   echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test xwiki.test gitlab.test" | sudo tee -a /etc/hosts
    ```
 
 NOTE: make sure at least one `setup-job-*` pod is completed successfully before proceeding.
@@ -62,6 +62,7 @@ Access the services via the following URLs:
 - Nextcloud: [https://nextcloud.test](https://nextcloud.test)
 - Keycloak: [https://keycloak.test](https://keycloak.test)
 - XWiki: [https://xwiki.test](https://xwiki.test)
+- GitLab: [https://gitlab.test](https://gitlab.test)
 
 > [!NOTE]
 > XWiki will take good amount of time to install the standard flavor.

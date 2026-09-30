@@ -1,0 +1,113 @@
+# gitlab chart's envoy-gateway dependency condition only reads the umbrella's top-level global
+global:
+  gatewayApi:
+    installEnvoy: false
+
+gitlab:
+  global:
+    hosts:
+      domain: gitlab.test
+      https: false
+    initialRootPassword:
+      secret: gitlab-root-password
+      key: password
+    redis:
+      host: gitlab-redis-master
+      auth:
+        secret: gitlab-redis-password
+        key: password
+    psql:
+      host: gitlab-postgresql
+      username: gitlab
+      database: gitlab
+      password:
+        secret: gitlab-psql-password
+        key: password
+    appConfig:
+      artifacts:
+        enabled: false
+      lfs:
+        enabled: false
+      uploads:
+        enabled: false
+      packages:
+        enabled: false
+    gatewayApi:
+      enabled: false
+      configureCertmanager: false
+    kas:
+      enabled: false
+    pages:
+      enabled: false
+    praefect:
+      enabled: false
+  registry:
+    enabled: false
+  gitlab:
+    webservice:
+      minReplicas: 1
+      maxReplicas: 1
+    gitlab-shell:
+      minReplicas: 1
+      maxReplicas: 1
+    sidekiq:
+      minReplicas: 1
+      maxReplicas: 1
+    toolbox:
+      enabled: false
+    mailroom:
+      enabled: false
+    gitlab-exporter:
+      enabled: false
+  upgradeCheck:
+    enabled: false
+  certmanager-issuer:
+    email: webmaster@gitlab.test
+  installCertmanager: false
+  certmanager:
+    installCRDs: false
+    config:
+      enableGatewayAPI: false
+  prometheus:
+    install: false
+  gitlab-runner:
+    install: false
+  nginx-ingress:
+    enabled: false
+
+postgresql:
+  fullnameOverride: gitlab-postgresql
+  image:
+    repository: bitnamilegacy/postgresql
+    tag: '17.5.0-debian-12-r16'
+  global:
+    postgresql:
+      auth:
+        username: gitlab
+        password: gitlab
+        database: gitlab
+  primary:
+    podLabels:
+      app.kubernetes.io/name: gitlab-postgresql
+    resourcesPreset: none
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 500m
+      limits:
+        memory: 2Gi
+    persistence:
+      enabled: true
+
+redis:
+  fullnameOverride: gitlab-redis
+  global:
+    redis:
+      password: gitlab
+  master:
+    podLabels:
+      app.kubernetes.io/name: gitlab-redis
+    persistence:
+      enabled: true
+  replica:
+    replicaCount: 0

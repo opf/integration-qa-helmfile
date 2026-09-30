@@ -15,15 +15,20 @@ run-name: >-
           github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '34',
           github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
         ),
-        format(
-          'Xwiki v.{0}',
-          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.10'
-        ),
         github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
-        format(
-          'xwiki ext v.{0}',
-          github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.2.0'
-        ),
+        github.event.inputs.xwiki_enabled == 'true'
+          && format(
+            'Xwiki v.{0} ext v.{1}',
+            github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.10',
+            github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.2.0'
+          )
+          || 'no xwiki',
+        github.event.inputs.gitlab_enabled == 'true'
+          && format(
+            'GitLab {0}',
+            github.event.inputs.gitlab_version != '' && github.event.inputs.gitlab_version || 'v19.4.1'
+          )
+          || 'no gitlab',
         github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate'
       )
       || format(
@@ -115,15 +120,30 @@ on:
         description: "integration_openproject git branch override"
         required: false
         type: string
+      xwiki_enabled:
+        description: "Deploy XWiki (versions below ignored when unchecked)"
+        required: false
+        default: false
+        type: boolean
       xwiki_version:
-        description: "XWiki image tag"
+        description: "XWiki image tag (used only when XWiki is checked)"
         required: false
         default: "17.10.10"
         type: string
       xwiki_extension_openproject_version:
-        description: "XWiki openproject extension version"
+        description: "XWiki openproject extension version (used only when XWiki is checked)"
         required: false
         default: "1.2.0"
+        type: string
+      gitlab_enabled:
+        description: "Deploy GitLab (version below ignored when unchecked)"
+        required: false
+        default: false
+        type: boolean
+      gitlab_version:
+        description: "GitLab image tag (used only when GitLab is checked)"
+        required: false
+        default: "v19.4.1"
         type: string
       wiki_enhancements:
         description: "Enable OpenProject wiki_enhancements feature flag (XWiki)"
@@ -143,6 +163,7 @@ permissions:
 
 jobs:
   resolve_playwright:
+    if: github.event.inputs.skip_tests != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -166,8 +187,9 @@ jobs:
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  # Batched OP/NC/IO/XWiki pin validation (not one job per product).
-  # Playwright stays a separate prior job only because container.image must bind from needs.*.outputs.
+  # Batched OP/NC/IO/XWiki/GitLab pin validation (not one job per product).
+  # Playwright stays a separate prior job only because GHA binds container.image from
+  # needs.*.outputs before running_tests starts. Deploy-only skips that job entirely.
   resolve_deploy_inputs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -180,6 +202,7 @@ jobs:
       integration_openproject_branch: ${{ steps.validate.outputs.integration_openproject_branch }}
       effective_xwiki_version: ${{ steps.validate.outputs.effective_xwiki_version }}
       effective_xwiki_extension_version: ${{ steps.validate.outputs.effective_xwiki_extension_version }}
+      effective_gitlab_version: ${{ steps.validate.outputs.effective_gitlab_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -189,16 +212,19 @@ jobs:
         env:
           IN_OP_VER: ${{ github.event.inputs.openproject_version }}
           IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
+          IN_XWIKI_ENABLED: ${{ github.event.inputs.xwiki_enabled }}
           IN_XWIKI_VER: ${{ github.event.inputs.xwiki_version }}
           IN_IO_VER: ${{ github.event.inputs.integration_openproject_version }}
           IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_openproject_version }}
+          IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
+          IN_GITLAB_VER: ${{ github.event.inputs.gitlab_version }}
           IN_OP_BRANCH: ${{ github.event.inputs.openproject_branch }}
           IN_NC_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
           IN_IO_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
         run: .github/scripts/validate-deploy-inputs.sh
 
   deploy:
-    needs: [resolve_playwright, resolve_deploy_inputs]
+    needs: [resolve_deploy_inputs]
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -218,6 +244,7 @@ jobs:
       nextcloud_host: ${{ steps.publish.outputs.nextcloud_host }}
       keycloak_host: ${{ steps.publish.outputs.keycloak_host }}
       xwiki_host: ${{ steps.publish.outputs.xwiki_host }}
+      gitlab_host: ${{ steps.publish.outputs.gitlab_host }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -251,6 +278,8 @@ jobs:
           IN_SUITE: ${{ github.event.inputs.suite }}
           IN_SETUP: ${{ github.event.inputs.setupMethod }}
           IN_CUSTOM_GREP: ${{ github.event.inputs.custom_grep }}
+          IN_XWIKI_ENABLED: ${{ github.event.inputs.xwiki_enabled }}
+          IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
@@ -337,6 +366,8 @@ jobs:
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_xwiki_extension_version }}
           OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.wiki_enhancements }}
           XWIKI_ENABLED: ${{ steps.resolve.outputs.xwiki_enabled }}
+          GITLAB_ENABLED: ${{ steps.resolve.outputs.gitlab_enabled }}
+          GITLAB_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_gitlab_version }}
           STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
 
       - name: Strip SSH lines from PullPreview summary
@@ -362,6 +393,7 @@ jobs:
           SKIP_NEXTCLOUD: ${{ steps.resolve.outputs.skip_nextcloud }}
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
+          SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
         run: .github/scripts/deploy-preview-summary.sh
 
       - name: Preview endpoint checks
@@ -374,12 +406,14 @@ jobs:
           skip-xwiki: ${{ steps.resolve.outputs.skip_xwiki }}
           skip-nextcloud: ${{ steps.resolve.outputs.skip_nextcloud }}
           skip-keycloak: ${{ steps.resolve.outputs.skip_keycloak }}
+          skip-gitlab: ${{ steps.resolve.outputs.skip_gitlab }}
 
       - name: Diagnostics (on URL validation failure)
         if: always() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome != 'success'
         env:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
+          SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
           IN_SUITE: ${{ github.event.inputs.suite }}
         run: |
           set -euo pipefail
@@ -421,6 +455,11 @@ jobs:
             dump "https://xwiki.${preview_host}/rest/wikis/xwiki"
           fi
 
+          if [[ "${SKIP_GITLAB}" != "true" ]]; then
+            dump "https://gitlab.${preview_host}/"
+            dump "https://gitlab.${preview_host}/users/sign_in"
+          fi
+
       - name: Export hosts for Playwright
         id: export_hosts
         if: success() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome == 'success'
@@ -430,6 +469,7 @@ jobs:
           SKIP_NEXTCLOUD: ${{ steps.resolve.outputs.skip_nextcloud }}
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
+          SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
         run: |
           set -euo pipefail
           preview_url="${PREVIEW_URL}"
@@ -453,6 +493,9 @@ jobs:
           if [[ "${SKIP_XWIKI:-false}" != "true" ]]; then
             echo "XWIKI_HOST=xwiki.${preview_host}" >> "$GITHUB_ENV"
           fi
+          if [[ "${SKIP_GITLAB:-false}" != "true" ]]; then
+            echo "GITLAB_HOST=gitlab.${preview_host}" >> "$GITHUB_ENV"
+          fi
 
           {
             echo "### PullPreview endpoints"
@@ -467,6 +510,9 @@ jobs:
             fi
             if [[ "${SKIP_XWIKI:-false}" != "true" ]]; then
               echo "- XWiki: https://xwiki.${preview_host}"
+            fi
+            if [[ "${SKIP_GITLAB:-false}" != "true" ]]; then
+              echo "- GitLab: https://gitlab.${preview_host}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -496,11 +542,61 @@ jobs:
             echo "nextcloud_host=${NEXTCLOUD_HOST:-}"
             echo "keycloak_host=${KEYCLOAK_HOST:-}"
             echo "xwiki_host=${XWIKI_HOST:-}"
+            echo "gitlab_host=${GITLAB_HOST:-}"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Setup-only keep notice
+        if: >-
+          always() &&
+          github.event.inputs.skip_tests == 'true' &&
+          steps.publish.outputs.live == 'true' &&
+          steps.publish.outputs.preview_name != ''
+        env:
+          PREVIEW_NAME: ${{ steps.publish.outputs.preview_name }}
+          OPENPROJECT_URL: ${{ steps.publish.outputs.openproject_url }}
+          NEXTCLOUD_HOST: ${{ steps.publish.outputs.nextcloud_host }}
+          KEYCLOAK_HOST: ${{ steps.publish.outputs.keycloak_host }}
+          XWIKI_HOST: ${{ steps.publish.outputs.xwiki_host }}
+          GITLAB_HOST: ${{ steps.publish.outputs.gitlab_host }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### PullPreview environment kept"
+            echo ""
+            echo "Setup-only deploy (skip_tests)."
+            echo ""
+            echo "- Preview label: \`${PREVIEW_NAME}\`"
+            if [[ -n "${OPENPROJECT_URL}" ]]; then
+              echo "- OpenProject: ${OPENPROJECT_URL}"
+            fi
+            if [[ -n "${NEXTCLOUD_HOST}" ]]; then
+              echo "- Nextcloud: https://${NEXTCLOUD_HOST}"
+            fi
+            if [[ -n "${KEYCLOAK_HOST}" ]]; then
+              echo "- Keycloak: https://${KEYCLOAK_HOST}"
+            fi
+            if [[ -n "${XWIKI_HOST}" ]]; then
+              echo "- XWiki: https://${XWIKI_HOST}"
+            fi
+            if [[ -n "${GITLAB_HOST}" ]]; then
+              echo "- GitLab: https://${GITLAB_HOST}"
+            fi
+            echo ""
+            echo "To tear down later, run workflow **PullPreview Cleanup**:"
+            echo "- \`target=setup\`"
+            echo "- \`mode=teardown\`"
+            echo "- \`confirm_teardown=true\`"
+            echo "- \`preview_label=${PREVIEW_NAME}\`"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice::Setup-only deploy is live. Tear down via **PullPreview Cleanup** (target=setup)."
 
   running_tests:
     needs: [deploy, resolve_playwright]
-    if: always() && needs.resolve_playwright.result == 'success'
+    if: >-
+      github.event.inputs.skip_tests != 'true' &&
+      always() &&
+      needs.resolve_playwright.result == 'success'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.resolve_playwright.outputs.version }}-noble
@@ -519,6 +615,7 @@ jobs:
       NEXTCLOUD_HOST: ${{ needs.deploy.outputs.nextcloud_host }}
       KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
       XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
+      GITLAB_HOST: ${{ needs.deploy.outputs.gitlab_host }}
       OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
       E2E_ENV: pullpreview
     steps:
@@ -584,7 +681,7 @@ jobs:
             args+=(--grep "${TAG_GREP}")
           fi
           echo "Running: ${args[*]}"
-          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST}"
+          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST} GL=${GITLAB_HOST}"
           _test_start=$(date +%s)
           set +e
           "${args[@]}"

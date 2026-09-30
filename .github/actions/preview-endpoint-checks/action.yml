@@ -1,5 +1,5 @@
 name: Preview endpoint checks
-description: Verify OpenProject, Nextcloud, Keycloak, and XWiki HTTPS endpoints on a live PullPreview deployment.
+description: Verify OpenProject, Nextcloud, Keycloak, XWiki, and GitLab HTTPS endpoints on a live PullPreview deployment.
 
 inputs:
   preview-url:
@@ -17,6 +17,10 @@ inputs:
     description: Skip Keycloak endpoint checks (set true when Keycloak is not deployed)
     required: false
     default: 'false'
+  skip-gitlab:
+    description: Skip GitLab endpoint checks (set true when GitLab is not deployed)
+    required: false
+    default: 'true'
 
 runs:
   using: composite
@@ -42,6 +46,7 @@ runs:
         SKIP_NEXTCLOUD: ${{ inputs.skip-nextcloud }}
         SKIP_KEYCLOAK: ${{ inputs.skip-keycloak }}
         SKIP_XWIKI: ${{ inputs.skip-xwiki }}
+        SKIP_GITLAB: ${{ inputs.skip-gitlab }}
       run: |
         set -euo pipefail
         # Caddy's on-demand ACME provisions certificates upon receiving the first
@@ -55,6 +60,9 @@ runs:
         fi
         if [[ "${SKIP_XWIKI}" != "true" ]]; then
           targets+=("https://xwiki.${PREVIEW_HOST}/")
+        fi
+        if [[ "${SKIP_GITLAB}" != "true" ]]; then
+          targets+=("https://gitlab.${PREVIEW_HOST}/")
         fi
 
         max_attempts=30
@@ -173,6 +181,17 @@ runs:
         set -euo pipefail
         "${GITHUB_WORKSPACE}/.github/scripts/preview-check-url.sh" "XWiki metadata" "https://xwiki.${PREVIEW_HOST}/rest/openproject/metadata" "200" 120 10
 
+    - name: Check GitLab
+      id: check_gitlab
+      if: inputs.skip-gitlab != 'true'
+      shell: bash
+      continue-on-error: true
+      env:
+        PREVIEW_HOST: ${{ steps.preview_host.outputs.host }}
+      run: |
+        set -euo pipefail
+        "${GITHUB_WORKSPACE}/.github/scripts/preview-check-url.sh" "GitLab" "https://gitlab.${PREVIEW_HOST}/users/sign_in" "200" 120 10
+
     - name: Require all endpoint checks
       shell: bash
       env:
@@ -181,9 +200,11 @@ runs:
         CHECK_KC: ${{ steps.check_keycloak.outcome }}
         CHECK_XW: ${{ steps.check_xwiki.outcome }}
         CHECK_XW_META: ${{ steps.check_xwiki_metadata.outcome }}
+        CHECK_GL: ${{ steps.check_gitlab.outcome }}
         SKIP_XWIKI: ${{ inputs.skip-xwiki }}
         SKIP_NEXTCLOUD: ${{ inputs.skip-nextcloud }}
         SKIP_KEYCLOAK: ${{ inputs.skip-keycloak }}
+        SKIP_GITLAB: ${{ inputs.skip-gitlab }}
       run: |
         set -euo pipefail
         entries=("OpenProject:${CHECK_OP}")
@@ -195,6 +216,9 @@ runs:
         fi
         if [[ "${SKIP_XWIKI}" != "true" ]]; then
           entries+=("XWiki:${CHECK_XW}" "XWiki metadata:${CHECK_XW_META}")
+        fi
+        if [[ "${SKIP_GITLAB}" != "true" ]]; then
+          entries+=("GitLab:${CHECK_GL}")
         fi
         failed=false
         for entry in "${entries[@]}"; do
