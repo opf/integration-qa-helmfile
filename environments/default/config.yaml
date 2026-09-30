@@ -156,6 +156,11 @@ xwiki:
       version: '1.2.0'
 
 gitlab:
-  enabled: true
+  enabled: false
   host: gitlab.test
-  version: '19'
+  version: v19.4.1
+  initialRootPassword: r00t#dev
+  postgresql:
+    password: gitlab
+  redis:
+    password: gitlab

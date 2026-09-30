@@ -11,6 +11,7 @@ openprojectAssetHost: {{ .Values.openproject.assetHost }}
 nextcloudHost: {{ .Values.nextcloud.host }}
 keycloakHost: {{ .Values.keycloak.host }}
 xwikiHost: {{ .Values.xwiki.host }}
+gitlabHost: {{ .Values.gitlab.host }}
 
 nextcloud:
   gitSourceBranch: {{ .Values.nextcloud.gitSourceBranch | quote }}
@@ -64,3 +65,11 @@ persistence:
 
 xwiki:
   enabled: {{ .Values.xwiki.enabled }}
+
+gitlab:
+  enabled: {{ .Values.gitlab.enabled }}
+  initialRootPassword: {{ .Values.gitlab.initialRootPassword }}
+  postgresql:
+    password: {{ .Values.gitlab.postgresql.password }}
+  redis:
+    password: {{ .Values.gitlab.redis.password }}

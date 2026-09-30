@@ -1,29 +1,22 @@
-global:
-  security:
-    allowInsecureImages: true
-  # initialRootPassword:
-  #   secret: gitlab-root-password
-  #   key: password
-
 gitlab:
   global:
     hosts:
       domain: gitlab.test
       https: false
-    # initialRootPassword:
-    #   secret: gitlab-root-password
-    #   key: password
+    initialRootPassword:
+      secret: gitlab-root-password
+      key: password
     redis:
       host: gitlab-redis-master.opnc-integration.svc.cluster.local
       auth:
-        secret: gitlab-pg-password
+        secret: gitlab-redis-password
         key: password
     psql:
       host: gitlab-postgresql.opnc-integration.svc.cluster.local
       username: gitlab
       database: gitlab
       password:
-        secret: gitlab-pg-password
+        secret: gitlab-psql-password
         key: password
     appConfig:
       artifacts:
@@ -46,9 +39,6 @@ gitlab:
   registry:
     enabled: false
   gitlab:
-    kas:
-      minReplicas: 1
-      maxReplicas: 1
     webservice:
       minReplicas: 1
       maxReplicas: 1
@@ -106,9 +96,6 @@ postgresql:
 
 redis:
   fullnameOverride: gitlab-redis
-  # image:
-  # repository: bitnamilegacy/redis
-  # tag: '8'
   global:
     redis:
       password: gitlab

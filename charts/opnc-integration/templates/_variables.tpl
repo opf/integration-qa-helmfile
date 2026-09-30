@@ -24,6 +24,10 @@ Host name of the servers used in the stack.
 {{ .Values.xwikiHost | default "xwiki.test" }}
 {{- end -}}
 
+{{- define "opnc.gitlabHost" -}}
+{{ .Values.gitlabHost | default "gitlab.test" }}
+{{- end -}}
+
 {{/*
 ---------------------------------------------
 Variables for cert-manager and TLS secrets.
