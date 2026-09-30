@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Validate and resolve deploy image tags / git branches before PullPreview.
 # Env in: IN_OP_VER, IN_NC_VER, IN_XWIKI_VER, IN_IO_VER, IN_XWIKI_EXT,
-#         IN_OP_BRANCH, IN_NC_BRANCH, IN_IO_BRANCH
+#         IN_OP_BRANCH, IN_NC_BRANCH, IN_IO_BRANCH,
+#         IN_XWIKI_ENABLED, IN_GITLAB_ENABLED, IN_GITLAB_VER
 # Writes effective pins to GITHUB_OUTPUT and a per-product GITHUB_STEP_SUMMARY.
 #
 # resolve_playwright is a separate prior job because GHA binds container.image from
@@ -51,9 +52,14 @@ validate_version_token() {
 
 validate_image_tag "openproject_version" "${IN_OP_VER:-}"
 validate_image_tag "nextcloud_version" "${IN_NC_VER:-}"
-validate_image_tag "xwiki_version" "${IN_XWIKI_VER:-}"
+if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
+  validate_image_tag "xwiki_version" "${IN_XWIKI_VER:-}"
+  validate_version_token "xwiki_extension_openproject_version" "${IN_XWIKI_EXT:-}"
+fi
+if [[ "${IN_GITLAB_ENABLED:-false}" == "true" ]]; then
+  validate_image_tag "gitlab_version" "${IN_GITLAB_VER:-}"
+fi
 validate_version_token "integration_openproject_version" "${IN_IO_VER:-}"
-validate_version_token "xwiki_extension_openproject_version" "${IN_XWIKI_EXT:-}"
 validate_branch "openproject_branch" "${IN_OP_BRANCH:-}"
 validate_branch "nextcloud_branch" "${IN_NC_BRANCH:-}"
 validate_branch "integration_openproject_branch" "${IN_IO_BRANCH:-}"
@@ -167,6 +173,7 @@ effective_op_ver="${IN_OP_VER:-17}"
 effective_nc_ver="${IN_NC_VER:-32}"
 effective_xwiki_ver="${IN_XWIKI_VER:-17.10.10}"
 effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0}"
+effective_gitlab_ver="${IN_GITLAB_VER:-v19.4.1}"
 
 check_branch_exists "openproject_branch" "https://github.com/opf/openproject.git" "${IN_OP_BRANCH:-}"
 if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
@@ -179,6 +186,9 @@ if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
 fi
 if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
   check_image_exists "xwiki_version" "docker.io/library/xwiki:${effective_xwiki_ver}"
+fi
+if [[ "${IN_GITLAB_ENABLED:-false}" == "true" ]]; then
+  check_image_exists "gitlab_version" "registry.gitlab.com/gitlab-org/build/cng/gitlab-webservice-ee:${effective_gitlab_ver}"
 fi
 if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
   resolve_integration_openproject_source
@@ -196,6 +206,7 @@ fi
   echo "integration_openproject_branch=${effective_io_branch}"
   echo "effective_xwiki_version=${effective_xwiki_ver}"
   echo "effective_xwiki_extension_version=${effective_xwiki_ext}"
+  echo "effective_gitlab_version=${effective_gitlab_ver}"
 } >> "${GITHUB_OUTPUT}"
 
 requested_io="${IN_IO_VER:-}"
@@ -211,6 +222,7 @@ op_requested="$(display_or_default "${IN_OP_VER:-}" "${effective_op_ver}")"
 nc_requested="$(display_or_default "${IN_NC_VER:-}" "${effective_nc_ver}")"
 xw_requested="$(display_or_default "${IN_XWIKI_VER:-}" "${effective_xwiki_ver}")"
 xw_ext_requested="$(display_or_default "${IN_XWIKI_EXT:-}" "${effective_xwiki_ext}")"
+gl_requested="$(display_or_default "${IN_GITLAB_VER:-}" "${effective_gitlab_ver}")"
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
@@ -232,6 +244,9 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
       echo "| XWiki | \`${xw_requested}\` | \`${effective_xwiki_ver}\` |"
       echo "| XWiki OP extension | \`${xw_ext_requested}\` | \`${effective_xwiki_ext}\` |"
+    fi
+    if [[ "${IN_GITLAB_ENABLED:-false}" == "true" ]]; then
+      echo "| GitLab | \`${gl_requested}\` | \`${effective_gitlab_ver}\` |"
     fi
     echo ""
   } >> "${GITHUB_STEP_SUMMARY}"

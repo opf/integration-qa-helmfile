@@ -10,6 +10,7 @@
 {{- $xwikiExtensionOpenProjectVersion := trim (env "XWIKI_EXTENSION_OPENPROJECT_VERSION") -}}
 {{- $wikiEnhancements := eq (trim (env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true")) "true" -}}
 {{- $xwikiEnabled := eq (trim (env "XWIKI_ENABLED" | default "true")) "true" -}}
+{{- $gitlabEnabled := eq (trim (env "GITLAB_ENABLED" | default "false")) "true" -}}
 {{- $stackProfile := trim (env "STACK_PROFILE") | default "full" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
@@ -22,8 +23,11 @@ opnc-integration:
   nextcloudHost: "nextcloud.{{ pullpreview_public_dns }}"
   keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
   xwikiHost: "xwiki.{{ pullpreview_public_dns }}"
+  gitlabHost: "gitlab.{{ pullpreview_public_dns }}"
   xwiki:
     enabled: {{ $xwikiEnabled }}
+  gitlab:
+    enabled: {{ $gitlabEnabled }}
   stackProfile: {{ $stackProfile | quote }}
   openproject:
     dockerTag: {{ $openprojectImageTag | quote }}
@@ -84,6 +88,9 @@ openproject:
   previewIngressAliasHosts:
 {{- if $xwikiEnabled }}
     - "xwiki.{{ pullpreview_public_dns }}"
+{{- end }}
+{{- if $gitlabEnabled }}
+    - "gitlab.{{ pullpreview_public_dns }}"
 {{- end }}
   image:
     tag: {{ $openprojectImageTag | quote }}

@@ -10,10 +10,12 @@ helm repo add --force-update nextcloud https://nextcloud.github.io/helm
 helm repo add --force-update bitnami https://charts.bitnami.com/bitnami
 helm repo add --force-update traefik https://traefik.github.io/charts
 helm repo add --force-update xwiki-helm https://xwiki-contrib.github.io/xwiki-helm
+helm repo add --force-update gitlab https://charts.gitlab.io
 
 helm repo update
 
 helm dependency build charts/pullpreview-stack
+helm dependency build charts/gitlab
 
 if ! command -v helmfile >/dev/null 2>&1; then
   echo "[pullpreview pre_script] Installing helmfile..."
