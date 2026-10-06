@@ -167,9 +167,33 @@
       "by": "locator",
       "value": "button[data-test-selector='op-storage--drop-box']"
     },
+    "linkExistingFilesButton": {
+      "by": "locator",
+      "value": "button[data-test-selector='op-storage--link-existing-file-button']"
+    },
     "filesPickerModal": {
       "by": "locator",
       "value": "[data-test-selector='op-files-picker-modal']"
+    },
+    "filesPickerFileList": {
+      "by": "locator",
+      "value": "[data-test-selector='op-files-picker-modal--file-list']"
+    },
+    "filesPickerListItem": {
+      "by": "locator",
+      "value": "[data-test-selector='op-files-picker-modal--list-item']"
+    },
+    "filesPickerListItemCaret": {
+      "by": "locator",
+      "value": "[data-test-selector='op-files-picker-modal--list-item-caret']"
+    },
+    "filesPickerBreadcrumb": {
+      "by": "locator",
+      "value": "[data-test-selector='op-breadcrumb']"
+    },
+    "filesPickerLoadingIndicator": {
+      "by": "locator",
+      "value": "[data-test-selector='op-file-list--loading-indicator']"
     },
     "filesPickerConfirmButton": {
       "by": "locator",

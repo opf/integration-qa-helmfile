@@ -1,6 +1,6 @@
 import { testConfig } from './config';
 import { ADMIN_USER } from './test-users';
-import { getDispatcher } from './tls-dispatcher';
+import { tlsFetch } from './tls-dispatcher';
 
 interface OpenProjectApiUser {
   id: number;
@@ -129,19 +129,16 @@ async function apiRequest<T>(
     authorization: buildBasicAuthHeader(credentials),
   };
 
-  const dispatcher = getDispatcher();
-
   let payload: string | undefined;
   if (body) {
     headers['content-type'] = 'application/json';
     payload = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await tlsFetch(`${API_BASE_URL}${endpoint}`, {
     method,
     headers,
     body: payload,
-    ...(dispatcher ? { dispatcher } : {}),
   });
 
   if (!response.ok) {

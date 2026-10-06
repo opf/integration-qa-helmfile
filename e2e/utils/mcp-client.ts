@@ -3,7 +3,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { testConfig } from './config';
 import { logInfo, logError } from './logger';
 import { getErrorMessage } from './error-utils';
-import { getDispatcher } from './tls-dispatcher';
+import { tlsFetch } from './tls-dispatcher';
 
 export interface McpClientOptions {
   token?: string;
@@ -18,7 +18,7 @@ export async function createMcpClient(options: McpClientOptions = {}): Promise<C
   const mcpUrl = new URL('/mcp/', baseUrl);
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   };
 
   if (options.token) {
@@ -28,17 +28,13 @@ export async function createMcpClient(options: McpClientOptions = {}): Promise<C
     headers['Authorization'] = `Basic ${auth}`;
   }
 
-  const customFetch: typeof fetch = async (url, init) => {
-    const dispatcher = getDispatcher();
-    return fetch(url, {
-      ...init,
-      ...(dispatcher ? { dispatcher } : {}),
-    });
+  const customFetch = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    return tlsFetch(url as string | URL, init as Parameters<typeof tlsFetch>[1]);
   };
 
   const transport = new StreamableHTTPClientTransport(mcpUrl, {
     requestInit: { headers },
-    fetch: customFetch,
+    fetch: customFetch
   });
 
   const client = new Client(

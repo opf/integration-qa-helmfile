@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { testConfig } from '../../utils/config';
-import { getDispatcher } from '../../utils/tls-dispatcher';
+import { tlsFetch } from '../../utils/tls-dispatcher';
 import { squashTestCase } from '../../utils/squash-metadata';
 
 test.describe('MCP Authentication & Transport Contract', { tag: ['@mcp'] }, () => {
@@ -17,8 +17,7 @@ test.describe('MCP Authentication & Transport Contract', { tag: ['@mcp'] }, () =
       await test.step(
         'Send an HTTP POST request to /mcp with initialize JSON-RPC payload and no Authorization header',
         async () => {
-          const dispatcher = getDispatcher();
-          response = await fetch(mcpEndpoint, {
+          response = await tlsFetch(mcpEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -27,11 +26,10 @@ test.describe('MCP Authentication & Transport Contract', { tag: ['@mcp'] }, () =
               params: {
                 protocolVersion: '2025-03-26',
                 capabilities: {},
-                clientInfo: { name: 'unauthenticated-test', version: '1.0' },
+                clientInfo: { name: 'unauthenticated-test', version: '1.0' }
               },
-              id: 1,
-            }),
-            ...(dispatcher ? { dispatcher } : {}),
+              id: 1
+            })
           });
         },
       );
@@ -51,12 +49,11 @@ test.describe('MCP Authentication & Transport Contract', { tag: ['@mcp'] }, () =
       await test.step(
         'Send an HTTP POST request to /mcp with Authorization: Bearer invalid_token_12345',
         async () => {
-          const dispatcher = getDispatcher();
-          response = await fetch(mcpEndpoint, {
+          response = await tlsFetch(mcpEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer invalid_token_12345',
+              'Authorization': 'Bearer invalid_token_12345'
             },
             body: JSON.stringify({
               jsonrpc: '2.0',
@@ -64,11 +61,10 @@ test.describe('MCP Authentication & Transport Contract', { tag: ['@mcp'] }, () =
               params: {
                 protocolVersion: '2025-03-26',
                 capabilities: {},
-                clientInfo: { name: 'invalid-auth-test', version: '1.0' },
+                clientInfo: { name: 'invalid-auth-test', version: '1.0' }
               },
-              id: 1,
-            }),
-            ...(dispatcher ? { dispatcher } : {}),
+              id: 1
+            })
           });
         },
       );
