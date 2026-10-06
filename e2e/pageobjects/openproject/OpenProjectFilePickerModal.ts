@@ -118,4 +118,102 @@ export class OpenProjectFilePickerModal extends OpenProjectBasePage {
     const linkedFileItem = this.getLocator('workPackageLinkedFileItem').filter({ hasText: fileName }).first();
     await linkedFileItem.waitFor({ state: 'visible', timeout: 15000 });
   }
+
+  /** Open the link-existing files picker (not the upload location picker). */
+  async openLinkExistingFilesPicker(): Promise<void> {
+    const linkButton = this.getLocator('linkExistingFilesButton');
+    await linkButton.waitFor({ state: 'visible', timeout: 15000 });
+    await linkButton.click();
+    await this.getLocator('filesPickerModal').waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  /** Wait until the link picker list is loaded (no connection error / loading spinner). */
+  async waitForLinkPickerReady(maxAttempts = 15): Promise<void> {
+    const modal = this.getLocator('filesPickerModal');
+    const noConnection = this.getLocator('filesPickerNoConnectionError');
+    const cancelButton = this.getLocator('filesPickerCancelButton');
+    const fileList = this.getLocator('filesPickerFileList');
+    const loading = this.getLocator('filesPickerLoadingIndicator');
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await modal.waitFor({ state: 'visible', timeout: 15000 });
+
+      if (await noConnection.isVisible({ timeout: 2000 }).catch(() => false)) {
+        logDebug(
+          `[OpenProject] Link picker shows No Nextcloud connection; retrying ` +
+            `(${attempt + 1}/${maxAttempts})`,
+        );
+        if (await cancelButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await cancelButton.click();
+        } else {
+          await this.page.keyboard.press('Escape');
+        }
+        await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
+        if (attempt < maxAttempts - 1) {
+          await this.page.waitForTimeout(5000);
+          await this.openLinkExistingFilesPicker();
+        }
+        continue;
+      }
+
+      if (await loading.isVisible({ timeout: 500 }).catch(() => false)) {
+        await loading.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => undefined);
+      }
+
+      if (await fileList.isVisible({ timeout: 3000 }).catch(() => false)) {
+        return;
+      }
+
+      await this.page.waitForTimeout(2000);
+    }
+
+    await fileList.waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  /** Enter a folder row by clicking its caret (preferred OpenProject picker navigation). */
+  async navigateIntoFolder(folderName: string): Promise<void> {
+    const row = this.getLocator('filesPickerListItem').filter({ hasText: folderName }).first();
+    await row.waitFor({ state: 'visible', timeout: 15000 });
+    const caret = row.locator(this.getCssLocatorValue('filesPickerListItemCaret')).first();
+    await caret.waitFor({ state: 'visible', timeout: 10000 });
+    await caret.click();
+
+    const loading = this.getLocator('filesPickerLoadingIndicator');
+    if (await loading.isVisible({ timeout: 500 }).catch(() => false)) {
+      await loading.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => undefined);
+    }
+
+    const breadcrumb = this.getLocator('filesPickerBreadcrumb').filter({ hasText: folderName }).first();
+    await breadcrumb.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  /** Toggle selection of a file row in the link picker. */
+  async selectFileInPicker(fileName: string): Promise<void> {
+    const item = this.getLocator('filesPickerListItem').filter({ hasText: fileName }).first();
+    await item.waitFor({ state: 'visible', timeout: 15000 });
+    await item.click();
+  }
+
+  /** Confirm linking the selected file(s). */
+  async confirmLinkSelection(timeoutMs = 10000): Promise<void> {
+    const confirmButton = this.getLocator('filesPickerConfirmButton');
+    await confirmButton.waitFor({ state: 'visible', timeout: timeoutMs });
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (await confirmButton.isEnabled()) {
+        await confirmButton.click();
+        return;
+      }
+      await this.page.waitForTimeout(250);
+    }
+    throw new Error('Files picker confirm button did not become enabled (select a file first).');
+  }
+
+  private getCssLocatorValue(locatorKey: string): string {
+    const descriptor = this.locators.selectors[locatorKey];
+    if (!descriptor || descriptor.by !== 'locator') {
+      throw new Error(`Locator '${locatorKey}' must be a CSS locator`);
+    }
+    return descriptor.value;
+  }
 }

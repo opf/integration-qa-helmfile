@@ -23,6 +23,8 @@ node_modules/
 .env.*
 playwright-report/
 test-results/
+e2e/artifacts/
+*.webm
 .playwright-browsers/
 docker-compose.override.yml
 .DS_Store

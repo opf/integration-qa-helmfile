@@ -1,7 +1,7 @@
 import { ADMIN_USER, OP_ADMIN_USER } from './test-users';
 import { getErrorMessage } from './error-utils';
 import { resolveEnvName, resolveHosts } from './env-hosts';
-import { getDispatcher } from './tls-dispatcher';
+import { tlsFetch } from './tls-dispatcher';
 import { logInfo, logWarn } from './logger';
 
 interface NextcloudCapabilitiesResponse {
@@ -58,7 +58,6 @@ async function detectNextcloudVersions(host: string): Promise<{
   integrationAppVersion: string;
   teamFoldersVersion: string;
 }> {
-  const dispatcher = getDispatcher();
   const notReachable = { 
     version: 'not-reachable', 
     apiVersion: 'not-reachable', 
@@ -67,9 +66,8 @@ async function detectNextcloudVersions(host: string): Promise<{
   };
 
   try {
-    const response = await fetch(`https://${host}/ocs/v1.php/cloud/capabilities?format=json`, {
-      headers: { 'OCS-APIRequest': 'true' },
-      ...(dispatcher ? { dispatcher } : {}),
+    const response = await tlsFetch(`https://${host}/ocs/v1.php/cloud/capabilities?format=json`, {
+      headers: { 'OCS-APIRequest': 'true' }
     });
     if (!response.ok) {
       logWarn(`Nextcloud capabilities API returned HTTP ${response.status} (${host})`);
@@ -92,7 +90,7 @@ async function detectNextcloudVersions(host: string): Promise<{
       version: ocs.version.string,
       apiVersion: ocs?.capabilities?.app_api?.version || 'not-installed',
       integrationAppVersion: hasIntegrationApp || 'not-installed',
-      teamFoldersVersion: hasGroupFolders || 'not-installed',
+      teamFoldersVersion: hasGroupFolders || 'not-installed'
     };
   } catch (error: unknown) {
     logWarn(`Nextcloud capabilities API failed (${host}):`, getErrorMessage(error));
@@ -100,9 +98,8 @@ async function detectNextcloudVersions(host: string): Promise<{
 
   // Fallback: try status.php for the base version
   try {
-    const statusResponse = await fetch(`https://${host}/status.php`, {
-      method: 'GET',
-      ...(dispatcher ? { dispatcher } : {}),
+    const statusResponse = await tlsFetch(`https://${host}/status.php`, {
+      method: 'GET'
     });
     if (statusResponse.ok) {
       const statusData = (await statusResponse.json()) as NextcloudStatusResponse;
@@ -112,7 +109,7 @@ async function detectNextcloudVersions(host: string): Promise<{
           version: statusData.versionstring,
           apiVersion: 'not-installed',
           integrationAppVersion: 'not-installed',
-          teamFoldersVersion: 'not-installed',
+          teamFoldersVersion: 'not-installed'
         };
       }
     }
@@ -131,16 +128,14 @@ async function detectOpenProjectVersion(
   host: string,
   credentials: { username: string; password: string },
 ): Promise<string> {
-  const dispatcher = getDispatcher();
   const encoded = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
 
   try {
-    const response = await fetch(`https://${host}/api/v3`, {
+    const response = await tlsFetch(`https://${host}/api/v3`, {
       headers: {
         authorization: `Basic ${encoded}`,
-        accept: 'application/hal+json',
-      },
-      ...(dispatcher ? { dispatcher } : {}),
+        accept: 'application/hal+json'
+      }
     });
     if (!response.ok) {
       logWarn(`OpenProject API returned HTTP ${response.status} (${host})`);
@@ -162,11 +157,10 @@ async function detectKeycloakVersion(
   host: string,
   credentials: { username: string; password: string },
 ): Promise<string> {
-  const dispatcher = getDispatcher();
 
   try {
     // Step 1: obtain bearer token
-    const tokenResponse = await fetch(
+    const tokenResponse = await tlsFetch(
       `https://${host}/realms/master/protocol/openid-connect/token`,
       {
         method: 'POST',
@@ -175,9 +169,8 @@ async function detectKeycloakVersion(
           grant_type: 'password',
           client_id: 'admin-cli',
           username: credentials.username,
-          password: credentials.password,
-        }).toString(),
-        ...(dispatcher ? { dispatcher } : {}),
+          password: credentials.password
+        }).toString()
       },
     );
     if (!tokenResponse.ok) {
@@ -193,9 +186,8 @@ async function detectKeycloakVersion(
     }
 
     // Step 2: query server info
-    const infoResponse = await fetch(`https://${host}/admin/serverinfo`, {
-      headers: { authorization: `Bearer ${accessToken}` },
-      ...(dispatcher ? { dispatcher } : {}),
+    const infoResponse = await tlsFetch(`https://${host}/admin/serverinfo`, {
+      headers: { authorization: `Bearer ${accessToken}` }
     });
     if (!infoResponse.ok) {
       logWarn(`Keycloak serverinfo request failed: HTTP ${infoResponse.status} (${host})`);
@@ -229,11 +221,11 @@ export async function detectAllVersions(): Promise<DetectedVersions> {
     detectNextcloudVersions(ncHost),
     detectOpenProjectVersion(opHost, {
       username: OP_ADMIN_USER.username,
-      password: OP_ADMIN_USER.password,
+      password: OP_ADMIN_USER.password
     }),
     detectKeycloakVersion(kcHost, {
       username: ADMIN_USER.username,
-      password: ADMIN_USER.password,
+      password: ADMIN_USER.password
     }),
   ]);
 
@@ -243,7 +235,7 @@ export async function detectAllVersions(): Promise<DetectedVersions> {
     integrationApp: ncVersions.integrationAppVersion,
     teamFolders: ncVersions.teamFoldersVersion,
     openproject: opVersion,
-    keycloak: kcVersion,
+    keycloak: kcVersion
   };
 
   logInfo(

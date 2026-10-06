@@ -79,6 +79,9 @@ interface PublisherConfig {
 
 const defaultSquashTmUrl = 'https://squashtm.openproject.org/squash';
 const defaultAttachmentMaxBytes = 5 * 1024 * 1024;
+/** Never upload Playwright media/traces to Squash (HTML report keeps them locally). */
+const squashBlockedAttachmentExtensions = new Set(['webm', 'mp4', 'zip']);
+
 /** Soft ceiling for POST /import/results body; oversized payloads historically caused HTTP 413. */
 const defaultPayloadWarnBytes = 1 * 1024 * 1024;
 const maxFailureScreenshots = 1;
@@ -106,6 +109,7 @@ async function main(): Promise<void> {
       '  SQUASH_TM_STRICT_STEP_COUNT    When true, abort if step counts mismatch instead of skipping steps',
       '  SQUASH_TM_DRY_RUN          When true, write payload without publishing',
       '  SQUASH_TM_TEST_ATTACHMENT_EXTENSIONS  Allowed per-test attachment extensions',
+      '                                      (webm/mp4/zip always blocked from Squash)',
     ].join('\n'));
     return;
   }
@@ -815,6 +819,12 @@ function createFileAttachment(
   if (!fs.existsSync(filePath)) return undefined;
 
   const extension = path.extname(attachmentName).replace('.', '').toLowerCase();
+  if (squashBlockedAttachmentExtensions.has(extension)) {
+    logWarn(
+      `[Squash TM] Skipping Playwright media/trace attachment (kept in HTML report only): ${attachmentName}`,
+    );
+    return undefined;
+  }
   if (!allowedExtensions.has(extension)) {
     logWarn(`[Squash TM] Skipping unsupported attachment extension: ${attachmentName}`);
     return undefined;
@@ -841,6 +851,7 @@ function createTextAttachment(
   maxBytes: number,
 ): SquashAttachment | undefined {
   const extension = path.extname(attachmentName).replace('.', '').toLowerCase();
+  if (squashBlockedAttachmentExtensions.has(extension)) return undefined;
   if (!allowedExtensions.has(extension)) return undefined;
 
   const buffer = Buffer.from(content, 'utf8');

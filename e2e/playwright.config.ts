@@ -56,10 +56,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: {
-      mode: 'retain-on-failure',
-      show: {
-        actions: { position: 'top-left' },
-      },
+      // On by default for HTML reports; Squash publish never uploads webm/mp4/zip.
+      // Set E2E_VIDEO=off to disable globally. MCP project forces video off below.
+      mode: process.env.E2E_VIDEO === 'off' ? 'off' : 'on',
+      size: { width: 1280, height: 800 },
     },
     ignoreHTTPSErrors: true,
     viewport: { width: 1280, height: 800 },
@@ -92,7 +92,11 @@ export default defineConfig({
     },
     {
       name: 'mcp-tests',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // API/protocol checks — no useful UI to record.
+        video: 'off',
+      },
       fullyParallel: false,
       workers: 1,
       testMatch: '**/mcp/**/*.spec.ts',
