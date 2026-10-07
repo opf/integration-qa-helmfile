@@ -103,6 +103,35 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
     return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileRemoveLinkAction');
   }
 
+  /**
+   * Faulty/disabled Nextcloud link action (deleted or inaccessible remote file).
+   * Scoped under the linked file row for the given name.
+   */
+  getLinkedWorkPackageFileFaultyAction(fileName: string): Locator {
+    return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileFaultyAction');
+  }
+
+  getLinkedWorkPackageFileMissingTooltip(): Locator {
+    return this.getLocator('workPackageLinkedFileMissingTooltip');
+  }
+
+  /**
+   * Hover the linked file and wait until the missing/not-found indicator is visible.
+   * Does not crash the Files tab: the row remains in the DOM.
+   */
+  async waitForLinkedWorkPackageFileMissing(fileName: string): Promise<Locator> {
+    const fileItem = await this.hoverLinkedWorkPackageFile(fileName);
+    await this.getLinkedWorkPackageFileFaultyAction(fileName).waitFor({
+      state: 'visible',
+      timeout: 15000,
+    });
+    await this.getLinkedWorkPackageFileMissingTooltip().waitFor({
+      state: 'visible',
+      timeout: 10000,
+    });
+    return fileItem;
+  }
+
   async downloadLinkedWorkPackageFileText(fileName: string): Promise<string> {
     await this.hoverLinkedWorkPackageFile(fileName);
     const downloadAction = this.getLinkedWorkPackageFileDownloadAction(fileName);

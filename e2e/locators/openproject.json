@@ -235,6 +235,14 @@
       "by": "locator",
       "value": "a[title*='Remove link'], button[title*='Remove link'], a[aria-label*='Remove link'], button[aria-label*='Remove link'], a[title*='Remove file link'], button[title*='Remove file link'], a[aria-label*='Remove file link'], button[aria-label*='Remove file link'], a[title*='Unlink'], button[title*='Unlink'], a[aria-label*='Unlink'], button[aria-label*='Unlink'], a:has([title*='Remove link']), button:has([title*='Remove link']), a:has([title*='Remove file link']), button:has([title*='Remove file link'])"
     },
+    "workPackageLinkedFileFaultyAction": {
+      "by": "locator",
+      "value": "a.op-file-list--item-action_faulty-status, a.op-file-list--item-action_disabled"
+    },
+    "workPackageLinkedFileMissingTooltip": {
+      "by": "getByText",
+      "value": "This file cannot be found."
+    },
     "loginToNextcloudRequiredHeading": {
       "by": "getByText",
       "value": "Login to Nextcloud required"
