@@ -108,7 +108,7 @@
     },
     "appsSettingsContent": {
       "by": "locator",
-      "value": "#content.app-settings, #content-vue"
+      "value": "#content.app-settings, #content-vue, #app-content-vue, main#app-content-vue, main"
     },
     "openProjectIntegrationAppRow": {
       "by": "locator",
@@ -116,7 +116,7 @@
     },
     "openProjectIntegrationAppLink": {
       "by": "locator",
-      "value": "a[href*='integration_openproject']:has-text('OpenProject Integration')"
+      "value": "a[href*='integration_openproject']"
     },
     "openProjectIntegrationAppVersion": {
       "by": "locator",
@@ -129,6 +129,48 @@
     "openProjectIntegrationEnableButton": {
       "by": "locator",
       "value": "tr:has(a[href*='integration_openproject']) button:has-text('Enable')"
+    },
+    "pageBody": {
+      "by": "locator",
+      "value": "body"
+    },
+    "openProjectIntegrationActionsButton": {
+      "by": "locator",
+      "value": "tr:has(a[href*='integration_openproject']) button[aria-label='Actions'], tr:has(a[href*='integration_openproject']) button[aria-label*='Actions']"
+    },
+    "openProjectIntegrationRemoveMenuItem": {
+      "by": "getByRole",
+      "value": {
+        "role": "menuitem",
+        "name": "Remove"
+      }
+    },
+    "openProjectIntegrationRemoveButton": {
+      "by": "locator",
+      "value": "tr:has(a[href*='integration_openproject']) button:has-text('Remove')"
+    },
+    "openProjectIntegrationDownloadEnableButton": {
+      "by": "locator",
+      "value": "tr:has(a[href*='integration_openproject']) button:has-text('Download and enable')"
+    },
+    "openProjectIntegrationDownloadForceEnableMenuItem": {
+      "by": "locator",
+      "value": "[role='menuitem']:has-text('Download and force enable')"
+    },
+    "openProjectIntegrationDownloadEnableMenuItem": {
+      "by": "locator",
+      "value": "[role='menuitem']:has-text('Download and enable'), [role='menuitem']:has-text('Download and force enable')"
+    },
+    "integrationsAppsLink": {
+      "by": "locator",
+      "value": "a.app-navigation-entry-link[href*='/settings/apps/integration']:not([href*='integration_']), a[href*='/settings/apps/integration']:has-text('Integration')"
+    },
+    "integrationsAppsText": {
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Integration"
+      }
     },
     "disabledAppsLink": {
       "by": "locator",

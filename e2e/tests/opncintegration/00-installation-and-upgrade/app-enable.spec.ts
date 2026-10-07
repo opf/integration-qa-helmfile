@@ -7,9 +7,13 @@ import {
 } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { ALICE_USER, NC_ADMIN_USER } from '../../../utils/test-users';
-import { waitForNextcloudStorageHealthy } from '../../../utils/test-helpers';
+import {
+  ensureProjectHasNextcloudStorage,
+  waitForNextcloudStorageHealthy,
+} from '../../../utils/test-helpers';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
+import { ensureAliceAdminForCurrentSession } from '../shared';
 
 const WORK_PACKAGE_ID = 2;
 
@@ -86,11 +90,8 @@ test.describe('SSO External - Installation & Upgrade', integrationTags, () => {
         }
       });
 
-      // Post-Squash checks (not extra steps): seeded OP Nextcloud storage still healthy.
-      logInfo('TC-2147', 'Post: Verifying OpenProject seeded Nextcloud storage via API');
-      await waitForNextcloudStorageHealthy('demo-project', { timeoutMs: 120_000 });
-
-      logInfo('TC-2147', 'Post: Verifying Files tab Nextcloud connection as Alice');
+      // Post-Squash checks (not extra steps): Demo project storage healthy and Files tab connected.
+      logInfo('TC-2147', 'Post: Verifying Demo project storage and Files tab as Alice');
       const opLoginPage = new OpenProjectLoginPage(page);
       const opHomePage = new OpenProjectHomePage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
@@ -99,6 +100,9 @@ test.describe('SSO External - Installation & Upgrade', integrationTags, () => {
       const keycloakLoginPage = await opLoginPage.clickKeycloakAuthButton();
       await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
       await opHomePage.waitForReady();
+      await ensureAliceAdminForCurrentSession(page, opHomePage);
+      await ensureProjectHasNextcloudStorage('demo-project', page);
+      await waitForNextcloudStorageHealthy('demo-project', { timeoutMs: 120_000 });
 
       await filesTab.navigateToDemoProjectWorkPackageFiles(WORK_PACKAGE_ID);
       await filesTab.waitForDemoProjectWorkPackageFilesUrl();

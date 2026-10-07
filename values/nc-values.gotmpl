@@ -22,6 +22,12 @@ nextcloud:
   host: {{ .Values.nextcloud.host }}
   username: admin
   password: admin
+  # Tracing JIT (image default) corrupts the PHP heap after an app enable
+  # (zend_mm_heap corrupted, then every Apache child segfaults with 502).
+  phpConfigs:
+    zz-opnc-nojit.ini: |
+      opcache.jit=off
+      opcache.jit_buffer_size=0
   extraInitContainers:
     - name: presetup
       image: node:22

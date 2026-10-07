@@ -31,6 +31,7 @@ endif
 
 .PHONY: setup
 setup:
+	@test -n "$(HOST_IP)" || { echo "[ERROR] HOST_IP is empty; pods would resolve *.test via host /etc/hosts (127.0.0.1). Run outside a sandbox or pass HOST_IP=<lan-ip>."; exit 1; }
 	k3d cluster create opnc -c config/k3d.yaml \
 		$(VOL_ARG) --host-alias $(HOST_IP):openproject.test,nextcloud.test,keycloak.test,openproject-assets.test,xwiki.test,gitlab.test
 
