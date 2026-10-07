@@ -126,6 +126,43 @@
       "by": "locator",
       "value": "tr:has(a[href*='integration_openproject']) button:has-text('Disable')"
     },
+    "openProjectIntegrationEnableButton": {
+      "by": "locator",
+      "value": "tr:has(a[href*='integration_openproject']) button:has-text('Enable')"
+    },
+    "disabledAppsLink": {
+      "by": "locator",
+      "value": "a.app-navigation-entry-link[href='/settings/apps/disabled'][title='Disabled apps'], a.app-navigation-entry-link[href*='/settings/apps/disabled']"
+    },
+    "disabledAppsText": {
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Disabled apps"
+      }
+    },
+    "appsSearchInput": {
+      "by": "getByRole",
+      "value": {
+        "role": "searchbox",
+        "name": "Search apps…"
+      }
+    },
+    "passwordConfirmDialog": {
+      "by": "getByRole",
+      "value": {
+        "role": "dialog",
+        "name": "Authentication required"
+      }
+    },
+    "passwordConfirmInput": {
+      "by": "locator",
+      "value": "[role='dialog'] input[type='password']"
+    },
+    "passwordConfirmButton": {
+      "by": "locator",
+      "value": "[role='dialog'] button:has-text('Confirm')"
+    },
     "loginText": {
       "by": "getByText",
       "value": "Log in to Nextcloud"
