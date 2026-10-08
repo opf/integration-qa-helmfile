@@ -243,7 +243,7 @@ jobs:
       - name: PullPreview up
         id: pullpreview_up
         if: success()
-        uses: pullpreview/action@7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
         with:
           provider: hetzner
           label: ${{ steps.resolve.outputs.preview_name }}
@@ -427,7 +427,7 @@ jobs:
           always() &&
           steps.publish.outputs.preview_name != '' &&
           steps.publish.outputs.live != 'true'
-        uses: pullpreview/action@7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
         with:
           provider: hetzner
           label: ${{ steps.publish.outputs.preview_name }}
