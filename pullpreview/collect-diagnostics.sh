@@ -9,6 +9,7 @@ redact_stream() {
   sed -E \
     -e 's#postgres(ql)?://[^[:space:]"'\''<>]+#postgresql://[REDACTED]#g' \
     -e 's#(Authorization: Bearer )[A-Za-z0-9._~+/-]+#\1[REDACTED]#Ig' \
+    -e 's#("[^"]*(password|token|secret|cookie)[^"]*"[[:space:]]*:[[:space:]]*)"([^"\\]|\\.)*"#\1"[REDACTED]"#Ig' \
     -e 's#((password|token|secret|cookie)[A-Za-z0-9_ -]*(=|:))[[:space:]]*[^[:space:]"'\''<>]+#\1 [REDACTED]#Ig'
 }
 

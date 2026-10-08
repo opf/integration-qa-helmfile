@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 CHART="$ROOT/charts/opnc-integration"
 SCRIPT="$CHART/scripts/setup-mcp.rb"
+INTEGRATION_SCRIPT="$CHART/scripts/setup-integration.sh"
 
 fail() { echo "[FAIL] $*" >&2; exit 1; }
 pass() { echo "[OK] $*"; }
@@ -21,6 +22,14 @@ grep -q 'application_id' "$SCRIPT" || fail "setup-mcp.rb must set application_id
 grep -q 'update_column' "$SCRIPT" || fail "setup-mcp.rb must update_column the hashed token (bypass token= hashing)"
 grep -E '\.token[[:space:]]*=' "$SCRIPT" && fail "setup-mcp.rb must not assign to token= (Doorkeeper hashes the setter)" || true
 pass "setup-mcp.rb Bob_AI contract"
+
+grep -q 'ocs/v2.php/cloud/apps/integration_openproject' "$INTEGRATION_SCRIPT" ||
+  fail "setup-integration.sh must detect the installed integration app version"
+grep -q 'script_ref="v${BASH_REMATCH\[1\]}"' "$INTEGRATION_SCRIPT" ||
+  fail "setup-integration.sh must use the matching release setup script"
+grep -q 'INTEGRATION_SETUP_DEBUG:-false' "$INTEGRATION_SCRIPT" ||
+  fail "setup-integration.sh must keep secret-bearing debug traces off by default"
+pass "integration setup script version and logging guards"
 
 RENDER="$(mktemp)"
 trap 'rm -f "$RENDER"' EXIT
@@ -40,6 +49,9 @@ grep -q 'name: mcp-setup' "$RENDER" || fail "rendered setup-job missing mcp-setu
 grep -q 'name: MCP_OAUTH_TOKEN' "$RENDER" || fail "rendered mcp-setup missing MCP_OAUTH_TOKEN env"
 grep -q 'bob_ai_mcp_test_token_1234567890' "$RENDER" || fail "rendered mcp-setup missing oauth token value"
 grep -q 'setup-mcp.rb' "$RENDER" || fail "rendered job missing setup-mcp.rb mount"
+grep -q 'name: INTEGRATION_APP_GIT_BRANCH' "$RENDER" || fail "rendered setup-job missing integration app branch"
+grep -A2 'image: ddev/ddev-utilities' "$RENDER" | grep -q 'imagePullPolicy: IfNotPresent' ||
+  fail "setup-integration image must not be pulled again for every retry"
 pass "helm template wires MCP_OAUTH_TOKEN and mcp-setup"
 
 helm template mcp-check-off "$CHART" \

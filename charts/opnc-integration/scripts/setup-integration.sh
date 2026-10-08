@@ -20,7 +20,7 @@ OPENPROJECT_WAIT_HOST_HEADER="${OPENPROJECT_WAIT_HOST_HEADER:-}"
 KEYCLOAK_WAIT_HOST_HEADER="${KEYCLOAK_WAIT_HOST_HEADER:-}"
 
 # export configs
-export INTEGRATION_SETUP_DEBUG='true'
+export INTEGRATION_SETUP_DEBUG="${INTEGRATION_SETUP_DEBUG:-false}"
 export SETUP_PROJECT_FOLDER='true'
 export NC_HOST="https://$NEXTCLOUD_HOST"
 export NC_ADMIN_USERNAME='admin'
@@ -58,6 +58,34 @@ wait_for_server() {
     return 1
 }
 
+download_integration_script() {
+    local script_name="$1"
+    local app_version
+    local script_ref
+    local script_url
+
+    app_version=$(curl -fsS --connect-timeout 5 --max-time 15 \
+        -u "$NC_ADMIN_USERNAME:$NC_ADMIN_PASSWORD" \
+        -H 'OCS-APIRequest: true' \
+        "$NC_HOST/ocs/v2.php/cloud/apps/integration_openproject?format=json" |
+        jq -r '.ocs.data.version // empty')
+
+    if [[ -n "${INTEGRATION_APP_GIT_BRANCH:-}" ]]; then
+        script_ref="$INTEGRATION_APP_GIT_BRANCH"
+    elif [[ "$app_version" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+        script_ref="v${BASH_REMATCH[1]}"
+    elif [[ -n "$app_version" ]]; then
+        script_ref="master"
+    else
+        echo "[ERROR] Could not detect the installed integration_openproject version."
+        return 1
+    fi
+
+    script_url="https://raw.githubusercontent.com/nextcloud/integration_openproject/${script_ref}/${script_name}"
+    echo "[INFO] Downloading ${script_name} for integration_openproject ${app_version} (${script_ref})."
+    curl -fsS --connect-timeout 5 --max-time 30 "$script_url" -o "$script_name"
+}
+
 # Exit code for deterministic, non-retryable failures; matched by the Job's
 # podFailurePolicy so Kubernetes fails the whole job instead of retrying.
 TERMINAL_EXIT_CODE=42
@@ -72,6 +100,10 @@ _handle_integration_script_failure() {
         echo "[ERROR] This error cannot be fixed by retrying; failing the setup job." >&2
         exit "$TERMINAL_EXIT_CODE"
     fi
+    if grep -q 'The user "OpenProject" already exists' "$INTEGRATION_SETUP_LOG" 2>/dev/null; then
+        echo "[ERROR] Nextcloud contains stale partial integration setup state; retrying the same job cannot repair it." >&2
+        exit "$TERMINAL_EXIT_CODE"
+    fi
     exit 1
 }
 
@@ -82,8 +114,6 @@ echo "[INFO] Nextcloud is ready."
 echo "[INFO] Waiting for OpenProject to be ready..."
 wait_for_server "$OPENPROJECT_WAIT_URL" "$OPENPROJECT_WAIT_HOST_HEADER"
 echo "[INFO] OpenProject is ready."
-
-SCRIPT_URL="https://raw.githubusercontent.com/nextcloud/integration_openproject/master"
 
 # Optional public-endpoint checks (PullPreview ACME). Disabled by default when
 # in-cluster waits are used — k3d host-alias hairpin can burn the job deadline.
@@ -97,11 +127,7 @@ if [[ "${CHECK_EXTERNAL_ENDPOINTS:-false}" == "true" && "$OP_HOST" != "$OPENPROJ
 fi
 
 if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
-    status=$(curl -s -w "%{http_code}" $SCRIPT_URL/integration_setup.sh -o integration_setup.sh)
-    if [[ $status -ne 200 ]]; then
-        echo "[ERROR] Failed to download script: $SCRIPT_URL/integration_setup.sh"
-        exit 1
-    fi
+    download_integration_script integration_setup.sh
 
     OPENPROJECT_HOST="https://$OPENPROJECT_HOST" \
     NEXTCLOUD_HOST="https://$NEXTCLOUD_HOST" \
@@ -109,11 +135,7 @@ if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
     bash integration_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
-    status=$(curl -s -w "%{http_code}" $SCRIPT_URL/integration_oidc_setup.sh -o integration_oidc_setup.sh)
-    if [[ $status -ne 200 ]]; then
-        echo "[ERROR] Failed to download script: $SCRIPT_URL/integration_oidc_setup.sh"
-        exit 1
-    fi
+    download_integration_script integration_oidc_setup.sh
     # patch for sort command compatibility
     sed -i 's/sort -VC/sort -Vc/g' integration_oidc_setup.sh
 
@@ -128,11 +150,7 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
     wait_for_server "$KEYCLOAK_WAIT_URL" "$KEYCLOAK_WAIT_HOST_HEADER"
     echo "[INFO] Keycloak is ready."
 
-    status=$(curl -s -w "%{http_code}" $SCRIPT_URL/integration_oidc_setup.sh -o integration_oidc_setup.sh)
-    if [[ $status -ne 200 ]]; then
-        echo "[ERROR] Failed to download script: $SCRIPT_URL/integration_oidc_setup.sh"
-        exit 1
-    fi
+    download_integration_script integration_oidc_setup.sh
     # patch for sort command compatibility
     sed -i 's/sort -VC/sort -Vc/g' integration_oidc_setup.sh
 
