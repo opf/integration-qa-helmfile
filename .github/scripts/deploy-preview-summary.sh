@@ -6,7 +6,6 @@ preview_name="${PREVIEW_NAME:-}"
 pullpreview_outcome="${PULLPREVIEW_OUTCOME:-}"
 pullpreview_live="${PULLPREVIEW_LIVE:-}"
 preview_url="${PREVIEW_URL:-}"
-in_skip_tests="${IN_SKIP_TESTS:-false}"
 
 summary_file="${GITHUB_STEP_SUMMARY:-}"
 [[ -n "${summary_file}" ]] || exit 0
@@ -17,9 +16,6 @@ summary_file="${GITHUB_STEP_SUMMARY:-}"
   echo ""
   echo "- Preview label: \`${preview_name:-unknown}\`"
   echo "- PullPreview step: \`${pullpreview_outcome:-skipped}\` | live=\`${pullpreview_live:-}\`"
-  if [[ "${in_skip_tests}" == "true" ]]; then
-    echo "- Mode: setup-only (skip_tests)"
-  fi
   echo ""
   echo "### Expected endpoints"
   echo ""

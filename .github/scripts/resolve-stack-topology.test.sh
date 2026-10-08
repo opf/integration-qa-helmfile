@@ -14,12 +14,14 @@ assert_output() {
   local setup="$3"
   local xwiki_enabled="$4"
   local gitlab_enabled="$5"
-  shift 5
+  local standalone="$6"
+  shift 6
   local -a expected=("$@")
   local out
   out="$(
     IN_XWIKI_ENABLED="${xwiki_enabled}" \
     IN_GITLAB_ENABLED="${gitlab_enabled}" \
+    IN_STANDALONE="${standalone}" \
     "${SCRIPT}" "${suite}" "${setup}" "preview.test"
   )"
   local line
@@ -33,13 +35,14 @@ assert_fails() {
   local label="$1"
   local suite="$2"
   local setup="$3"
-  if "${SCRIPT}" "${suite}" "${setup}" >/dev/null 2>&1; then
+  local standalone="${4:-false}"
+  if IN_STANDALONE="${standalone}" "${SCRIPT}" "${suite}" "${setup}" >/dev/null 2>&1; then
     fail "${label}: expected non-zero exit"
   fi
   pass "${label} rejects invalid combo"
 }
 
-assert_output "defaults both off" "" "sso-external" "false" "false" \
+assert_output "defaults both off" "" "sso-external" "false" "false" "false" \
   "stack_profile=" \
   "skip_nextcloud=false" \
   "skip_xwiki=true" \
@@ -49,7 +52,7 @@ assert_output "defaults both off" "" "sso-external" "false" "false" \
   "gitlab_enabled=false" \
   "proxy_tls_hosts=nextcloud.preview.test,keycloak.preview.test"
 
-assert_output "xwiki only" "" "sso-external" "true" "false" \
+assert_output "xwiki only" "" "sso-external" "true" "false" "false" \
   "stack_profile=" \
   "skip_nextcloud=false" \
   "skip_xwiki=false" \
@@ -59,7 +62,7 @@ assert_output "xwiki only" "" "sso-external" "true" "false" \
   "gitlab_enabled=false" \
   "proxy_tls_hosts=nextcloud.preview.test,keycloak.preview.test,xwiki.preview.test"
 
-assert_output "gitlab only" "" "sso-external" "false" "true" \
+assert_output "gitlab only" "" "sso-external" "false" "true" "false" \
   "stack_profile=" \
   "skip_nextcloud=false" \
   "skip_xwiki=true" \
@@ -69,7 +72,7 @@ assert_output "gitlab only" "" "sso-external" "false" "true" \
   "gitlab_enabled=true" \
   "proxy_tls_hosts=nextcloud.preview.test,keycloak.preview.test,gitlab.preview.test"
 
-assert_output "both on" "" "sso-external" "true" "true" \
+assert_output "both on" "" "sso-external" "true" "true" "false" \
   "stack_profile=" \
   "skip_nextcloud=false" \
   "skip_xwiki=false" \
@@ -79,7 +82,7 @@ assert_output "both on" "" "sso-external" "true" "true" \
   "gitlab_enabled=true" \
   "proxy_tls_hosts=nextcloud.preview.test,keycloak.preview.test,xwiki.preview.test,gitlab.preview.test"
 
-assert_output "mcp oauth2 forces both off" "mcp" "oauth2" "true" "true" \
+assert_output "mcp oauth2 forces both off" "mcp" "oauth2" "true" "true" "false" \
   "stack_profile=op-only" \
   "skip_nextcloud=true" \
   "skip_xwiki=true" \
@@ -89,7 +92,7 @@ assert_output "mcp oauth2 forces both off" "mcp" "oauth2" "true" "true" \
   "gitlab_enabled=false" \
   "proxy_tls_hosts="
 
-assert_output "mcp sso-external forces both off" "mcp" "sso-external" "true" "true" \
+assert_output "mcp sso-external forces both off" "mcp" "sso-external" "true" "true" "false" \
   "stack_profile=op-keycloak" \
   "skip_nextcloud=true" \
   "skip_xwiki=true" \
@@ -99,7 +102,28 @@ assert_output "mcp sso-external forces both off" "mcp" "sso-external" "true" "tr
   "gitlab_enabled=false" \
   "proxy_tls_hosts=keycloak.preview.test"
 
+assert_output "standalone oauth2" "" "oauth2" "false" "false" "true" \
+  "stack_profile=op-only" \
+  "skip_nextcloud=true" \
+  "skip_xwiki=true" \
+  "skip_keycloak=true" \
+  "skip_gitlab=true" \
+  "xwiki_enabled=false" \
+  "gitlab_enabled=false" \
+  "proxy_tls_hosts="
+
+assert_output "standalone sso-external + xwiki" "" "sso-external" "true" "false" "true" \
+  "stack_profile=op-keycloak" \
+  "skip_nextcloud=true" \
+  "skip_xwiki=false" \
+  "skip_keycloak=false" \
+  "skip_gitlab=true" \
+  "xwiki_enabled=true" \
+  "gitlab_enabled=false" \
+  "proxy_tls_hosts=keycloak.preview.test,xwiki.preview.test"
+
 assert_fails "mcp sso-nextcloud" "mcp" "sso-nextcloud"
 assert_fails "mcp unknown setup" "mcp" "bogus"
+assert_fails "standalone sso-nextcloud" "" "sso-nextcloud" "true"
 
 echo "[PASS] resolve-stack-topology"

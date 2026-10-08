@@ -1,53 +1,35 @@
 name: E2E Manual Run
 run-name: >-
   ${{
-    github.event.inputs.skip_tests == 'true'
-      && format(
-        'Setup: {0} - {1} - {2} - {3} - {4} - {5} - ent: {6}',
-        github.event.inputs.setupMethod,
-        format(
-          'OP v.{0}{1}',
-          github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
-          github.event.inputs.openproject_branch != '' && format(' ({0})', github.event.inputs.openproject_branch) || ''
-        ),
-        format(
-          'NC v.{0}{1}',
-          github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '34',
-          github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
-        ),
-        github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
-        github.event.inputs.xwiki_enabled == 'true'
-          && format(
-            'Xwiki v.{0} ext v.{1}',
-            github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.10',
-            github.event.inputs.xwiki_extension_openproject_version != '' && github.event.inputs.xwiki_extension_openproject_version || '1.2.0'
-          )
-          || 'no xwiki',
-        github.event.inputs.gitlab_enabled == 'true'
-          && format(
-            'GitLab {0}',
-            github.event.inputs.gitlab_version != '' && github.event.inputs.gitlab_version || 'v19.4.1'
-          )
-          || 'no gitlab',
-        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate'
-      )
-      || format(
-        'e2e - {0} - {1} - {2} - {3} - {4} - ent: {5}',
-        github.event.inputs.suite,
-        github.event.inputs.setupMethod,
-        format(
-          'op {0}{1}',
-          github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
-          github.event.inputs.openproject_branch != '' && format(' ({0})', github.event.inputs.openproject_branch) || ''
-        ),
-        format(
-          'nc {0}{1}',
-          github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '34',
-          github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
-        ),
-        github.event.inputs.integration_openproject_branch != '' && format('int ({0})', github.event.inputs.integration_openproject_branch) || (github.event.inputs.integration_openproject_version != '' && format('int v.{0}', github.event.inputs.integration_openproject_version) || 'int default'),
-        github.event.inputs.enterprise_token_tier != '' && github.event.inputs.enterprise_token_tier || 'corporate'
-      )
+    format(
+      'E2E · {0} · {1} · {2} · {3} · {4} · {5} · {6}',
+      github.event.inputs.suite,
+      github.event.inputs.setup_method,
+      format(
+        'OP {0}{1}',
+        github.event.inputs.openproject_version != '' && github.event.inputs.openproject_version || '17',
+        github.event.inputs.openproject_branch != '' && format(' ({0})', github.event.inputs.openproject_branch) || ''
+      ),
+      format(
+        'NC {0}{1}',
+        github.event.inputs.nextcloud_version != '' && github.event.inputs.nextcloud_version || '34',
+        github.event.inputs.nextcloud_branch != '' && format(' ({0})', github.event.inputs.nextcloud_branch) || ''
+      ),
+      github.event.inputs.integration_app_branch != '' && format('app ({0})', github.event.inputs.integration_app_branch) || (github.event.inputs.integration_app_version != '' && format('app {0}', github.event.inputs.integration_app_version) || 'app default'),
+      github.event.inputs.xwiki_enabled == 'true'
+        && format(
+          'XWiki {0} + ext {1}',
+          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.10',
+          github.event.inputs.xwiki_extension_version != '' && github.event.inputs.xwiki_extension_version || '1.2.0'
+        )
+        || 'XWiki off',
+      github.event.inputs.gitlab_enabled == 'true'
+        && format(
+          'GitLab {0}',
+          github.event.inputs.gitlab_version != '' && github.event.inputs.gitlab_version || 'v19.4.1'
+        )
+        || 'GitLab off'
+    )
   }}
 
 defaults:
@@ -57,13 +39,8 @@ defaults:
 on:
   workflow_dispatch:
     inputs:
-      skip_tests:
-        description: "Deploy only"
-        required: false
-        default: false
-        type: boolean
       suite:
-        description: "Test suite"
+        description: "[Tests] Test suite"
         required: true
         default: all
         type: choice
@@ -75,20 +52,20 @@ on:
           - mcp
           - custom
       custom_grep:
-        description: "Custom --grep expression"
+        description: "[Tests] Custom --grep expression (suite=custom)"
         required: false
         type: string
       squash_iteration_id:
-        description: "Squash TM iteration ID for result import"
+        description: "[Squash] Squash TM iteration ID for result import"
         required: false
         type: string
       squash_sync_test_plan:
-        description: "Fill iteration with test cases"
+        description: "[Squash] Fill iteration with test cases"
         required: false
         default: false
         type: boolean
-      setupMethod:
-        description: "Integration setup mode"
+      setup_method:
+        description: "[Stack] Integration setup mode"
         required: true
         default: sso-external
         type: choice
@@ -96,74 +73,73 @@ on:
           - sso-external
           - sso-nextcloud
           - oauth2
-      openproject_version:
-        description: "OpenProject image tag (empty = 17)"
-        required: false
-        type: string
-      openproject_branch:
-        description: "Optional OpenProject git source branch"
-        required: false
-        type: string
-      nextcloud_version:
-        description: "Nextcloud image tag (empty = 34)"
-        required: false
-        type: string
-      nextcloud_branch:
-        description: "Optional Nextcloud git source branch override"
-        required: false
-        type: string
-      integration_openproject_version:
-        description: "integration_openproject app version"
-        required: false
-        type: string
-      integration_openproject_branch:
-        description: "integration_openproject git branch override"
-        required: false
-        type: string
-      xwiki_enabled:
-        description: "Deploy XWiki (versions below ignored when unchecked)"
-        required: false
-        default: false
-        type: boolean
-      xwiki_version:
-        description: "XWiki image tag (used only when XWiki is checked)"
-        required: false
-        default: "17.10.10"
-        type: string
-      xwiki_extension_openproject_version:
-        description: "XWiki openproject extension version (used only when XWiki is checked)"
-        required: false
-        default: "1.2.0"
-        type: string
-      gitlab_enabled:
-        description: "Deploy GitLab (version below ignored when unchecked)"
-        required: false
-        default: false
-        type: boolean
-      gitlab_version:
-        description: "GitLab image tag (used only when GitLab is checked)"
-        required: false
-        default: "v19.4.1"
-        type: string
-      wiki_enhancements:
-        description: "Enable OpenProject wiki_enhancements feature flag (XWiki)"
-        required: false
-        default: true
-        type: boolean
       enterprise_token_tier:
-        description: "OpenProject enterprise plan (integration stack requires corporate)"
+        description: "[Stack] OpenProject enterprise plan (integration stack requires corporate)"
         required: true
         default: corporate
         type: choice
         options:
           - corporate
+      openproject_version:
+        description: "[OpenProject] Image tag (empty = 17)"
+        required: false
+        type: string
+      openproject_branch:
+        description: "[OpenProject] Optional git source branch"
+        required: false
+        type: string
+      openproject_wiki_enhancements:
+        description: "[OpenProject] Enable wiki_enhancements feature flag (XWiki)"
+        required: false
+        default: true
+        type: boolean
+      nextcloud_version:
+        description: "[Nextcloud] Image tag (empty = 34)"
+        required: false
+        type: string
+      nextcloud_branch:
+        description: "[Nextcloud] Optional git source branch"
+        required: false
+        type: string
+      integration_app_version:
+        description: "[Integration app] Version"
+        required: false
+        type: string
+      integration_app_branch:
+        description: "[Integration app] Git branch override"
+        required: false
+        type: string
+      xwiki_enabled:
+        description: "[XWiki] Deploy XWiki (versions below ignored when unchecked)"
+        required: false
+        default: false
+        type: boolean
+      xwiki_version:
+        description: "[XWiki] Image tag (used only when XWiki is checked)"
+        required: false
+        default: "17.10.10"
+        type: string
+      xwiki_extension_version:
+        description: "[XWiki] OpenProject extension version (used only when XWiki is checked)"
+        required: false
+        default: "1.2.0"
+        type: string
+      gitlab_enabled:
+        description: "[GitLab] Deploy GitLab (version below ignored when unchecked)"
+        required: false
+        default: false
+        type: boolean
+      gitlab_version:
+        description: "[GitLab] Image tag (used only when GitLab is checked)"
+        required: false
+        default: "v19.4.1"
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   resolve_playwright:
-    if: github.event.inputs.skip_tests != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -189,7 +165,7 @@ jobs:
 
   # Batched OP/NC/IO/XWiki/GitLab pin validation (not one job per product).
   # Playwright stays a separate prior job only because GHA binds container.image from
-  # needs.*.outputs before running_tests starts. Deploy-only skips that job entirely.
+  # needs.*.outputs before running_tests starts.
   resolve_deploy_inputs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -214,13 +190,13 @@ jobs:
           IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
           IN_XWIKI_ENABLED: ${{ github.event.inputs.xwiki_enabled }}
           IN_XWIKI_VER: ${{ github.event.inputs.xwiki_version }}
-          IN_IO_VER: ${{ github.event.inputs.integration_openproject_version }}
-          IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_openproject_version }}
+          IN_IO_VER: ${{ github.event.inputs.integration_app_version }}
+          IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_version }}
           IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
           IN_GITLAB_VER: ${{ github.event.inputs.gitlab_version }}
           IN_OP_BRANCH: ${{ github.event.inputs.openproject_branch }}
           IN_NC_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
-          IN_IO_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
+          IN_IO_BRANCH: ${{ github.event.inputs.integration_app_branch }}
         run: .github/scripts/validate-deploy-inputs.sh
 
   deploy:
@@ -274,9 +250,8 @@ jobs:
       - name: Resolve grep and preview name
         id: resolve
         env:
-          IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
           IN_SUITE: ${{ github.event.inputs.suite }}
-          IN_SETUP: ${{ github.event.inputs.setupMethod }}
+          IN_SETUP: ${{ github.event.inputs.setup_method }}
           IN_CUSTOM_GREP: ${{ github.event.inputs.custom_grep }}
           IN_XWIKI_ENABLED: ${{ github.event.inputs.xwiki_enabled }}
           IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
@@ -297,31 +272,25 @@ jobs:
           fi
 
           grep=""
-          if [[ "${IN_SKIP_TESTS}" != "true" ]]; then
-            case "${IN_SUITE}" in
-              all) grep='' ;;
-              smoke) grep='@smoke' ;;
-              regression) grep='@regression' ;;
-              integration) grep='@integration' ;;
-              mcp) grep='@mcp' ;;
-              custom) grep="${IN_CUSTOM_GREP}" ;;
-              *)
-                echo "::error::Unknown suite: ${IN_SUITE}"
-                exit 1
-                ;;
-            esac
-
-            if [ "${IN_SUITE}" = "custom" ] && [ -z "${grep}" ]; then
-              echo "::error::Resolved grep is empty. For suite=custom, set custom_grep."
+          case "${IN_SUITE}" in
+            all) grep='' ;;
+            smoke) grep='@smoke' ;;
+            regression) grep='@regression' ;;
+            integration) grep='@integration' ;;
+            mcp) grep='@mcp' ;;
+            custom) grep="${IN_CUSTOM_GREP}" ;;
+            *)
+              echo "::error::Unknown suite: ${IN_SUITE}"
               exit 1
-            fi
+              ;;
+          esac
+
+          if [ "${IN_SUITE}" = "custom" ] && [ -z "${grep}" ]; then
+            echo "::error::Resolved grep is empty. For suite=custom, set custom_grep."
+            exit 1
           fi
 
-          preview_prefix="e2e"
-          if [[ "${IN_SKIP_TESTS}" == "true" ]]; then
-            preview_prefix="setup"
-          fi
-          preview_name="${preview_prefix}-${RUN_ID}-${RUN_ATTEMPT}"
+          preview_name="e2e-${RUN_ID}-${RUN_ATTEMPT}"
 
           # Heredoc-delimited outputs guard against newlines/special chars in
           # user-provided inputs (e.g. custom_grep or preview_name).
@@ -335,7 +304,7 @@ jobs:
       - name: PullPreview up
         id: pullpreview_up
         if: success()
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+        uses: pullpreview/action@7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
         with:
           provider: hetzner
           label: ${{ steps.resolve.outputs.preview_name }}
@@ -351,11 +320,11 @@ jobs:
           pre_script: pullpreview/pre-script-helm-deps-e2e.sh
           proxy_tls: traefik:80
           proxy_tls_hosts: ${{ steps.resolve.outputs.proxy_tls_hosts }}
-          ttl: ${{ github.event.inputs.skip_tests == 'true' && '72h' || '24h' }}
+          ttl: 24h
         env:
           PULLPREVIEW_LOGGER_LEVEL: INFO
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
-          INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
+          INTEGRATION_SETUP_METHOD: ${{ github.event.inputs.setup_method }}
           OPENPROJECT_VERSION: ${{ github.event.inputs.openproject_version }}
           OPENPROJECT_BRANCH: ${{ github.event.inputs.openproject_branch }}
           NEXTCLOUD_VERSION: ${{ github.event.inputs.nextcloud_version }}
@@ -364,17 +333,14 @@ jobs:
           INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ needs.resolve_deploy_inputs.outputs.integration_openproject_branch }}
           XWIKI_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_xwiki_version }}
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_xwiki_extension_version }}
-          OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.wiki_enhancements }}
+          OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.openproject_wiki_enhancements }}
           XWIKI_ENABLED: ${{ steps.resolve.outputs.xwiki_enabled }}
           GITLAB_ENABLED: ${{ steps.resolve.outputs.gitlab_enabled }}
           GITLAB_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_gitlab_version }}
           STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
 
       - name: Strip SSH lines from PullPreview summary
-        if: >-
-          always() &&
-          steps.pullpreview_up.outcome != 'skipped' &&
-          github.event.inputs.skip_tests != 'true'
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
         run: |
           set -euo pipefail
           [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || exit 0
@@ -389,7 +355,6 @@ jobs:
           PULLPREVIEW_OUTCOME: ${{ steps.pullpreview_up.outcome }}
           PULLPREVIEW_LIVE: ${{ steps.pullpreview_up.outputs.live }}
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
-          IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
           SKIP_NEXTCLOUD: ${{ steps.resolve.outputs.skip_nextcloud }}
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
@@ -524,11 +489,10 @@ jobs:
           PREVIEW_NAME: ${{ steps.resolve.outputs.preview_name }}
           GREP: ${{ steps.resolve.outputs.grep }}
           VALIDATE_OUTCOME: ${{ steps.validate_urls.outcome }}
-          IN_SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
           set -euo pipefail
           tests_should_run=false
-          if [[ "${IN_SKIP_TESTS}" != "true" ]] && [[ "${LIVE}" == "true" ]] && [[ "${VALIDATE_OUTCOME}" == "success" ]]; then
+          if [[ "${LIVE}" == "true" ]] && [[ "${VALIDATE_OUTCOME}" == "success" ]]; then
             tests_should_run=true
           fi
           grep_b64="$(printf '%s' "${GREP}" | base64 -w0)"
@@ -545,58 +509,9 @@ jobs:
             echo "gitlab_host=${GITLAB_HOST:-}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Setup-only keep notice
-        if: >-
-          always() &&
-          github.event.inputs.skip_tests == 'true' &&
-          steps.publish.outputs.live == 'true' &&
-          steps.publish.outputs.preview_name != ''
-        env:
-          PREVIEW_NAME: ${{ steps.publish.outputs.preview_name }}
-          OPENPROJECT_URL: ${{ steps.publish.outputs.openproject_url }}
-          NEXTCLOUD_HOST: ${{ steps.publish.outputs.nextcloud_host }}
-          KEYCLOAK_HOST: ${{ steps.publish.outputs.keycloak_host }}
-          XWIKI_HOST: ${{ steps.publish.outputs.xwiki_host }}
-          GITLAB_HOST: ${{ steps.publish.outputs.gitlab_host }}
-        run: |
-          set -euo pipefail
-          {
-            echo "### PullPreview environment kept"
-            echo ""
-            echo "Setup-only deploy (skip_tests)."
-            echo ""
-            echo "- Preview label: \`${PREVIEW_NAME}\`"
-            if [[ -n "${OPENPROJECT_URL}" ]]; then
-              echo "- OpenProject: ${OPENPROJECT_URL}"
-            fi
-            if [[ -n "${NEXTCLOUD_HOST}" ]]; then
-              echo "- Nextcloud: https://${NEXTCLOUD_HOST}"
-            fi
-            if [[ -n "${KEYCLOAK_HOST}" ]]; then
-              echo "- Keycloak: https://${KEYCLOAK_HOST}"
-            fi
-            if [[ -n "${XWIKI_HOST}" ]]; then
-              echo "- XWiki: https://${XWIKI_HOST}"
-            fi
-            if [[ -n "${GITLAB_HOST}" ]]; then
-              echo "- GitLab: https://${GITLAB_HOST}"
-            fi
-            echo ""
-            echo "To tear down later, run workflow **PullPreview Cleanup**:"
-            echo "- \`target=setup\`"
-            echo "- \`mode=teardown\`"
-            echo "- \`confirm_teardown=true\`"
-            echo "- \`preview_label=${PREVIEW_NAME}\`"
-            echo ""
-          } >> "${GITHUB_STEP_SUMMARY}"
-          echo "::notice::Setup-only deploy is live. Tear down via **PullPreview Cleanup** (target=setup)."
-
   running_tests:
     needs: [deploy, resolve_playwright]
-    if: >-
-      github.event.inputs.skip_tests != 'true' &&
-      always() &&
-      needs.resolve_playwright.result == 'success'
+    if: always() && needs.resolve_playwright.result == 'success'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.resolve_playwright.outputs.version }}-noble
@@ -668,7 +583,7 @@ jobs:
         continue-on-error: true
         working-directory: e2e
         env:
-          SETUP_METHOD: ${{ github.event.inputs.setupMethod }}
+          SETUP_METHOD: ${{ github.event.inputs.setup_method }}
           TAG_GREP_B64: ${{ needs.deploy.outputs.grep_b64 }}
         run: |
           set -uo pipefail
@@ -720,12 +635,15 @@ jobs:
         env:
           IN_OP_BRANCH: ${{ github.event.inputs.openproject_branch }}
           IN_NC_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
-          IN_IO_BRANCH: ${{ github.event.inputs.integration_openproject_branch }}
-          IN_IO_VER: ${{ github.event.inputs.integration_openproject_version }}
+          IN_IO_BRANCH: ${{ github.event.inputs.integration_app_branch }}
+          IN_IO_VER: ${{ github.event.inputs.integration_app_version }}
           IN_OP_VER: ${{ github.event.inputs.openproject_version }}
           IN_NC_VER: ${{ github.event.inputs.nextcloud_version }}
+          IN_XWIKI_ENABLED: ${{ github.event.inputs.xwiki_enabled }}
           IN_XWIKI_VER: ${{ github.event.inputs.xwiki_version }}
-          IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_openproject_version }}
+          IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_version }}
+          IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
+          IN_GITLAB_VER: ${{ github.event.inputs.gitlab_version }}
         run: |
           set -euo pipefail
 
@@ -779,20 +697,29 @@ jobs:
             echo "- Nextcloud git source branch: \`${IN_NC_BRANCH}\`" >> "${GITHUB_STEP_SUMMARY}"
           fi
           if [[ -n "${IN_IO_VER:-}" ]]; then
-            echo "- integration_openproject app version (workflow input): \`${IN_IO_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- Integration app version (workflow input): \`${IN_IO_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
           fi
           if [[ -n "${IN_IO_BRANCH:-}" ]]; then
-            echo "- integration_openproject git branch: \`${IN_IO_BRANCH}\`" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- Integration app git branch: \`${IN_IO_BRANCH}\`" >> "${GITHUB_STEP_SUMMARY}"
           fi
-          if [[ -n "${IN_XWIKI_VER:-}" ]]; then
-            echo "- XWiki image tag: \`${IN_XWIKI_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "- XWiki image tag: \`17.10.10\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+          if [[ "${IN_XWIKI_ENABLED}" == "true" ]]; then
+            if [[ -n "${IN_XWIKI_VER:-}" ]]; then
+              echo "- XWiki image tag: \`${IN_XWIKI_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+            else
+              echo "- XWiki image tag: \`17.10.10\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            fi
+            if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
+              echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"
+            else
+              echo "- XWiki OpenProject extension version: \`1.2.0\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            fi
           fi
-          if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
-            echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "- XWiki OpenProject extension version: \`1.2.0\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+          if [[ "${IN_GITLAB_ENABLED}" == "true" ]]; then
+            if [[ -n "${IN_GITLAB_VER:-}" ]]; then
+              echo "- GitLab image tag: \`${IN_GITLAB_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+            else
+              echo "- GitLab image tag: \`v19.4.1\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            fi
           fi
           echo "" >> "${GITHUB_STEP_SUMMARY}"
 
@@ -804,7 +731,6 @@ jobs:
           PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
           TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
-          SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
           set -euo pipefail
           outcome="${TESTS_OUTCOME:-skipped}"
@@ -818,9 +744,7 @@ jobs:
             echo "No preview label (deploy did not publish outputs); skip teardown."
             exit 0
           fi
-          if [[ "${SKIP_TESTS}" == "true" ]] && [[ "${LIVE}" == "true" ]]; then
-            should_teardown=false
-          elif [[ "${LIVE}" != "true" ]]; then
+          if [[ "${LIVE}" != "true" ]]; then
             should_teardown=true
           elif [[ "${TESTS_SHOULD_RUN}" == "true" ]] && [[ "${outcome}" == "success" ]]; then
             should_teardown=true
@@ -832,14 +756,14 @@ jobs:
           fi
           echo "should_teardown=${should_teardown}" >> "$GITHUB_OUTPUT"
           echo "tests_effective_outcome=${outcome}" >> "$GITHUB_OUTPUT"
-          echo "Computed: live=${LIVE} skip_tests=${SKIP_TESTS} tests_should_run=${TESTS_SHOULD_RUN} effective_outcome=${outcome} -> should_teardown=${should_teardown}"
+          echo "Computed: live=${LIVE} tests_should_run=${TESTS_SHOULD_RUN} effective_outcome=${outcome} -> should_teardown=${should_teardown}"
 
       - name: Trigger PullPreview teardown
         if: >-
           always() &&
           steps.policy.outputs.should_teardown == 'true' &&
           needs.deploy.outputs.preview_name != ''
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+        uses: pullpreview/action@7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
         with:
           provider: hetzner
           label: ${{ needs.deploy.outputs.preview_name }}
@@ -854,25 +778,19 @@ jobs:
           needs.deploy.outputs.live == 'true' &&
           needs.deploy.outputs.preview_name != '' &&
           steps.policy.outputs.should_teardown == 'false' &&
-          (github.event.inputs.skip_tests == 'true' || needs.deploy.outputs.tests_should_run != 'true' || steps.tests.outcome == 'failure')
+          (needs.deploy.outputs.tests_should_run != 'true' || steps.tests.outcome == 'failure')
         env:
           PREVIEW_NAME: ${{ needs.deploy.outputs.preview_name }}
           OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
           NEXTCLOUD_HOST: ${{ needs.deploy.outputs.nextcloud_host }}
           KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
           XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
-          SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
           TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
         run: |
           set -euo pipefail
-          if [[ "${SKIP_TESTS}" == "true" ]]; then
-            cleanup_target="setup"
-            reason="Setup-only deploy (skip_tests)."
-          elif [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
-            cleanup_target="e2e"
+          if [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
             reason="URL validation failed; preview kept for 24h (TTL), then auto-expires."
           else
-            cleanup_target="e2e"
             reason="Playwright tests failed; preview kept for 24h (TTL), then auto-expires."
           fi
           {
@@ -895,7 +813,7 @@ jobs:
             fi
             echo ""
             echo "To tear down later, run workflow **PullPreview Cleanup**:"
-            echo "- \`target=${cleanup_target}\`"
+            echo "- \`target=e2e\`"
             echo "- \`mode=teardown\`"
             echo "- \`confirm_teardown=true\`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -938,7 +856,6 @@ jobs:
           PREVIEW_LIVE: ${{ needs.deploy.outputs.live }}
           TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
           TESTS_OUTCOME: ${{ steps.tests.outcome }}
-          SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
           set -euo pipefail
           if [[ "${PREVIEW_LIVE}" != "true" ]]; then
@@ -948,14 +865,6 @@ jobs:
               echo "::error::PullPreview did not become live."
             fi
             exit 1
-          fi
-          if [[ "${SKIP_TESTS}" == "true" ]]; then
-            if [[ "${DEPLOY_RESULT}" != "success" ]]; then
-              echo "::error::Setup-only deploy did not complete successfully; see the **deploy** job logs."
-              exit 1
-            fi
-            echo "::notice::Setup-only deploy is live. Tear down via **PullPreview Cleanup** (target=setup)."
-            exit 0
           fi
           if [[ "${TESTS_SHOULD_RUN}" != "true" ]]; then
             echo "::error::Preview was live but URL validation or host export did not complete; tests were not run. Preview kept for debugging; tear down via **PullPreview Cleanup** (target=e2e)."

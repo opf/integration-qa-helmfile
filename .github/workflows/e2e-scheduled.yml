@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           binary="${RUNNER_TEMP}/pullpreview"
-          curl -fsSL -o "${binary}" "https://raw.githubusercontent.com/pullpreview/action/65df5209b58f360444525f1167f9e14803521fed/dist/pullpreview-linux-amd64"
+          curl -fsSL -o "${binary}" "https://raw.githubusercontent.com/pullpreview/action/7ef9914ea29854d3e9cd60a0cec35ce3f060855a/dist/pullpreview-linux-amd64"
           chmod +x "${binary}"
           echo "binary=${binary}" >> "$GITHUB_OUTPUT"
       - name: Teardown any running sched-* instances

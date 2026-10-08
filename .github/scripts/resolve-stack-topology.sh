@@ -12,6 +12,8 @@
 # Env (optional):
 #   IN_XWIKI_ENABLED   true|false (default: false)
 #   IN_GITLAB_ENABLED  true|false (default: false)
+#   IN_STANDALONE      true|false (default: false) — no Nextcloud; Keycloak
+#                      only when setupMethod=sso-external. XWiki/GitLab kept.
 #
 # Output (stdout, key=value lines for GITHUB_OUTPUT):
 #   stack_profile, skip_nextcloud, skip_xwiki, skip_keycloak, skip_gitlab,
@@ -24,6 +26,7 @@ _default_dns='{{ pullpreview_public_dns }}'
 dns_placeholder="${3:-${_default_dns}}"
 xwiki_requested="${IN_XWIKI_ENABLED:-false}"
 gitlab_requested="${IN_GITLAB_ENABLED:-false}"
+standalone_requested="${IN_STANDALONE:-false}"
 
 stack_profile=""
 skip_nextcloud="false"
@@ -45,6 +48,24 @@ if [[ "${gitlab_requested}" == "true" ]]; then
   gitlab_enabled="true"
   proxy_tls_hosts="${proxy_tls_hosts},gitlab.${dns_placeholder}"
 fi
+
+rebuild_proxy_tls_hosts() {
+  local hosts=()
+  if [[ "${skip_nextcloud}" != "true" ]]; then
+    hosts+=("nextcloud.${dns_placeholder}")
+  fi
+  if [[ "${skip_keycloak}" != "true" ]]; then
+    hosts+=("keycloak.${dns_placeholder}")
+  fi
+  if [[ "${skip_xwiki}" != "true" ]]; then
+    hosts+=("xwiki.${dns_placeholder}")
+  fi
+  if [[ "${skip_gitlab}" != "true" ]]; then
+    hosts+=("gitlab.${dns_placeholder}")
+  fi
+  local IFS=,
+  proxy_tls_hosts="${hosts[*]-}"
+}
 
 if [[ "${suite}" == "mcp" ]]; then
   skip_nextcloud="true"
@@ -72,6 +93,27 @@ if [[ "${suite}" == "mcp" ]]; then
       exit 1
       ;;
   esac
+elif [[ "${standalone_requested}" == "true" ]]; then
+  skip_nextcloud="true"
+  case "${setup_method}" in
+    oauth2)
+      stack_profile="op-only"
+      skip_keycloak="true"
+      ;;
+    sso-external)
+      stack_profile="op-keycloak"
+      skip_keycloak="false"
+      ;;
+    sso-nextcloud)
+      echo "::error::openproject_standalone requires oauth2 or sso-external setup_method (not sso-nextcloud)."
+      exit 1
+      ;;
+    *)
+      echo "::error::Unknown setup_method for standalone: ${setup_method}"
+      exit 1
+      ;;
+  esac
+  rebuild_proxy_tls_hosts
 fi
 
 echo "stack_profile=${stack_profile}"
