@@ -96,7 +96,7 @@ jobs:
 
       - name: Recreate preview before component change
         if: steps.component_label_change.outputs.changed == 'true'
-        uses: pullpreview/action@7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
         with:
           provider: hetzner
           label: pullpreview
@@ -108,7 +108,7 @@ jobs:
           PULLPREVIEW_LOGGER_LEVEL: ERROR
 
       - id: pullpreview
-        uses: pullpreview/action@7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
+        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
         with:
           provider: hetzner
           label: pullpreview
