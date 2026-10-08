@@ -100,7 +100,8 @@ spec:
               value: '{{ include "opnc.oidc.openprojectClientId" . }}'
             - name: OIDC_OPENPROJECT_CLIENT_SECRET
               value: '{{ include "opnc.oidc.openprojectClientSecret" . }}'
-            {{- if .Values.previewMode }}
+            # In-cluster waits avoid ingress hairpin (k3d local and PullPreview).
+            # Public hosts (NEXTCLOUD_HOST / OPENPROJECT_HOST) remain for app config.
             - name: NEXTCLOUD_WAIT_URL
               value: 'http://nextcloud/status.php'
             - name: NEXTCLOUD_WAIT_HOST_HEADER
@@ -109,7 +110,6 @@ spec:
               value: 'http://openproject:8080/health_checks/default'
             - name: KEYCLOAK_WAIT_URL
               value: 'http://keycloak:8080/realms/opnc'
-            {{- end }}
             {{- include "opnc.extraEnv" . | indent 12 }}
           volumeMounts:
             - name: setup-script

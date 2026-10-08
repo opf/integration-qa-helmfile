@@ -67,10 +67,10 @@ nextcloud:
       value: {{ .Values.keycloak.providerName }}
     - name: OIDC_KEYCLOAK_DISCOVERY_URL
       value: https://{{ .Values.keycloak.host }}/realms/{{ .Values.keycloak.realm.name }}/.well-known/openid-configuration
-    {{- if .Values.previewMode | default false }}
+    # In-cluster wait avoids ingress hairpin (k3d local and PullPreview): public
+    # https://keycloak.host is not reliably reachable from inside the Nextcloud pod.
     - name: OIDC_KEYCLOAK_WAIT_URL
       value: http://{{ .Values.keycloak.fullnameOverride }}:8080/realms/{{ .Values.keycloak.realm.name }}/.well-known/openid-configuration
-    {{- end }}
     - name: NEXTCLOUD_ENABLE_APPS
       valueFrom:
         configMapKeyRef:

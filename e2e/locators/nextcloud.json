@@ -130,6 +130,10 @@
       "by": "locator",
       "value": "tr:has(a[href*='integration_openproject']) button:has-text('Enable')"
     },
+    "openProjectIntegrationUpdateButton": {
+      "by": "locator",
+      "value": "tr:has(a[href*='integration_openproject']) button:has-text('Update')"
+    },
     "pageBody": {
       "by": "locator",
       "value": "body"
