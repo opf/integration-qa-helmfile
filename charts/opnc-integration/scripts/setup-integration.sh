@@ -40,7 +40,8 @@ wait_for_server() {
     local retry=1
 
     while [[ $retry -le $max_retry ]]; do
-        curl_args=(-s -o /dev/null -w "%{http_code}")
+        # --connect-timeout avoids hanging forever on ingress hairpin (k3d).
+        curl_args=(-s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10)
         if [[ -n "$host_header" ]]; then
             curl_args+=(-H "Host: $host_header")
         fi
@@ -84,11 +85,13 @@ echo "[INFO] OpenProject is ready."
 
 SCRIPT_URL="https://raw.githubusercontent.com/nextcloud/integration_openproject/master"
 
-if [[ "$NC_HOST" != "$NEXTCLOUD_WAIT_URL" ]]; then
+# Optional public-endpoint checks (PullPreview ACME). Disabled by default when
+# in-cluster waits are used — k3d host-alias hairpin can burn the job deadline.
+if [[ "${CHECK_EXTERNAL_ENDPOINTS:-false}" == "true" && "$NC_HOST" != "$NEXTCLOUD_WAIT_URL" ]]; then
     echo "[INFO] Waiting for Nextcloud external endpoint ($NC_HOST) to be ready..."
     wait_for_server "$NC_HOST"
 fi
-if [[ "$OP_HOST" != "$OPENPROJECT_WAIT_URL" ]]; then
+if [[ "${CHECK_EXTERNAL_ENDPOINTS:-false}" == "true" && "$OP_HOST" != "$OPENPROJECT_WAIT_URL" ]]; then
     echo "[INFO] Waiting for OpenProject external endpoint ($OP_HOST) to be ready..."
     wait_for_server "$OP_HOST"
 fi

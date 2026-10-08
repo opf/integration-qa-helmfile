@@ -26,6 +26,7 @@ test-results/
 e2e/artifacts/
 *.webm
 .playwright-browsers/
+.playwright-cli/
 docker-compose.override.yml
 .DS_Store
 

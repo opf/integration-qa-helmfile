@@ -1,6 +1,11 @@
 {{- $openprojectXwiki := .Values.openproject.xwiki | default dict -}}
+{{- $mcp := .Values.mcp | default dict -}}
 integrationSetupMethod: {{ .Values.integration.setupMethod }}
 previewMode: {{ dig "previewMode" false .Values }}
+
+mcp:
+  enabled: {{ dig "enabled" true $mcp }}
+  oauthToken: {{ dig "oauthToken" "bob_ai_mcp_test_token_1234567890" $mcp | quote }}
 
 setupJob:
   enabled: true

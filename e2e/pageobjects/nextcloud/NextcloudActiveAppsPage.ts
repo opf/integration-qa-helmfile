@@ -183,6 +183,75 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
     }
   }
 
+  async isUpdateButtonPresentForOpenProjectIntegration(): Promise<boolean> {
+    try {
+      await this.findOpenProjectIntegrationApp();
+      const updateButton = this.getLocator('openProjectIntegrationUpdateButton');
+      return await updateButton.isVisible({ timeout: 5000 }).catch(() => false);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Triggers marketplace Update for the OpenProject Integration app.
+   * Password re-auth may be required; Apps UI can briefly 502 while the app reloads.
+   * Polls until the Update button is gone (version applied), not only until a POST returns.
+   */
+  async clickUpdateOpenProjectIntegration(adminPassword: string): Promise<void> {
+    await this.findOpenProjectIntegrationApp();
+    const updateButton = this.getLocator('openProjectIntegrationUpdateButton');
+    await updateButton.waitFor({ state: 'visible', timeout: 10000 });
+    const versionBefore = await this.getOpenProjectIntegrationAppVersion();
+    logInfo('[Nextcloud Apps] Updating OpenProject Integration from', versionBefore);
+    await updateButton.click();
+    await this.confirmPasswordDialog(adminPassword);
+
+    await Promise.race([
+      this.page.waitForResponse(
+        (response) =>
+          (response.url().includes('/apps/appstore/api/v1/apps/update') ||
+            response.url().includes('/apps/appstore/api/v1/apps/enable') ||
+            response.url().includes('/settings/apps/update') ||
+            response.url().includes('/apps/appstore/api/v1/apps')) &&
+          (response.request().method() === 'POST' || response.request().method() === 'PUT'),
+        { timeout: 180000 },
+      ),
+      updateButton.waitFor({ state: 'hidden', timeout: 180000 }),
+    ]).catch(() => {
+      logDebug('[Nextcloud Apps] Update response/button hide wait timed out; continuing');
+    });
+
+    await this.waitForAppsUiRecovered();
+
+    // App Store may close the dialog before files are swapped; poll until Update is gone
+    // and the reported version changes (or Disable is back on Active apps).
+    const deadline = Date.now() + 180_000;
+    while (Date.now() < deadline) {
+      await this.navigateTo();
+      await this.waitForReady();
+      await this.findOpenProjectIntegrationApp();
+      const stillUpdate = await this.getLocator('openProjectIntegrationUpdateButton')
+        .isVisible({ timeout: 2000 })
+        .catch(() => false);
+      const versionNow = await this.getOpenProjectIntegrationAppVersion();
+      if (!stillUpdate && versionNow !== versionBefore) {
+        logInfo('[Nextcloud Apps] Update complete; version now', versionNow);
+        return;
+      }
+      logDebug(
+        '[Nextcloud Apps] Waiting for update to finish; version=',
+        versionNow,
+        'updateBtn=',
+        String(stillUpdate),
+      );
+      await this.page.waitForTimeout(5000);
+    }
+    throw new Error(
+      `OpenProject Integration update did not finish (still at ${await this.getOpenProjectIntegrationAppVersion()})`,
+    );
+  }
+
   async clickDisableOpenProjectIntegration(): Promise<void> {
     await this.findOpenProjectIntegrationApp();
     const disableButton = this.getLocator('openProjectIntegrationDisableButton');
@@ -422,7 +491,11 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
     try {
       await this.waitForAppsUiRecovered();
 
-      if (await this.isDisableButtonPresentForOpenProjectIntegration()) {
+      // Update CTA replaces Disable on Active apps when a newer release is available.
+      if (
+        (await this.isDisableButtonPresentForOpenProjectIntegration()) ||
+        (await this.isUpdateButtonPresentForOpenProjectIntegration())
+      ) {
         logDebug('[Nextcloud Apps] OpenProject Integration already enabled');
         return;
       }
@@ -434,7 +507,9 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
       await this.navigateTo();
       await this.waitForReady();
 
-      const enabled = await this.isDisableButtonPresentForOpenProjectIntegration();
+      const enabled =
+        (await this.isDisableButtonPresentForOpenProjectIntegration()) ||
+        (await this.isUpdateButtonPresentForOpenProjectIntegration());
       if (!enabled) {
         throw new Error(
           'OpenProject Integration is not enabled after ensureOpenProjectIntegrationEnabled()',
