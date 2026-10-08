@@ -17,7 +17,15 @@
     },
     "loginButton": {
       "by": "locator",
-      "value": "#login-form input[type='submit'][value='Sign in']"
+      "value": "form[data-test-selector='user-login--form'] button[type='submit'], #login-form button[type='submit'], #login-form input[type='submit'][value='Sign in']"
+    },
+    "usernameInputById": {
+      "by": "locator",
+      "value": "form[data-test-selector='user-login--form'] #username, #username"
+    },
+    "passwordInputById": {
+      "by": "locator",
+      "value": "form[data-test-selector='user-login--form'] #password, #password"
     },
     "userMenu": {
       "by": "locator",
@@ -245,14 +253,32 @@
     },
     "loginToNextcloudRequiredHeading": {
       "by": "getByText",
-      "value": "Login to Nextcloud required"
+      "value": {
+        "text": "Login to Nextcloud",
+        "exact": true
+      }
     },
     "nextcloudLoginButton": {
       "by": "getByRole",
       "value": {
         "role": "button",
-        "name": "Nextcloud log in"
+        "name": "Nextcloud login"
       }
+    },
+    "oauthAuthorizeButton": {
+      "by": "locator",
+      "value": "input[type='submit'][value='Authorize'], button:has-text('Authorize')"
+    },
+    "oauthAllowButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Allow"
+      }
+    },
+    "oauthAuthorizeSubmit": {
+      "by": "locator",
+      "value": "input[type='submit'][value='Authorize'], input[type='submit'][value='Allow'], button:has-text('Authorize'), button:has-text('Allow')"
     },
     "adminStoragesNextcloudLink": {
       "by": "locator",

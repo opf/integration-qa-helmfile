@@ -26,22 +26,33 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
   }
 
   async fillUsername(username: string): Promise<void> {
+    // Prefer #username on the main login form (avoids header pulldown duplicate fields).
+    const byId = this.getLocator('usernameInputById').first();
+    if (await byId.isVisible().catch(() => false)) {
+      await byId.fill(username);
+      return;
+    }
     await this.getLocator('usernameInput').fill(username);
   }
 
   async fillPassword(password: string): Promise<void> {
+    const byId = this.getLocator('passwordInputById').first();
+    if (await byId.isVisible().catch(() => false)) {
+      await byId.fill(password);
+      return;
+    }
     await this.getLocator('passwordInput').fill(password);
   }
 
   async clickSignIn(): Promise<void> {
-    await this.getLocator('loginButton').click();
+    await this.getLocator('loginButton').first().click();
   }
 
   async login(username: string = OP_ADMIN_USER.username, password: string = OP_ADMIN_USER.password): Promise<OpenProjectHomePage> {
     await this.navigateTo();
     await this.waitForReady();
     await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    await this.getLocator('usernameInput').waitFor({ state: 'visible', timeout: 5000 });
+    await this.getLocator('usernameInputById').first().waitFor({ state: 'visible', timeout: 5000 });
     await this.fillUsername(username);
     await this.fillPassword(password);
     await this.clickSignIn();
@@ -101,6 +112,54 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * On the OpenProject OAuth authorize screen, click Authorize/Allow if present.
+   * No-op when already authorized / redirected away.
+   */
+  async authorizeOAuthApplicationIfPrompted(timeoutMs = 15000): Promise<boolean> {
+    const authorize = this.getLocator('oauthAuthorizeButton').first();
+    const allow = this.getLocator('oauthAllowButton').first();
+    const submit = this.getLocator('oauthAuthorizeSubmit').first();
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      for (const candidate of [authorize, allow, submit]) {
+        if (await candidate.isVisible().catch(() => false)) {
+          await candidate.click();
+          return true;
+        }
+      }
+      await this.page.waitForTimeout(500);
+    }
+    return false;
+  }
+
+  /**
+   * If the OpenProject login form is visible, sign in with the given credentials.
+   * Preserves OAuth back_url (does not navigate away from the current authorize redirect).
+   * Returns true when a login was performed.
+   */
+  async loginIfPrompted(username: string, password: string, timeoutMs = 8000): Promise<boolean> {
+    const usernameInput = this.getLocator('usernameInputById').first();
+    const visible = await usernameInput
+      .waitFor({ state: 'visible', timeout: timeoutMs })
+      .then(() => true)
+      .catch(() => false);
+    if (!visible) {
+      return false;
+    }
+    await this.fillUsername(username);
+    await this.fillPassword(password);
+    await this.clickSignIn();
+    // After sign-in we either land on /oauth/authorize or leave /login entirely.
+    await this.page
+      .waitForURL((url) => !url.pathname.includes('/login') || url.pathname.includes('/oauth/'), {
+        timeout: 20000,
+      })
+      .catch(() => undefined);
+    return true;
   }
 }
 

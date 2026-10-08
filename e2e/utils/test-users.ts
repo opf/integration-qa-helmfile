@@ -68,3 +68,16 @@ export const BRIAN_USER: TestUser = {
   lastName: 'Murphy',
   email: 'brian@example.com',
 };
+
+/**
+ * Oliver Oauth — local (non-SSO) user for SETUP_METHOD=oauth2 flows.
+ * Provisioned via OpenProject API + Nextcloud OCS (not Keycloak).
+ * Display name: "Oliver Oauth".
+ */
+export const OLIVER_OAUTH_USER: TestUser = {
+  username: envOrDefault('E2E_OLIVER_USER', 'oliver'),
+  password: envOrDefault('E2E_OLIVER_PASS', 'OliverOauth-1234!'),
+  firstName: 'Oliver',
+  lastName: 'Oauth',
+  email: envOrDefault('E2E_OLIVER_EMAIL', 'oliver@example.com'),
+};
