@@ -239,36 +239,6 @@
     "integrationAppTitleAlt": {
       "by": "locator",
       "value": "h2:has-text('OpenProject'), h1:has-text('OpenProject'), [data-app='integration_openproject']"
-    },
-    "ncPersonalSettingsOpenProjectSection": {
-      "by": "locator",
-      "value": ".openproject-prefs, .openproject-prefs--content"
-    },
-    "ncPersonalSettingsConnectedLabel": {
-      "by": "locator",
-      "value": ".openproject-prefs--connected label"
-    },
-    "ncPersonalSettingsDisconnectButton": {
-      "by": "getByRole",
-      "value": {
-        "role": "button",
-        "name": "Disconnect from OpenProject"
-      }
-    },
-    "ncPersonalSettingsConnectButton": {
-      "by": "getByRole",
-      "value": {
-        "role": "button",
-        "name": "Connect to OpenProject"
-      }
-    },
-    "ncPersonalSettingsDisconnectSuccessMessage": {
-      "by": "getByText",
-      "value": "OpenProject options saved"
-    },
-    "ncPersonalSettingsConnectSuccessMessage": {
-      "by": "getByText",
-      "value": "Successfully connected to OpenProject!"
     }
   }
 }

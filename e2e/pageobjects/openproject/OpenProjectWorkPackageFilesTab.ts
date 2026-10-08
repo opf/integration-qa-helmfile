@@ -72,25 +72,6 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
     ]);
   }
 
-  getStorageLoginPromptLocator(): Locator {
-    return this.getLocator('loginToNextcloudRequiredHeading').first();
-  }
-
-  getNextcloudLoginButtonLocator(): Locator {
-    return this.getLocator('nextcloudLoginButton').first();
-  }
-
-  async waitForNextcloudLoginPrompt(timeoutMs = 30000): Promise<void> {
-    await this.getStorageLoginPromptLocator().waitFor({ state: 'visible', timeout: timeoutMs });
-    await this.getNextcloudLoginButtonLocator().waitFor({ state: 'visible', timeout: 10000 });
-  }
-
-  async clickNextcloudLogin(): Promise<void> {
-    const button = this.getNextcloudLoginButtonLocator();
-    await button.waitFor({ state: 'visible', timeout: 15000 });
-    await button.click();
-  }
-
   getLinkedWorkPackageFileItem(fileName: string): Locator {
     return this.getLocator('workPackageLinkedFileItem').filter({ hasText: fileName }).first();
   }

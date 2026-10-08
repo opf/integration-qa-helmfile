@@ -1,4 +1,4 @@
-import { ADMIN_USER, NC_ADMIN_USER } from './test-users';
+import { ADMIN_USER } from './test-users';
 import { getErrorMessage } from './error-utils';
 import { resolveEnvName, resolveHosts } from './env-hosts';
 import { tlsFetch } from './tls-dispatcher';
@@ -343,95 +343,6 @@ async function putFile(
       `Nextcloud WebDAV PUT failed for '${filePath}': HTTP ${response.status} ${response.statusText} - ${text}`
     );
   }
-}
-
-function buildNextcloudBasicAuth(user: TestUser): string {
-  return Buffer.from(`${user.username}:${user.password}`).toString('base64');
-}
-
-interface NextcloudOcsMeta {
-  status?: string;
-  statuscode?: number;
-  message?: string;
-}
-
-/**
- * Idempotently create a local Nextcloud user via OCS users API (admin basic auth).
- * Returns true when a new user was created; false when the user already existed.
- */
-export async function ensureNextcloudLocalUser(
-  user: TestUser,
-  admin: TestUser = NC_ADMIN_USER
-): Promise<{ created: boolean }> {
-  const hosts = resolveHosts(resolveEnvName());
-  const ncHost = hosts.nextcloud;
-  const auth = buildNextcloudBasicAuth(admin);
-  const displayName =
-    [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username;
-  const email = user.email ?? `${user.username}@example.com`;
-
-  const getResponse = await tlsFetch(
-    `https://${ncHost}/ocs/v1.php/cloud/users/${encodeURIComponent(user.username)}?format=json`,
-    {
-      headers: {
-        authorization: `Basic ${auth}`,
-        'OCS-APIRequest': 'true',
-        accept: 'application/json',
-      },
-    }
-  );
-
-  if (getResponse.ok) {
-    const existing = (await getResponse.json()) as { ocs?: { meta?: NextcloudOcsMeta } };
-    if (existing.ocs?.meta?.statuscode === 100) {
-      logInfo('Nextcloud user already exists: %s', user.username);
-      return { created: false };
-    }
-  }
-
-  const body = new URLSearchParams({
-    userid: user.username,
-    password: user.password,
-    displayName,
-    email,
-  });
-
-  const createResponse = await tlsFetch(
-    `https://${ncHost}/ocs/v1.php/cloud/users?format=json`,
-    {
-      method: 'POST',
-      headers: {
-        authorization: `Basic ${auth}`,
-        'OCS-APIRequest': 'true',
-        accept: 'application/json',
-        'content-type': 'application/x-www-form-urlencoded',
-      },
-      body: body.toString(),
-    }
-  );
-
-  const createText = await createResponse.text();
-  let statusCode: number | undefined;
-  try {
-    const data = JSON.parse(createText) as { ocs?: { meta?: NextcloudOcsMeta } };
-    statusCode = data.ocs?.meta?.statuscode;
-  } catch (error: unknown) {
-    logWarn('Nextcloud create-user response was not JSON: %s', getErrorMessage(error));
-  }
-
-  // 100 = success; 102 = user already exists
-  if (statusCode === 100) {
-    logInfo('Created Nextcloud user: %s', user.username);
-    return { created: true };
-  }
-  if (statusCode === 102) {
-    logInfo('Nextcloud user already exists: %s', user.username);
-    return { created: false };
-  }
-
-  throw new Error(
-    `Nextcloud OCS create user failed for '${user.username}': HTTP ${createResponse.status} statuscode=${statusCode} - ${createText}`
-  );
 }
 
 /**

@@ -1,6 +1,5 @@
 import { testConfig } from './config';
-import { ADMIN_USER, type TestUser } from './test-users';
-import { logInfo } from './logger';
+import { ADMIN_USER } from './test-users';
 import { tlsFetch } from './tls-dispatcher';
 
 interface OpenProjectApiUser {
@@ -236,45 +235,6 @@ export async function findOpenProjectUser(
   credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
 ): Promise<OpenProjectApiUser | undefined> {
   return findUserByIdentifier(identifier, credentials);
-}
-
-export interface EnsureLocalUserResult {
-  userId: number;
-  created: boolean;
-}
-
-/**
- * Idempotently create a local (password-auth) OpenProject user via API v3.
- * If the user already exists, returns their id without changing password/fields.
- */
-export async function ensureOpenProjectLocalUser(
-  user: TestUser,
-  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
-): Promise<EnsureLocalUserResult> {
-  const existing = await findUserByIdentifier(user.username, credentials);
-  if (existing) {
-    logInfo('OpenProject user already exists: %s (id=%s)', user.username, existing.id);
-    return { userId: existing.id, created: false };
-  }
-
-  const email = user.email ?? `${user.username}@example.com`;
-  const created = await apiRequest<OpenProjectApiUser>(
-    '/users',
-    'POST',
-    credentials,
-    {
-      login: user.username,
-      email,
-      firstName: user.firstName ?? user.username,
-      lastName: user.lastName ?? 'User',
-      password: user.password,
-      status: 'active',
-      language: 'en',
-    }
-  );
-
-  logInfo('Created OpenProject user: %s (id=%s)', user.username, created.id);
-  return { userId: created.id, created: true };
 }
 
 export async function ensureUserIsAdmin(
