@@ -170,7 +170,7 @@ display_or_default() {
 }
 
 effective_op_ver="${IN_OP_VER:-17}"
-effective_nc_ver="${IN_NC_VER:-32}"
+effective_nc_ver="${IN_NC_VER:-34}"
 effective_xwiki_ver="${IN_XWIKI_VER:-17.10.10}"
 effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0}"
 effective_gitlab_ver="${IN_GITLAB_VER:-v19.4.1}"

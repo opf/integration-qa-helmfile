@@ -1,8 +1,6 @@
 name: PullPreview
 
 on:
-# schedule:
-#   - cron: "30 */6 * * *"
   pull_request:
     types:
       - opened
@@ -17,19 +15,18 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: pullpreview-${{ github.repository }}-${{ github.event.pull_request.number || 'schedule' }}
+  group: pullpreview-${{ github.repository }}-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    if: github.event_name == 'schedule' || github.event.label.name == 'pullpreview' || contains(github.event.pull_request.labels.*.name, 'pullpreview')
+    if: github.event.label.name == 'pullpreview' || contains(github.event.pull_request.labels.*.name, 'pullpreview')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-      - id: auth_label_change
-        if: github.event_name == 'pull_request'
+      - id: component_label_change
         shell: bash
         run: |
           set -euo pipefail
@@ -38,43 +35,57 @@ jobs:
           label="$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")"
           has_pullpreview="$(jq -r '[.pull_request.labels[]?.name] | index("pullpreview") != null' "$GITHUB_EVENT_PATH")"
 
-          auth_label_changed=false
+          component_label_changed=false
           if [[ "$has_pullpreview" == "true" && ( "$action" == "labeled" || "$action" == "unlabeled" ) ]]; then
             case "$label" in
-              auth-sso-external|auth-sso-nextcloud|auth-oauth2)
-                auth_label_changed=true
+              auth-sso-external|auth-sso-nextcloud|auth-oauth2|with-xwiki|with-gitlab)
+                component_label_changed=true
                 ;;
             esac
           fi
 
           {
-            echo "changed=${auth_label_changed}"
-            if [[ "$auth_label_changed" == "true" ]]; then
+            echo "changed=${component_label_changed}"
+            if [[ "$component_label_changed" == "true" ]]; then
               echo "force_action=up"
             else
               echo "force_action="
             fi
           } >> "$GITHUB_OUTPUT"
 
-      - name: Resolve setup method
+      - name: Resolve setup method and components
         id: resolve_setup_method
         shell: bash
         run: |
           set -euo pipefail
-          # Default to sso-external; schedule runs always use this default.
           setup_method="sso-external"
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            labels="$(jq -r '[.pull_request.labels[]?.name] | join(" ")' "$GITHUB_EVENT_PATH")"
-            for label in $labels; do
-              case "$label" in
-                auth-sso-nextcloud) setup_method="sso-nextcloud"; break ;;
-                auth-oauth2)        setup_method="oauth2";        break ;;
-                auth-sso-external)  setup_method="sso-external";  break ;;
-              esac
-            done
-          fi
-          echo "method=${setup_method}" >> "$GITHUB_OUTPUT"
-          echo "::notice::PullPreview setup method: ${setup_method}"
+          xwiki="false"
+          gitlab="false"
+
+          labels="$(jq -r '[.pull_request.labels[]?.name] | join(" ")' "$GITHUB_EVENT_PATH")"
+          auth_set=false
+          for label in $labels; do
+            case "$label" in
+              auth-sso-nextcloud)
+                if [[ "${auth_set}" != "true" ]]; then setup_method="sso-nextcloud"; auth_set=true; fi
+                ;;
+              auth-oauth2)
+                if [[ "${auth_set}" != "true" ]]; then setup_method="oauth2"; auth_set=true; fi
+                ;;
+              auth-sso-external)
+                if [[ "${auth_set}" != "true" ]]; then setup_method="sso-external"; auth_set=true; fi
+                ;;
+              with-xwiki)  xwiki="true" ;;
+              with-gitlab) gitlab="true" ;;
+            esac
+          done
+
+          {
+            echo "method=${setup_method}"
+            IN_XWIKI_ENABLED="${xwiki}" IN_GITLAB_ENABLED="${gitlab}" \
+              .github/scripts/resolve-stack-topology.sh "" "${setup_method}"
+          } >> "$GITHUB_OUTPUT"
+          echo "::notice::PullPreview setup method: ${setup_method}; xwiki=${xwiki}; gitlab=${gitlab}"
 
       - name: Resolve enterprise token
         id: enterprise_token
@@ -83,9 +94,9 @@ jobs:
           TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
         run: .github/scripts/resolve-enterprise-token.sh
 
-      - name: Recreate preview before auth-mode change
-        if: steps.auth_label_change.outputs.changed == 'true'
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
+      - name: Recreate preview before component change
+        if: steps.component_label_change.outputs.changed == 'true'
+        uses: pullpreview/action@7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
         with:
           provider: hetzner
           label: pullpreview
@@ -97,11 +108,11 @@ jobs:
           PULLPREVIEW_LOGGER_LEVEL: ERROR
 
       - id: pullpreview
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed
+        uses: pullpreview/action@7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
         with:
           provider: hetzner
           label: pullpreview
-          force_action: ${{ steps.auth_label_change.outputs.force_action }}
+          force_action: ${{ steps.component_label_change.outputs.force_action }}
           region: fsn1
           image: ubuntu-24.04
           instance_type: cpx42
@@ -112,14 +123,31 @@ jobs:
           chart_values: pullpreview/stack-values.yaml.gotmpl
           pre_script: pullpreview/pre-script-helm-deps.sh
           proxy_tls: traefik:80
-          proxy_tls_hosts: nextcloud.{{ pullpreview_public_dns }},keycloak.{{ pullpreview_public_dns }},xwiki.{{ pullpreview_public_dns }}
+          proxy_tls_hosts: ${{ steps.resolve_setup_method.outputs.proxy_tls_hosts }}
           ttl: 72h
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
           INTEGRATION_SETUP_METHOD: ${{ steps.resolve_setup_method.outputs.method }}
+          XWIKI_ENABLED: ${{ steps.resolve_setup_method.outputs.xwiki_enabled }}
+          GITLAB_ENABLED: ${{ steps.resolve_setup_method.outputs.gitlab_enabled }}
+          GITLAB_VERSION: ""
           PULLPREVIEW_LOGGER_LEVEL: INFO
+
+      - name: Require live preview
+        if: >-
+          github.event.action != 'closed' &&
+          contains(github.event.pull_request.labels.*.name, 'pullpreview')
+        env:
+          LIVE: ${{ steps.pullpreview.outputs.live }}
+          PREVIEW_URL: ${{ steps.pullpreview.outputs.url }}
+        run: |
+          set -euo pipefail
+          if [[ "${LIVE}" != "true" ]] || [[ -z "${PREVIEW_URL:-}" ]]; then
+            echo "::error::PullPreview did not become live."
+            exit 1
+          fi
 
       - name: Strip SSH lines from PullPreview summary
         if: always() && steps.pullpreview.outcome != 'skipped'
@@ -137,6 +165,8 @@ jobs:
           PULLPREVIEW_OUTCOME: ${{ steps.pullpreview.outcome }}
           PULLPREVIEW_LIVE: ${{ steps.pullpreview.outputs.live }}
           PREVIEW_URL: ${{ steps.pullpreview.outputs.url }}
+          SKIP_XWIKI: ${{ steps.resolve_setup_method.outputs.skip_xwiki }}
+          SKIP_GITLAB: ${{ steps.resolve_setup_method.outputs.skip_gitlab }}
         run: .github/scripts/deploy-preview-summary.sh
 
       - name: Preview endpoint checks
@@ -144,3 +174,5 @@ jobs:
         if: steps.pullpreview.outputs.live == 'true'
         with:
           preview-url: ${{ steps.pullpreview.outputs.url }}
+          skip-xwiki: ${{ steps.resolve_setup_method.outputs.skip_xwiki }}
+          skip-gitlab: ${{ steps.resolve_setup_method.outputs.skip_gitlab }}

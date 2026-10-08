@@ -16,7 +16,7 @@ on:
         type: choice
         options:
           - e2e
-          - setup
+          - env
           - mcpeval
           - pr
           - scheduled
@@ -48,7 +48,7 @@ permissions:
   actions: read
 
 env:
-  PULLPREVIEW_ACTION_SHA: 65df5209b58f360444525f1167f9e14803521fed # v0.6.2
+  PULLPREVIEW_ACTION_SHA: 7ef9914ea29854d3e9cd60a0cec35ce3f060855a # v6.2.1
 
 jobs:
   cleanup:
@@ -126,8 +126,9 @@ jobs:
               e2e)
                 [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]]
                 ;;
-              setup)
-                [[ "${label}" =~ ^setup-[0-9]+-[0-9]+$ ]]
+              env)
+                # env-* is the PullPreview Environment workflow; setup-* is legacy deploy-only.
+                [[ "${label}" =~ ^(env|setup)-[0-9]+-[0-9]+$ ]]
                 ;;
               mcpeval)
                 [[ "${label}" =~ ^mcpeval-[0-9]+-[0-9]+$ ]]
@@ -140,7 +141,7 @@ jobs:
                 ;;
               all)
                 [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]] \
-                  || [[ "${label}" =~ ^setup-[0-9]+-[0-9]+$ ]] \
+                  || [[ "${label}" =~ ^(env|setup)-[0-9]+-[0-9]+$ ]] \
                   || [[ "${label}" =~ ^mcpeval-[0-9]+-[0-9]+$ ]] \
                   || [[ "${label}" == "pullpreview" ]] \
                   || [[ "${label}" =~ ^sched- ]]
@@ -290,7 +291,7 @@ jobs:
               return
             fi
 
-            if [[ ! "${label}" =~ ^(e2e|setup|mcpeval)-([0-9]+)-[0-9]+$ ]]; then
+            if [[ ! "${label}" =~ ^(e2e|env|setup|mcpeval)-([0-9]+)-[0-9]+$ ]]; then
               hetzner_created="$(extract_hetzner_created_iso "${line}")"
               if [[ -n "${hetzner_created}" ]]; then
                 launched_display="$(format_launched_display "${hetzner_created}")"

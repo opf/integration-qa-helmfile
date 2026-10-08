@@ -66,11 +66,12 @@ That runs [`validate-helmfile.sh`](../validate-helmfile.sh) (helmfile build + te
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| [`.github/workflows/pullpreview.yml`](../../.github/workflows/pullpreview.yml) | PR label `pullpreview`, schedule | Full stack on PR previews |
-| [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml) | Manual `workflow_dispatch` | Deploy + Playwright (optional setup-only) |
-| [`.github/workflows/pullpreview-cleanup.yml`](../../.github/workflows/pullpreview-cleanup.yml) | Manual `workflow_dispatch` | List or tear down previews (`target`: `e2e`, `setup`, `pr`, `all`; `mode`: list / teardown; set `confirm_teardown` for teardown) |
+| [`.github/workflows/pullpreview.yml`](../../.github/workflows/pullpreview.yml) | PR label `pullpreview` | Full stack on PR previews; optional `with-xwiki` / `with-gitlab` and `auth-*` labels control the stack |
+| [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml) | Manual `workflow_dispatch` | Deploy + Playwright |
+| [`.github/workflows/pullpreview-env.yml`](../../.github/workflows/pullpreview-env.yml) | Manual `workflow_dispatch` | Deploy-only PullPreview environment (no E2E / MCP tests) |
+| [`.github/workflows/pullpreview-cleanup.yml`](../../.github/workflows/pullpreview-cleanup.yml) | Manual `workflow_dispatch` | List or tear down previews (`target`: `e2e`, `env`, `mcpeval`, `pr`, `scheduled`, `all`; `mode`: list / teardown; set `confirm_teardown` for teardown) |
 
-Use **PullPreview Cleanup** when a preview was kept after a failed E2E run (`target=e2e`) or a setup-only deploy (`target=setup`), or to remove PR previews (`target=pr`).
+Use **PullPreview Cleanup** when a preview was kept after a failed E2E run (`target=e2e`), a PullPreview Environment deploy (`target=env`), or to remove PR previews (`target=pr`).
 
 Repository secrets: `HCLOUD_TOKEN`, `HETZNER_CA_KEY`, and `OPENPROJECT_ENTERPRISE_TOKEN` (Corporate plan; required for integration stack deploys). PR previews need the `pullpreview` label.
 
