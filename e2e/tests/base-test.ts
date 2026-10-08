@@ -60,6 +60,6 @@ export const openProjectUrl = (path: string) =>
       testConfig.openproject.host,
   );
 
-export const integrationTags = { tag: ['@regression', '@integration'] };
+export const integrationTags = { tag: ['@regression', '@integration', '@smoke'] };
 
 export { expect };

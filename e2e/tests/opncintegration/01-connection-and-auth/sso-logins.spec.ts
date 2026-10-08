@@ -10,7 +10,7 @@ import { NC_ADMIN_USER, ALICE_USER } from '../../../utils/test-users';
 test.describe('SSO External - Auth and Logins', integrationTags, () => {
   test(
     'should login to Keycloak and check op and nc client are present',
-    squashTestCase(2187, { tag: ['@smoke'] }),
+    squashTestCase(2187),
     async ({ page }) => {
     const loginPage = new KeycloakLoginPage(page);
     await loginPage.login();
