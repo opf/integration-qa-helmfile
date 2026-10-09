@@ -125,6 +125,10 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
+      // Already redirected away from OpenProject (e.g. prior OAuth grant) — stop polling.
+      if (/nextcloud\./i.test(this.page.url())) {
+        return false;
+      }
       for (const candidate of [authorize, allow, submit]) {
         if (await candidate.isVisible().catch(() => false)) {
           await candidate.click();

@@ -12,7 +12,10 @@ import {
   ensureUserIsProjectMember,
 } from './openproject-api';
 import { deleteNextcloudFile } from './nextcloud-api';
-import { OpenProjectProjectStoragesPage } from '../pageobjects/openproject';
+import {
+  OpenProjectHomePage,
+  OpenProjectProjectStoragesPage,
+} from '../pageobjects/openproject';
 import type { TestUser } from './test-users';
 
 export {
@@ -91,6 +94,9 @@ export async function ensureProjectHasNextcloudStorage(
 
   const storagesPage = new OpenProjectProjectStoragesPage(page);
   await storagesPage.navigateToProjectStorages(project.identifier);
+  // Onboarding enjoyhint can reappear after navigation and block "New storage".
+  const homePage = new OpenProjectHomePage(page);
+  await homePage.dismissTutorialOverlayIfPresent();
 
   if (await storagesPage.hasNextcloudStorage()) {
     return;
