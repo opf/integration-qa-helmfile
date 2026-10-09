@@ -2,6 +2,8 @@ import { Page } from '@playwright/test';
 import { ALICE_USER, OLIVER_OAUTH_USER, OP_ADMIN_USER, type TestUser } from '../../utils/test-users';
 import { logInfo, logWarn } from '../../utils/logger';
 import { testConfig } from '../../utils/config';
+import { resolveHosts } from '../../utils/env-hosts';
+import { hostUrlPattern } from '../../utils/url-helpers';
 import {
   deleteUploadedTestFile,
   ensureProjectHasNextcloudStorage,
@@ -195,7 +197,8 @@ export async function ensureOliverConnectedViaNextcloudPersonalSettings(
 
   logInfo('Connecting Oliver to OpenProject via Nextcloud personal settings OAuth');
   await personalSettings.clickConnectToOpenProject(0);
-  await page.waitForURL(/openproject\.test/, { timeout: 20000 });
+  const hosts = resolveHosts();
+  await page.waitForURL(hostUrlPattern(hosts.openproject), { timeout: 20000 });
 
   const loggedIn = await opLogin.loginIfPrompted(
     OLIVER_OAUTH_USER.username,
@@ -210,7 +213,9 @@ export async function ensureOliverConnectedViaNextcloudPersonalSettings(
   const authorized = await opLogin.authorizeOAuthApplicationIfPrompted(20000);
   logInfo(`OpenProject OAuth authorize clicked: ${authorized}`);
 
-  await page.waitForURL(/nextcloud\.test.*settings\/user\/openproject/, { timeout: 45000 });
+  await page.waitForURL(hostUrlPattern(hosts.nextcloud, 'settings\\/user\\/openproject'), {
+    timeout: 45000,
+  });
   await personalSettings.waitForReady();
   await personalSettings.waitForConnected(30000);
   logInfo('Oliver connected to OpenProject');
@@ -240,9 +245,12 @@ export async function loginOpenProjectAsIntegrationUser(
   return homePage;
 }
 
+/** Demo project WP used for Files-tab storage OAuth / health probes. */
+const DEMO_WORK_PACKAGE_ID = 2;
+
 /**
  * Membership + Demo project Nextcloud storage for the dual-setup user.
- * oauth2: admin links storage, Oliver is member, NC personal settings OAuth connected.
+ * oauth2: admin links storage, Oliver NC↔OP + Files storage OAuth, then AMPF WebDAV ACL.
  * sso-external: Alice member/admin elevation + storage link (existing path).
  */
 export async function prepareIntegrationUserForDemoStorage(
@@ -253,27 +261,35 @@ export async function prepareIntegrationUserForDemoStorage(
 
   if (isOauth2Setup()) {
     await ensureUserIsProjectMember(OLIVER_OAUTH_USER.username, 'demo-project', 'Member');
-    // Team Folder mount + Demo project write ACL (SSO gets this via integration app).
-    await ensureOauth2AmpfWebDavAccess(OLIVER_OAUTH_USER, {
-      projectFolder: ampProjectFolder,
-    });
 
     await page.context().clearCookies();
     const opLogin = new OpenProjectLoginPage(page);
     const adminHome = await opLogin.login(OP_ADMIN_USER.username, OP_ADMIN_USER.password);
     await adminHome.waitForReady();
     await ensureProjectHasNextcloudStorage('demo-project', page);
-    await waitForNextcloudStorageHealthy('demo-project');
 
+    // Personal settings (NC→OP) then Files-tab storage OAuth (OP→NC).
     await page.context().clearCookies();
     await ensureOliverConnectedViaNextcloudPersonalSettings(page);
 
     await page.context().clearCookies();
-    const oliverHome = await opLogin.login(
+    let oliverHome = await opLogin.login(
       OLIVER_OAUTH_USER.username,
       OLIVER_OAUTH_USER.password,
     );
     await oliverHome.waitForReady();
+    const filesTab = new OpenProjectWorkPackageFilesTab(page);
+    await ensureFilesTabNextcloudConnected(
+      page,
+      filesTab,
+      DEMO_WORK_PACKAGE_ID,
+      OLIVER_OAUTH_USER,
+    );
+
+    await waitForNextcloudStorageHealthy('demo-project');
+    await ensureOauth2AmpfWebDavAccess(OLIVER_OAUTH_USER, {
+      projectFolder: ampProjectFolder,
+    });
     return { homePage: oliverHome, user };
   }
 
@@ -325,6 +341,9 @@ export async function ensureFilesTabNextcloudConnected(
 
   if (state === 'login') {
     logInfo('Files tab shows Nextcloud login; completing storage OAuth as %s', user.username);
+    const hosts = resolveHosts();
+    const ncHostPattern = hostUrlPattern(hosts.nextcloud);
+    const opHostPattern = hostUrlPattern(hosts.openproject);
     const popupPromise = page.context().waitForEvent('page', { timeout: 15000 }).catch(() => null);
     await filesTab.clickNextcloudLogin();
     const popup = await popupPromise;
@@ -333,7 +352,7 @@ export async function ensureFilesTabNextcloudConnected(
     if (popup) {
       await popup.waitForLoadState('domcontentloaded').catch(() => undefined);
     } else {
-      await page.waitForURL(/nextcloud\./, { timeout: 20000 });
+      await page.waitForURL(ncHostPattern, { timeout: 20000 });
     }
 
     const ncLogin = new NextcloudLoginPage(oauthPage);
@@ -349,7 +368,7 @@ export async function ensureFilesTabNextcloudConnected(
     // After NC grant, OP asks to Authorize Nextcloud API access (same tab or popup).
     if (popup) {
       await Promise.race([
-        popup.waitForURL(/openproject\./, { timeout: 45000 }),
+        popup.waitForURL(opHostPattern, { timeout: 45000 }),
         popup.waitForEvent('close', { timeout: 45000 }).then(() => null),
       ]).catch(() => null);
       if (!popup.isClosed()) {
@@ -358,7 +377,7 @@ export async function ensureFilesTabNextcloudConnected(
         await popup.waitForEvent('close', { timeout: 30000 }).catch(() => undefined);
       }
     } else {
-      await page.waitForURL(/openproject\./, { timeout: 45000 });
+      await page.waitForURL(opHostPattern, { timeout: 45000 });
       const authorized = await opLogin.authorizeOAuthApplicationIfPrompted(20000);
       logInfo('OpenProject storage OAuth authorize clicked: %s', authorized);
     }

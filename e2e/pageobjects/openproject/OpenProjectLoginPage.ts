@@ -4,6 +4,7 @@ import { KeycloakLoginPage } from '../keycloak/KeycloakLoginPage';
 import { OpenProjectHomePage } from './OpenProjectHomePage';
 import { OP_ADMIN_USER } from '../../utils/test-users';
 import { testConfig } from '../../utils/config';
+import { resolveHosts } from '../../utils/env-hosts';
 import { escapeForRegex, resolveHostname } from '../../utils/url-helpers';
 
 const keycloakHost =
@@ -122,11 +123,13 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
     const authorize = this.getLocator('oauthAuthorizeButton').first();
     const allow = this.getLocator('oauthAllowButton').first();
     const submit = this.getLocator('oauthAuthorizeSubmit').first();
+    const opHost =
+      resolveHostname(resolveHosts().openproject) || resolveHosts().openproject;
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
       // Already redirected away from OpenProject (e.g. prior OAuth grant) — stop polling.
-      if (/nextcloud\./i.test(this.page.url())) {
+      if (!this.page.url().includes(opHost)) {
         return false;
       }
       for (const candidate of [authorize, allow, submit]) {

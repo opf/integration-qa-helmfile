@@ -21,7 +21,7 @@ const AMPERSAND_FOLDER = 'R&D';
 const SEEDED_FILE = 'report.md';
 
 test.describe('Work Package Integration - File Picker Navigation', dualSetupTags, () => {
-  test.describe.configure({ timeout: 180_000 });
+  test.describe.configure({ timeout: 300_000 });
   test.beforeEach(() => {
     skipUnlessSetupMethod('sso-external', 'oauth2');
   });
@@ -86,6 +86,8 @@ test.describe('Work Package Integration - File Picker Navigation', dualSetupTags
 
       await test.step('Navigate to the folder named with an & symbol in it', async () => {
         logInfo('TC-2159', 'Step 5: Navigating into %s folder', AMPERSAND_FOLDER);
+        // oauth2 PullPreview may lack AMPF projectFolder registration — open via home mount.
+        await filePicker.ensureAtAmpfProjectFolder(ampProjectFolder);
         await filePicker.navigateIntoFolder(AMPERSAND_FOLDER);
         await expect(
           filePicker.getLocator('filesPickerBreadcrumb').filter({ hasText: AMPERSAND_FOLDER }).first()

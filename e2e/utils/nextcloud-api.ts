@@ -1,17 +1,23 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { ADMIN_USER, NC_ADMIN_USER } from './test-users';
 import { getErrorMessage } from './error-utils';
 import { resolveEnvName, resolveHosts } from './env-hosts';
+import { resolveHostname } from './url-helpers';
 import { tlsFetch } from './tls-dispatcher';
 import { logInfo, logWarn } from './logger';
 import { testConfig } from './config';
 import type { TestUser } from './test-users';
 
-const execAsync = promisify(exec);
 const OPENPROJECT_NC_GROUP = 'OpenProject';
-const DEFAULT_AMPF_FOLDER_ID = '1';
 const DEFAULT_AMPF_PROJECT_FOLDER = 'Demo project (1)';
+/** Groupfolders ACL bits: read=1, update=2, create=4, delete=8, share=16. */
+const GF_ACL_READ = 1;
+const GF_ACL_READ_WRITE_CREATE_DELETE = 1 + 2 + 4 + 8;
+const GF_ACL_MASK_ALL = 31;
+/** NC service account that owns the Team Folder (manage ACL); password set via OCS in tests. */
+const OPENPROJECT_NC_SERVICE_USER: TestUser = {
+  username: 'OpenProject',
+  password: process.env.E2E_OP_NC_SERVICE_PASS || 'OpNcService-Test-1234!',
+};
 
 const KC_REALM = process.env.E2E_KC_REALM || 'opnc';
 const KC_NC_CLIENT_ID = process.env.E2E_KC_NC_CLIENT_ID || 'nextcloud';
@@ -489,23 +495,141 @@ export async function ensureNextcloudUserInGroup(
   );
 }
 
-async function setGroupfoldersUserPermissions(
-  folderId: string,
-  path: string,
-  username: string,
-  permissions: string[],
+const DEFAULT_AMPF_FOLDER_ID = '1';
+
+/**
+ * Ensure NC admin can see the Team Folder mount and manage advanced ACLs.
+ * Integration app typically grants manageACL only to the OpenProject service user.
+ */
+async function ensureAdminCanManageGroupfolderAcl(
+  folderId: string = DEFAULT_AMPF_FOLDER_ID,
+  admin: TestUser = NC_ADMIN_USER,
 ): Promise<void> {
-  const namespace = process.env.KUBERNETES_NAMESPACE || 'opnc-integration';
-  const permArgs = permissions.map((p) => `'${p.replace(/'/g, `'\\''`)}'`).join(' ');
-  const pathArg = path.replace(/'/g, `'\\''`);
-  const cmd =
-    `kubectl exec -n ${namespace} deploy/nextcloud -- su -s /bin/sh www-data -c ` +
-    `"php occ groupfolders:permissions ${folderId} '${pathArg}' -u ${username} ${permArgs} --"`;
+  await ensureNextcloudUserInGroup(admin.username, OPENPROJECT_NC_GROUP);
+  const hosts = resolveHosts(resolveEnvName());
+  const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
+  const auth = `Basic ${buildNextcloudBasicAuth(admin)}`;
+  const body = new URLSearchParams({
+    mappingType: 'user',
+    mappingId: admin.username,
+    manageAcl: '1',
+  });
+  const response = await tlsFetch(
+    `https://${ncHost}/apps/groupfolders/folders/${encodeURIComponent(folderId)}/manageACL?format=json`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: auth,
+        'OCS-APIRequest': 'true',
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    },
+  );
+  const text = await response.text();
+  // Duplicate manage row is fine (already granted).
+  if (response.ok || /duplicate key|already exists/i.test(text)) {
+    return;
+  }
+  let statusCode: number | undefined;
   try {
-    await execAsync(cmd, { timeout: 60_000 });
-  } catch (error: unknown) {
+    const data = JSON.parse(text) as { ocs?: { meta?: NextcloudOcsMeta } };
+    statusCode = data.ocs?.meta?.statuscode;
+  } catch {
+    // non-JSON
+  }
+  if (statusCode === 100) {
+    return;
+  }
+  throw new Error(
+    `Failed to grant groupfolders manageACL to ${admin.username}: HTTP ${response.status} - ${text}`,
+  );
+}
+
+/**
+ * Ensure the Nextcloud "OpenProject" service user has a known password for WebDAV ACL/MKCOL.
+ * Admin cannot MKCOL inside the Team Folder; the service user (manage ACL) can.
+ */
+async function ensureOpenProjectNcServiceUser(): Promise<TestUser> {
+  const hosts = resolveHosts(resolveEnvName());
+  const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
+  const adminAuth = `Basic ${buildNextcloudBasicAuth(NC_ADMIN_USER)}`;
+  const body = new URLSearchParams({
+    key: 'password',
+    value: OPENPROJECT_NC_SERVICE_USER.password,
+  });
+  const response = await tlsFetch(
+    `https://${ncHost}/ocs/v1.php/cloud/users/${encodeURIComponent(OPENPROJECT_NC_SERVICE_USER.username)}?format=json`,
+    {
+      method: 'PUT',
+      headers: {
+        authorization: adminAuth,
+        'OCS-APIRequest': 'true',
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    },
+  );
+  const text = await response.text();
+  let statusCode: number | undefined;
+  try {
+    const data = JSON.parse(text) as { ocs?: { meta?: NextcloudOcsMeta } };
+    statusCode = data.ocs?.meta?.statuscode;
+  } catch {
+    // non-JSON
+  }
+  if (statusCode !== 100 && statusCode !== 102) {
     throw new Error(
-      `Failed to set groupfolders permissions for ${username} on '${path}': ${getErrorMessage(error)}`,
+      `Failed to set password for NC service user '${OPENPROJECT_NC_SERVICE_USER.username}': HTTP ${response.status} statuscode=${statusCode} - ${text}`,
+    );
+  }
+  return OPENPROJECT_NC_SERVICE_USER;
+}
+
+/**
+ * Set advanced ACL for a user on a Groupfolders WebDAV path.
+ * Actor must have manage ACL (the OpenProject NC service user).
+ */
+async function setGroupfoldersUserAclViaWebDav(
+  webDavRelativePath: string,
+  username: string,
+  permissions: number,
+  actor: TestUser,
+): Promise<void> {
+  const hosts = resolveHosts(resolveEnvName());
+  const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
+  const auth = `Basic ${buildNextcloudBasicAuth(actor)}`;
+  const actorId = await resolveNextcloudUserId(ncHost, auth, actor.username);
+  const body = `<?xml version="1.0"?>
+<d:propertyupdate xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">
+  <d:set>
+    <d:prop>
+      <nc:acl-list>
+        <nc:acl>
+          <nc:acl-mapping-type>user</nc:acl-mapping-type>
+          <nc:acl-mapping-id>${username}</nc:acl-mapping-id>
+          <nc:acl-mask>${GF_ACL_MASK_ALL}</nc:acl-mask>
+          <nc:acl-permissions>${permissions}</nc:acl-permissions>
+        </nc:acl>
+      </nc:acl-list>
+    </d:prop>
+  </d:set>
+</d:propertyupdate>`;
+
+  const response = await tlsFetch(buildWebDavUrl(ncHost, actorId, webDavRelativePath), {
+    method: 'PROPPATCH',
+    headers: {
+      authorization: auth,
+      'content-type': 'application/xml; charset=utf-8',
+    },
+    body,
+  });
+  if (!response.ok && response.status !== 207) {
+    const text = await response.text();
+    throw new Error(
+      `Failed to set groupfolders ACL for ${username} on '${webDavRelativePath}': HTTP ${response.status} - ${text}`,
     );
   }
 }
@@ -516,22 +640,43 @@ async function setGroupfoldersUserPermissions(
  */
 export async function ensureOauth2AmpfWebDavAccess(
   user: TestUser,
-  options: { folderId?: string; projectFolder?: string } = {},
+  options: { projectFolder?: string; folderId?: string } = {},
 ): Promise<void> {
   if (testConfig.setupMethod !== 'oauth2') {
     return;
   }
-  const folderId = options.folderId ?? DEFAULT_AMPF_FOLDER_ID;
   const projectFolder = options.projectFolder ?? DEFAULT_AMPF_PROJECT_FOLDER;
+  const folderId = options.folderId ?? DEFAULT_AMPF_FOLDER_ID;
 
   await ensureNextcloudUserInGroup(user.username, OPENPROJECT_NC_GROUP);
-  await setGroupfoldersUserPermissions(folderId, '/', user.username, ['+read']);
-  await setGroupfoldersUserPermissions(folderId, projectFolder, user.username, [
-    '+read',
-    '+write',
-    '+create',
-    '+delete',
-  ]);
+  await ensureAdminCanManageGroupfolderAcl(folderId);
+  const serviceUser = await ensureOpenProjectNcServiceUser();
+
+  const hosts = resolveHosts(resolveEnvName());
+  const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
+  const serviceAuth = `Basic ${buildNextcloudBasicAuth(serviceUser)}`;
+  const serviceId = await resolveNextcloudUserId(ncHost, serviceAuth, serviceUser.username);
+
+  // Root mount: read so Oliver sees Team Folder; project path: full write for seeds.
+  await setGroupfoldersUserAclViaWebDav(
+    OPENPROJECT_NC_GROUP,
+    user.username,
+    GF_ACL_READ,
+    serviceUser,
+  );
+
+  const projectPath = `${OPENPROJECT_NC_GROUP}/${projectFolder}`;
+  if (!(await fileExists(ncHost, serviceId, projectPath, serviceAuth))) {
+    logInfo('Creating AMPF project folder on WebDAV: %s', projectPath);
+    await createFolder(ncHost, serviceId, projectPath, serviceAuth);
+  }
+
+  await setGroupfoldersUserAclViaWebDav(
+    projectPath,
+    user.username,
+    GF_ACL_READ_WRITE_CREATE_DELETE,
+    serviceUser,
+  );
   logInfo(
     'Granted oauth2 AMPF WebDAV access for %s on %s/%s',
     user.username,

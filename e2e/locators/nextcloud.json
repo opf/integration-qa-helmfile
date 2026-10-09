@@ -116,7 +116,7 @@
     },
     "openProjectIntegrationAppLink": {
       "by": "locator",
-      "value": "a[href*='integration_openproject']"
+      "value": "a[href*='settings/apps/enabled/integration_openproject'], a[href*='settings/apps/disabled/integration_openproject']"
     },
     "openProjectIntegrationAppVersion": {
       "by": "locator",

@@ -167,6 +167,19 @@
       "by": "locator",
       "value": "table tbody tr:has(td.provider_type:has-text('Nextcloud'))"
     },
+    "nextcloudStorageRemoveButton": {
+      "by": "locator",
+      "value": "table tbody tr:has(td.provider_type:has-text('Nextcloud')) a[href*='delete'], table tbody tr:has(td.provider_type:has-text('Nextcloud')) button:has(.octicon-trash), table tbody tr:has(td.provider_type:has-text('Nextcloud')) a:has(.octicon-trash)"
+    },
+
+    "storageRemoveConfirmButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Delete"
+      }
+    },
+
     "workPackageFilesUploadInput": {
       "by": "locator",
       "value": "input#upload_files[name='upload_files']"
@@ -348,12 +361,13 @@
     },
     "tutorialOverlay": {
       "by": "locator",
-      "value": "body:has-text('introduction tour')"
+      "value": "body:has-text('introduction tour'), .enjoyhint, .enjoyhint_disable_events"
     },
     "tutorialSkipButton": {
       "by": "locator",
       "value": "body:has-text('introduction tour') :text-is('Skip'), .enjoyhint_skip_btn:visible, [data-test-selector='op-tour--skip']:visible"
     },
+
     "tutorialNextButton": {
       "by": "locator",
       "value": "text=Next"
@@ -361,6 +375,21 @@
     "wikiTab": {
       "by": "locator",
       "value": ".op-tab-wiki, [data-test-selector='op-tab-wiki']"
+    },
+    "myAccessTokensHeading": {
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Access tokens"
+      }
+    },
+    "oauthClientTokensDeleteButton": {
+      "by": "locator",
+      "value": "a[href*='/my/oauth/revoke_application/'], section:has-text('OAuth client tokens') button[aria-label*='Delete'], section:has-text('OAuth client tokens') a[aria-label*='Delete']"
+    },
+    "accessTokenDialogCloseButton": {
+      "by": "locator",
+      "value": "#new-access-token-dialog button[aria-label='Close'], dialog#new-access-token-dialog button:has-text('Close'), dialog#new-access-token-dialog button:has-text('Cancel')"
     }
   }
 }

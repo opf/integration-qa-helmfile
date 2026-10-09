@@ -3,6 +3,8 @@ import { NextcloudBasePage } from './NextcloudBasePage';
 import { NextcloudDashboardPage } from './NextcloudDashboardPage';
 import { NC_ADMIN_USER } from '../../utils/test-users';
 import { logDebug } from '../../utils/logger';
+import { resolveHosts } from '../../utils/env-hosts';
+import { resolveHostname } from '../../utils/url-helpers';
 
 export class NextcloudLoginPage extends NextcloudBasePage {
   constructor(page: Page) {
@@ -87,10 +89,13 @@ export class NextcloudLoginPage extends NextcloudBasePage {
     const grant = this.getLocator('oauthGrantAccessButton').first();
     const authorize = this.getLocator('oauthAuthorizeButton').first();
     const allow = this.getLocator('oauthAllowButton').first();
+    const ncHost =
+      resolveHostname(resolveHosts().nextcloud) || resolveHosts().nextcloud;
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
-      if (/openproject\./i.test(this.page.url())) {
+      // Left Nextcloud (e.g. redirected to OpenProject authorize) — stop polling.
+      if (!this.page.url().includes(ncHost)) {
         return false;
       }
       for (const candidate of [grant, authorize, allow]) {

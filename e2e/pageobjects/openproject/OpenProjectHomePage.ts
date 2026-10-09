@@ -102,19 +102,65 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     }
   }
 
+  /**
+   * Revoke OP→external OAuth client tokens (e.g. Nextcloud storage) from My account → Access tokens.
+   * Needed after NC personal disconnect: two-way OAuth can leave the OP→NC token alive so Files
+   * stays "connected" until this client token is deleted.
+   */
+  async revokeOAuthClientTokensIfPresent(): Promise<number> {
+    await this.page.goto(`${this.baseUrl}/my/access_token`);
+    await this.getLocator('myAccessTokensHeading')
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .catch(() => undefined);
+
+    // Close the "new access token" overlay if it auto-opens and blocks clicks.
+    const closeDialog = this.getLocator('accessTokenDialogCloseButton').first();
+    if (await closeDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await closeDialog.click();
+    } else {
+      await this.page.keyboard.press('Escape').catch(() => undefined);
+    }
+
+    let revoked = 0;
+    this.page.once('dialog', (dialog) => {
+      void dialog.accept();
+    });
+    for (let i = 0; i < 8; i++) {
+      const deleteBtn = this.getLocator('oauthClientTokensDeleteButton').first();
+      if (!(await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false))) {
+        break;
+      }
+      await deleteBtn.click();
+      const confirm = this.page.getByRole('button', { name: /Delete|Revoke|OK|Yes|Remove/i }).last();
+      if (await confirm.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await confirm.click();
+      }
+      revoked += 1;
+      await this.page.waitForTimeout(800);
+    }
+    if (revoked > 0) {
+      logDebug(`[OpenProject] Revoked ${revoked} OAuth client token(s)`);
+    }
+    return revoked;
+  }
+
   async dismissTutorialOverlayIfPresent(): Promise<boolean> {
     const overlay = this.getLocator('tutorialOverlay').first();
     const overlayVisible = await overlay.isVisible({ timeout: 500 }).catch(() => false);
+    const enjoyHint = this.page.locator('.enjoyhint, .enjoyhint_disable_events').first();
+    const enjoyHintVisible = await enjoyHint.isVisible({ timeout: 200 }).catch(() => false);
     const urlExpectsTour = this.isFirstTimeUserUrl();
 
     // Onboarding JS can load on repeat logins without showing the tour overlay.
-    if (!overlayVisible && !urlExpectsTour) {
+    // EnjoyHint on settings pages often lacks "introduction tour" copy — still dismiss it.
+    if (!overlayVisible && !enjoyHintVisible && !urlExpectsTour) {
       this.firstTimeTourExpected = false;
       return false;
     }
 
     const skipButton = this.getLocator('tutorialSkipButton').first();
-    const skipWaitTimeout = overlayVisible ? 10_000 : 5_000;
+    const skipWaitTimeout = overlayVisible || enjoyHintVisible ? 10_000 : 5_000;
 
     try {
       await skipButton.waitFor({ state: 'visible', timeout: skipWaitTimeout });
@@ -127,8 +173,9 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     await this.closeUserMenuDialogIfOpen();
 
     try {
-      await skipButton.click();
-      await skipButton.waitFor({ state: 'hidden', timeout: 10000 });
+      await skipButton.click({ force: true });
+      await skipButton.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => undefined);
+      await enjoyHint.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
       this.firstTimeTourExpected = false;
       return true;
     } catch (error: unknown) {

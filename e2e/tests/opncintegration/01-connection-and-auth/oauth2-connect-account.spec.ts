@@ -10,6 +10,8 @@ import { ensureNextcloudLocalUser } from '../../../utils/nextcloud-api';
 import { ensureOpenProjectLocalUser } from '../../../utils/openproject-api';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
+import { resolveHosts } from '../../../utils/env-hosts';
+import { hostUrlPattern } from '../../../utils/url-helpers';
 
 test.describe('Connection & Auth - OAuth2 Account Connection', oauth2Tags, () => {
   test.describe.configure({ timeout: 300_000 });
@@ -72,7 +74,8 @@ test.describe('Connection & Auth - OAuth2 Account Connection', oauth2Tags, () =>
           logInfo('TC-2226', 'Step 3: Clicking Connect to OpenProject and authorizing OAuth');
           // Wizard already dismissed during login.
           await personalSettingsPage.clickConnectToOpenProject(0);
-          await page.waitForURL(/openproject\.test/, { timeout: 20000 });
+          const hosts = resolveHosts();
+          await page.waitForURL(hostUrlPattern(hosts.openproject), { timeout: 20000 });
 
           const loggedIn = await opLoginPage.loginIfPrompted(
             OLIVER_OAUTH_USER.username,
@@ -89,9 +92,10 @@ test.describe('Connection & Auth - OAuth2 Account Connection', oauth2Tags, () =>
           const authorized = await opLoginPage.authorizeOAuthApplicationIfPrompted(20000);
           logInfo('TC-2226', `OpenProject OAuth authorize clicked: ${authorized}`);
 
-          await page.waitForURL(/nextcloud\.test.*settings\/user\/openproject/, {
-            timeout: 45000,
-          });
+          await page.waitForURL(
+            hostUrlPattern(hosts.nextcloud, 'settings\\/user\\/openproject'),
+            { timeout: 45000 },
+          );
         },
       );
 

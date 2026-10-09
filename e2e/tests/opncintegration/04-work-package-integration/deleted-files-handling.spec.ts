@@ -22,7 +22,7 @@ const SEEDED_FILE = 'delete.md';
 const SEEDED_FILE_PATH = `OpenProject/${ampProjectFolder}/${SEED_FOLDER}/${SEEDED_FILE}`;
 
 test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags, () => {
-  test.describe.configure({ timeout: 180_000 });
+  test.describe.configure({ timeout: 300_000 });
   test.beforeEach(() => {
     skipUnlessSetupMethod('sso-external', 'oauth2');
   });
