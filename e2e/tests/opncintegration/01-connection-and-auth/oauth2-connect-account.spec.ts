@@ -1,6 +1,5 @@
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, oauth2Tags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { testConfig } from '../../../utils/config';
 import {
   NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
@@ -12,17 +11,16 @@ import { ensureOpenProjectLocalUser } from '../../../utils/openproject-api';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
 
-test.describe('Connection & Auth - OAuth2 Account Connection', integrationTags, () => {
+test.describe('Connection & Auth - OAuth2 Account Connection', oauth2Tags, () => {
   test.describe.configure({ timeout: 300_000 });
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('oauth2');
+  });
 
   test(
     '[oauth2] Connect Nextcloud Account from Nextcloud User Settings',
-    squashTestCase(2226, { stepCount: 4, tag: ['@oauth2'] }),
+    squashTestCase(2226, { stepCount: 4 }),
     async ({ page }) => {
-      test.skip(
-        testConfig.setupMethod !== 'oauth2',
-        `Requires SETUP_METHOD=oauth2 (current: ${testConfig.setupMethod})`,
-      );
 
       const ncLoginPage = new NextcloudLoginPage(page);
       const personalSettingsPage = new NextcloudPersonalSettingsPage(page);

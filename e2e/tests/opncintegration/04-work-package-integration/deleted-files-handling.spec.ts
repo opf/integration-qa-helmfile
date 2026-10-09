@@ -1,4 +1,4 @@
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, ssoExternalTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
 import {
   OpenProjectLoginPage,
   OpenProjectHomePage,
@@ -25,10 +25,14 @@ const SEED_FOLDER = 'tc-2165';
 const SEEDED_FILE = 'delete.md';
 const SEEDED_FILE_PATH = `OpenProject/${ampProjectFolder}/${SEED_FOLDER}/${SEEDED_FILE}`;
 
-test.describe('Work Package Integration - Deleted Files Handling', integrationTags, () => {
+test.describe('Work Package Integration - Deleted Files Handling', ssoExternalTags, () => {
   test.describe.configure({ timeout: 180_000 });
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('sso-external');
+  });
 
   test.afterAll(async () => {
+    if (!isSetupMethod('sso-external')) return;
     await deleteWorkPackageFileLinksByName(WORK_PACKAGE_ID, SEEDED_FILE);
   });
 

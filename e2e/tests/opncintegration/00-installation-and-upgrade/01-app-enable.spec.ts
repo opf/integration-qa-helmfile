@@ -1,4 +1,4 @@
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, ssoExternalTags, skipUnlessSetupMethod } from '../../base-test';
 import { NextcloudLoginPage, NextcloudActiveAppsPage } from '../../../pageobjects/nextcloud';
 import {
   OpenProjectLoginPage,
@@ -17,8 +17,11 @@ import { ensureAliceAdminForCurrentSession } from '../shared';
 
 const WORK_PACKAGE_ID = 2;
 
-test.describe('SSO External - Installation & Upgrade', integrationTags, () => {
+test.describe('SSO External - Installation & Upgrade', ssoExternalTags, () => {
   test.describe.configure({ timeout: 240_000 });
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('sso-external');
+  });
 
   test(
     'Enable Integration App via Nextcloud UI',

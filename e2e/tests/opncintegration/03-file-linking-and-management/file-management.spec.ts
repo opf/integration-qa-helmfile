@@ -1,4 +1,4 @@
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, ssoExternalTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
 import { OpenProjectLoginPage, OpenProjectHomePage, OpenProjectWorkPackageFilesTab, OpenProjectFilePickerModal } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { ALICE_USER } from '../../../utils/test-users';
@@ -12,8 +12,11 @@ import {
   ensureAliceIsDemoProjectMember
 } from '../shared';
 
-test.describe('Files Tab Management', integrationTags, () => {
+test.describe('Files Tab Management', ssoExternalTags, () => {
   test.describe.configure({ mode: 'serial', timeout: 120_000 });
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('sso-external');
+  });
 
   test(
     'Upload a file from OP to NC using ampf',
@@ -219,6 +222,7 @@ test.describe('Files Tab Management', integrationTags, () => {
   );
 
   test.afterAll(async () => {
+    if (!isSetupMethod('sso-external')) return;
     await cleanupCollisionArtifacts();
   });
 });

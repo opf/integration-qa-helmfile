@@ -29,6 +29,7 @@ This file is the canonical always-on project guidance for AI coding agents. Code
 - For Squash TM-mapped tests, add the numeric Squash test case ID in code with `squashTestCase(...)` from `e2e/utils/squash-metadata.ts`; keep the Squash automated test reference aligned with the Playwright title and `folder#file#title` format; match `test.step()` count/order to Squash steps (see `.agents/shared/openproject-e2e.md`).
 - Use the shared logger and typed catches from the E2E guide; do not add direct `console.*` logging in tests, page objects, or utilities.
 - OpenProject file links and Nextcloud WebDAV files have separate cleanup paths; handle both when changing repeatable upload or file-link tests.
+- Gate auth-mode suites with `oauth2Tags` / `ssoExternalTags` and `skipUnlessSetupMethod(...)` so `@oauth2` runs only on oauth2 stacks and `@sso-external` only on Keycloak SSO stacks (`SETUP_METHOD` or `environments/override.yaml`; see `.agents/shared/openproject-e2e.md`).
 
 ## Skills And Rules
 

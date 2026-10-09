@@ -1,6 +1,5 @@
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, oauth2Tags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { testConfig } from '../../../utils/config';
 import {
   NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
@@ -69,17 +68,16 @@ async function ensureOliverConnectedViaNextcloudPersonalSettings(
   logInfo('TC-2162', 'Oliver connected to OpenProject');
 }
 
-test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', integrationTags, () => {
+test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', oauth2Tags, () => {
   test.describe.configure({ timeout: 300_000 });
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('oauth2');
+  });
 
   test(
     '[oauth2] Disconnect Nextcloud Account from Nextcloud User Settings',
-    squashTestCase(2162, { stepCount: 4, tag: ['@oauth2'] }),
+    squashTestCase(2162, { stepCount: 4 }),
     async ({ page }) => {
-      test.skip(
-        testConfig.setupMethod !== 'oauth2',
-        `TC 2162 requires SETUP_METHOD=oauth2 (current: ${testConfig.setupMethod})`,
-      );
 
       const ncLoginPage = new NextcloudLoginPage(page);
       const personalSettingsPage = new NextcloudPersonalSettingsPage(page);

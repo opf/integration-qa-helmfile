@@ -1,4 +1,4 @@
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, ssoExternalTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
 import {
   OpenProjectLoginPage,
   OpenProjectHomePage,
@@ -24,10 +24,14 @@ const WORK_PACKAGE_ID = 2;
 const AMPERSAND_FOLDER = 'R&D';
 const SEEDED_FILE = 'report.md';
 
-test.describe('Work Package Integration - File Picker Navigation', integrationTags, () => {
+test.describe('Work Package Integration - File Picker Navigation', ssoExternalTags, () => {
   test.describe.configure({ timeout: 180_000 });
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('sso-external');
+  });
 
   test.afterAll(async () => {
+    if (!isSetupMethod('sso-external')) return;
     await deleteWorkPackageFileLinksByName(WORK_PACKAGE_ID, SEEDED_FILE);
   });
 

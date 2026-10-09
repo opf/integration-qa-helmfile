@@ -1,5 +1,5 @@
 
-import { test, expect, openProjectUrl, integrationTags } from '../../base-test';
+import { test, expect, openProjectUrl, ssoExternalTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
 import { OpenProjectLoginPage, OpenProjectHomePage, OpenProjectProjectListPage } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { ALICE_USER } from '../../../utils/test-users';
@@ -11,11 +11,15 @@ import {
   restoreAliceAdminStatus 
 } from '../shared';
 
-test.describe('Project Setup', integrationTags, () => {
+test.describe('Project Setup', ssoExternalTags, () => {
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('sso-external');
+  });
   // Copy + AMPF folder provisioning needs more than the default 30s.
   test.describe.configure({ timeout: 90_000 });
 
   test.beforeAll(async () => {
+    if (!isSetupMethod('sso-external')) return;
     await captureAliceAdminStatus();
   });
 
@@ -68,6 +72,7 @@ test.describe('Project Setup', integrationTags, () => {
   );
 
   test.afterAll(async () => {
+    if (!isSetupMethod('sso-external')) return;
     try {
       const deleted = await deleteProject('test');
       if (deleted) {
