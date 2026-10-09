@@ -94,9 +94,51 @@ export async function ensureProjectHasNextcloudStorage(
 
   const storagesPage = new OpenProjectProjectStoragesPage(page);
   await storagesPage.navigateToProjectStorages(project.identifier);
+  // #region agent log
+  fetch('http://127.0.0.1:7658/ingest/023bcd4e-c1e1-4216-9f83-f6af8477f649', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd17a8f' },
+    body: JSON.stringify({
+      sessionId: 'd17a8f',
+      runId: 'pre-fix',
+      hypothesisId: 'B',
+      location: 'test-helpers.ts:ensureProjectHasNextcloudStorage:after-navigate',
+      message: 'URL after navigateToProjectStorages',
+      data: { url: page.url() },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   // Onboarding enjoyhint can reappear after navigation and block "New storage".
   const homePage = new OpenProjectHomePage(page);
   await homePage.dismissTutorialOverlayIfPresent();
+  // #region agent log
+  fetch('http://127.0.0.1:7658/ingest/023bcd4e-c1e1-4216-9f83-f6af8477f649', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd17a8f' },
+    body: JSON.stringify({
+      sessionId: 'd17a8f',
+      runId: 'pre-fix',
+      hypothesisId: 'B,E',
+      location: 'test-helpers.ts:ensureProjectHasNextcloudStorage:after-dismiss',
+      message: 'URL after dismiss before New storage',
+      data: {
+        url: page.url(),
+        enjoyHint: await page
+          .locator('.enjoyhint, .enjoyhint_disable_events')
+          .first()
+          .isVisible({ timeout: 200 })
+          .catch(() => false),
+        newStorageVisible: await page
+          .locator("a.wp-inline-create--add-link[title='New storage']")
+          .first()
+          .isVisible({ timeout: 200 })
+          .catch(() => false),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   if (await storagesPage.hasNextcloudStorage()) {
     return;

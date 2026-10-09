@@ -108,11 +108,67 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     const enjoyHint = this.page.locator('.enjoyhint, .enjoyhint_disable_events').first();
     const enjoyHintVisible = await enjoyHint.isVisible({ timeout: 200 }).catch(() => false);
     const urlExpectsTour = this.isFirstTimeUserUrl();
+    // #region agent log
+    const closeCandidate = this.page
+      .locator(
+        '.enjoyhint_close_btn, .enjoyhint_close, [data-test-selector="op-tour--close"], .enjoyhint button:has-text("×"), .enjoyhint button:has-text("✕")',
+      )
+      .first();
+    const nextCandidate = this.getLocator('tutorialNextButton').first();
+    const skipProbe = this.getLocator('tutorialSkipButton').first();
+    const [skipVisible, closeVisible, nextVisible, createTourText] = await Promise.all([
+      skipProbe.isVisible({ timeout: 200 }).catch(() => false),
+      closeCandidate.isVisible({ timeout: 200 }).catch(() => false),
+      nextCandidate.isVisible({ timeout: 200 }).catch(() => false),
+      this.page
+        .locator('text=/Create button will add a new work package/i')
+        .first()
+        .isVisible({ timeout: 200 })
+        .catch(() => false),
+    ]);
+    fetch('http://127.0.0.1:7658/ingest/023bcd4e-c1e1-4216-9f83-f6af8477f649', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd17a8f' },
+      body: JSON.stringify({
+        sessionId: 'd17a8f',
+        runId: 'pre-fix',
+        hypothesisId: 'A,C,D',
+        location: 'OpenProjectHomePage.ts:dismissTutorialOverlayIfPresent:entry',
+        message: 'tour dismiss probe',
+        data: {
+          url: this.page.url(),
+          overlayVisible,
+          enjoyHintVisible,
+          urlExpectsTour,
+          skipVisible,
+          closeVisible,
+          nextVisible,
+          createTourText,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     // Onboarding JS can load on repeat logins without showing the tour overlay.
     // EnjoyHint on settings pages often lacks "introduction tour" copy — still dismiss it.
     if (!overlayVisible && !enjoyHintVisible && !urlExpectsTour) {
       this.firstTimeTourExpected = false;
+      // #region agent log
+      fetch('http://127.0.0.1:7658/ingest/023bcd4e-c1e1-4216-9f83-f6af8477f649', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd17a8f' },
+        body: JSON.stringify({
+          sessionId: 'd17a8f',
+          runId: 'pre-fix',
+          hypothesisId: 'E',
+          location: 'OpenProjectHomePage.ts:dismissTutorialOverlayIfPresent:early-exit',
+          message: 'no tour detected; early return false',
+          data: { url: this.page.url() },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       return false;
     }
 
@@ -123,6 +179,28 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
       await skipButton.waitFor({ state: 'visible', timeout: skipWaitTimeout });
     } catch {
       this.firstTimeTourExpected = false;
+      // #region agent log
+      fetch('http://127.0.0.1:7658/ingest/023bcd4e-c1e1-4216-9f83-f6af8477f649', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd17a8f' },
+        body: JSON.stringify({
+          sessionId: 'd17a8f',
+          runId: 'pre-fix',
+          hypothesisId: 'A,C',
+          location: 'OpenProjectHomePage.ts:dismissTutorialOverlayIfPresent:skip-timeout',
+          message: 'Skip not visible; returning false without Close',
+          data: {
+            url: this.page.url(),
+            closeVisible,
+            nextVisible,
+            createTourText,
+            enjoyHintStill:
+              (await enjoyHint.isVisible({ timeout: 100 }).catch(() => false)) === true,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       return false;
     }
 
@@ -134,6 +212,24 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
       await skipButton.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => undefined);
       await enjoyHint.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
       this.firstTimeTourExpected = false;
+      // #region agent log
+      fetch('http://127.0.0.1:7658/ingest/023bcd4e-c1e1-4216-9f83-f6af8477f649', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd17a8f' },
+        body: JSON.stringify({
+          sessionId: 'd17a8f',
+          runId: 'pre-fix',
+          hypothesisId: 'D',
+          location: 'OpenProjectHomePage.ts:dismissTutorialOverlayIfPresent:skip-clicked',
+          message: 'Skip clicked',
+          data: {
+            url: this.page.url(),
+            enjoyHintGone: !(await enjoyHint.isVisible({ timeout: 100 }).catch(() => false)),
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       return true;
     } catch (error: unknown) {
       logWarn('[OpenProject] Failed to dismiss tutorial overlay', error);
