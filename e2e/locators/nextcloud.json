@@ -149,6 +149,13 @@
         "name": "Disable"
       }
     },
+    "openProjectIntegrationEnableMenuItem": {
+      "by": "getByRole",
+      "value": {
+        "role": "menuitem",
+        "name": "Enable"
+      }
+    },
     "openProjectIntegrationRemoveMenuItem": {
       "by": "getByRole",
       "value": {
