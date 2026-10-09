@@ -46,6 +46,9 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
   }
 
   async clickSignIn(): Promise<void> {
+    // Fresh first-login users can leave EnjoyHint on /login after clearCookies()
+    // (storage survives); dismiss before Sign in or the overlay intercepts the click.
+    await new OpenProjectHomePage(this.page).dismissTutorialOverlayIfPresent();
     await this.getLocator('loginButton').first().click();
   }
 
