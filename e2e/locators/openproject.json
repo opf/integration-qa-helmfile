@@ -375,21 +375,6 @@
     "wikiTab": {
       "by": "locator",
       "value": ".op-tab-wiki, [data-test-selector='op-tab-wiki']"
-    },
-    "myAccessTokensHeading": {
-      "by": "getByRole",
-      "value": {
-        "role": "heading",
-        "name": "Access tokens"
-      }
-    },
-    "oauthClientTokensDeleteButton": {
-      "by": "locator",
-      "value": "a[href*='/my/oauth/revoke_application/'], section:has-text('OAuth client tokens') button[aria-label*='Delete'], section:has-text('OAuth client tokens') a[aria-label*='Delete']"
-    },
-    "accessTokenDialogCloseButton": {
-      "by": "locator",
-      "value": "#new-access-token-dialog button[aria-label='Close'], dialog#new-access-token-dialog button:has-text('Close'), dialog#new-access-token-dialog button:has-text('Cancel')"
     }
   }
 }
