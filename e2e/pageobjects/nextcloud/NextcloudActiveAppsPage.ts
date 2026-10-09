@@ -167,7 +167,21 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
     try {
       await this.findOpenProjectIntegrationApp();
       const disableButton = this.getLocator('openProjectIntegrationDisableButton');
-      return await disableButton.isVisible({ timeout: 5000 }).catch(() => false);
+      if (await disableButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+        return true;
+      }
+
+      // When an update is available, Nextcloud replaces primary Disable with Update;
+      // Disable moves under the Actions menu.
+      const actionsButton = this.getLocator('openProjectIntegrationActionsButton').first();
+      if (!(await actionsButton.isVisible({ timeout: 3000 }).catch(() => false))) {
+        return false;
+      }
+      await actionsButton.click();
+      const disableMenuItem = this.getLocator('openProjectIntegrationDisableMenuItem');
+      const visible = await disableMenuItem.isVisible({ timeout: 5000 }).catch(() => false);
+      await this.page.keyboard.press('Escape').catch(() => undefined);
+      return visible;
     } catch {
       return false;
     }
@@ -254,20 +268,29 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
 
   async clickDisableOpenProjectIntegration(): Promise<void> {
     await this.findOpenProjectIntegrationApp();
-    const disableButton = this.getLocator('openProjectIntegrationDisableButton');
-    await disableButton.waitFor({ state: 'visible', timeout: 10000 });
     logInfo('[Nextcloud Apps] Disabling OpenProject Integration');
-    await Promise.all([
-      this.page
-        .waitForResponse(
-          (response) =>
-            response.url().includes('/apps/appstore/api/v1/apps/disable') &&
-            response.request().method() === 'POST',
-          { timeout: 20000 },
-        )
-        .catch(() => undefined),
-      disableButton.click(),
-    ]);
+
+    const disableButton = this.getLocator('openProjectIntegrationDisableButton');
+    const disableWait = this.page
+      .waitForResponse(
+        (response) =>
+          response.url().includes('/apps/appstore/api/v1/apps/disable') &&
+          response.request().method() === 'POST',
+        { timeout: 20000 },
+      )
+      .catch(() => undefined);
+
+    if (await disableButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await Promise.all([disableWait, disableButton.click()]);
+    } else {
+      const actionsButton = this.getLocator('openProjectIntegrationActionsButton').first();
+      await actionsButton.waitFor({ state: 'visible', timeout: 10000 });
+      await actionsButton.click();
+      const disableMenuItem = this.getLocator('openProjectIntegrationDisableMenuItem');
+      await disableMenuItem.waitFor({ state: 'visible', timeout: 10000 });
+      await Promise.all([disableWait, disableMenuItem.click()]);
+    }
+
     await this.getLocator('openProjectIntegrationAppRow')
       .waitFor({ state: 'hidden', timeout: 20000 })
       .catch(() => {
@@ -434,7 +457,11 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
       return;
     }
 
-    if (await this.isDisableButtonPresentForOpenProjectIntegration()) {
+    // Update CTA replaces primary Disable when a newer release is available; still enabled.
+    if (
+      (await this.isDisableButtonPresentForOpenProjectIntegration()) ||
+      (await this.isUpdateButtonPresentForOpenProjectIntegration())
+    ) {
       logInfo('[Nextcloud Apps] App enabled; disabling before Remove');
       await this.clickDisableOpenProjectIntegration();
     }

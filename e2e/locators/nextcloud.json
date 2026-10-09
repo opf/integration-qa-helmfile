@@ -142,6 +142,13 @@
       "by": "locator",
       "value": "tr:has(a[href*='integration_openproject']) button[aria-label='Actions'], tr:has(a[href*='integration_openproject']) button[aria-label*='Actions']"
     },
+    "openProjectIntegrationDisableMenuItem": {
+      "by": "getByRole",
+      "value": {
+        "role": "menuitem",
+        "name": "Disable"
+      }
+    },
     "openProjectIntegrationRemoveMenuItem": {
       "by": "getByRole",
       "value": {
