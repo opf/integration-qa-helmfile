@@ -29,6 +29,10 @@ grep -q 'script_ref="v${BASH_REMATCH\[1\]}"' "$INTEGRATION_SCRIPT" ||
   fail "setup-integration.sh must use the matching release setup script"
 grep -q 'INTEGRATION_SETUP_DEBUG:-false' "$INTEGRATION_SCRIPT" ||
   fail "setup-integration.sh must keep secret-bearing debug traces off by default"
+grep -q 'patch_integration_oidc_setup_script' "$INTEGRATION_SCRIPT" ||
+  fail "setup-integration.sh must patch tagged OIDC setup success checks"
+grep -q '"status":true' "$INTEGRATION_SCRIPT" ||
+  fail "setup-integration.sh OIDC patch must accept status:true"
 pass "integration setup script version and logging guards"
 
 RENDER="$(mktemp)"

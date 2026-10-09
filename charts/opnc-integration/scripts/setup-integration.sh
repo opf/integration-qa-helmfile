@@ -86,6 +86,22 @@ download_integration_script() {
     curl -fsS --connect-timeout 5 --max-time 30 "$script_url" -o "$script_name"
 }
 
+# Tagged integration_oidc_setup.sh (≤3.1.1) still treats oauth2 client fields as the
+# success signal. The app's OIDC /setup response is {"status":true} only, so those
+# tags reject a successful setup. Master already checks status:true.
+patch_integration_oidc_setup_script() {
+    sed -i 's/sort -VC/sort -Vc/g' integration_oidc_setup.sh
+    if grep -q 'nextcloud_oauth_client_name' integration_oidc_setup.sh; then
+        sed -i \
+            's|!= \*"nextcloud_oauth_client_name"\*|!= *'\''"status":true'\''*|' \
+            integration_oidc_setup.sh
+        sed -i \
+            's/The response is missing nextcloud_oauth_client_name or openproject_redirect_uri/The response does not contain status:true./' \
+            integration_oidc_setup.sh
+        echo "[INFO] Patched integration_oidc_setup.sh OIDC success check to status:true."
+    fi
+}
+
 # Exit code for deterministic, non-retryable failures; matched by the Job's
 # podFailurePolicy so Kubernetes fails the whole job instead of retrying.
 TERMINAL_EXIT_CODE=42
@@ -136,8 +152,7 @@ if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
     download_integration_script integration_oidc_setup.sh
-    # patch for sort command compatibility
-    sed -i 's/sort -VC/sort -Vc/g' integration_oidc_setup.sh
+    patch_integration_oidc_setup_script
 
     NC_INTEGRATION_PROVIDER_TYPE=nextcloud_hub \
     NC_INTEGRATION_OP_CLIENT_ID=$OIDC_OPENPROJECT_CLIENT_ID \
@@ -151,8 +166,7 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
     echo "[INFO] Keycloak is ready."
 
     download_integration_script integration_oidc_setup.sh
-    # patch for sort command compatibility
-    sed -i 's/sort -VC/sort -Vc/g' integration_oidc_setup.sh
+    patch_integration_oidc_setup_script
 
     NC_INTEGRATION_PROVIDER_TYPE=external \
     NC_INTEGRATION_PROVIDER_NAME=$OIDC_KEYCLOAK_PROVIDER_NAME \
