@@ -1,5 +1,5 @@
 
-import { test, expect, integrationTags, openProjectUrl } from '../../base-test';
+import { test, expect, ssoExternalTags, skipUnlessSetupMethod, openProjectUrl } from '../../base-test';
 import { testConfig } from '../../../utils/config';
 import { ensureAliceAdminForCurrentSession } from '../shared';
 import { OpenProjectLoginPage, OpenProjectHomePage, OpenProjectProjectStoragesPage } from '../../../pageobjects/openproject';
@@ -7,7 +7,10 @@ import { squashTestCase } from '../../../utils/squash-metadata';
 import { ALICE_USER } from '../../../utils/test-users';
 import { ensureUserIsAdmin, ensureUserIsProjectMember } from '../../../utils/test-helpers';
 
-test.describe('Storage Configuration', integrationTags, () => {
+test.describe('Storage Configuration', ssoExternalTags, () => {
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('sso-external');
+  });
   test(
     'Add Nextcloud file storage to Demo project',
     squashTestCase(2064, { stepCount: 6 }),

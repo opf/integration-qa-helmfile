@@ -104,9 +104,19 @@ try {
   - Service URLs and versions.
   - Setup method and environment name.
   - Any additional test-level configuration.
+- **Setup method (`testConfig.setupMethod`)** — used to mutually gate auth-mode suites:
+  - Resolution order: `SETUP_METHOD` env → `--setupMethod` CLI → `environments/override.yaml` → `test-results/e2e-env.json` → default `sso-external`. Override beats a stale e2e-env from a prior run.
+  - Helm `integration.setupMethod` in override configures the **cluster**; Playwright must resolve the same value (via env or override.yaml) or tests skip incorrectly.
+  - `@oauth2` specs use `oauth2Tags` + `skipUnlessSetupMethod('oauth2')` — run only on oauth2 stacks.
+  - `@sso-external` specs use `ssoExternalTags` + `skipUnlessSetupMethod('sso-external')` — run only on Keycloak SSO stacks.
+  - Dual-mode specs use `dualSetupTags` + `skipUnlessSetupMethod('sso-external', 'oauth2')` and switch Alice SSO vs Oliver local auth inside the same Squash case (`loginOpenProjectAsIntegrationUser` / `prepareIntegrationUserForDemoStorage` in `tests/opncintegration/shared.ts`). Do not duplicate TCs per setup method.
+  - Guard `beforeAll` / `afterAll` with `isSetupMethod(...)` so skipped suites do not run API cleanup hooks.
+  - Pure Keycloak-only or Oliver-personal-settings-only flows stay single-mode; shared product flows (enable/marketplace/upgrade/file picker/deleted files) are dual-mode.
+  - Local example: with `setupMethod: 'oauth2'` in override.yaml, `E2E_ENV=local npx playwright test --project=op-integration-tests` runs `@oauth2` and skips `@sso-external` without exporting `SETUP_METHOD`.
 - `global-setup.ts`:
   - Optionally waits for Kubernetes `setup-job` completion when `SETUP_JOB_CHECK=true` (uses `utils/pod-waiter.ts`).
   - Runs `detectAllVersions()` from `utils/version-detect.ts` to populate version-related env vars (OpenProject, Nextcloud, Keycloak, etc.) if not already set.
+  - Persists resolved `SETUP_METHOD` into `test-results/e2e-env.json` for workers.
 
 ## Type Safety
 
@@ -135,6 +145,8 @@ try {
 
 - SSO-created users may not exist in OpenProject until they complete a browser login. For admin-dependent OpenProject flows, log in via Keycloak first, then grant admin via `ensureUserIsAdmin`; if the admin flag changed, reload the page before continuing so the current session receives the new permissions.
 - OpenProject may store the SSO user login as an email (e.g. `alice@example.com`) even when Keycloak login uses the short username (`alice`). Helpers that locate users should prefer the configured username but fall back to `TestUser.email` and other known aliases when needed.
+- **OAuth2 (`SETUP_METHOD=oauth2`)**: use `OLIVER_OAUTH_USER` with `ensureOpenProjectLocalUser` / `ensureNextcloudLocalUser` (not Keycloak). Personal-settings connect/disconnect uses `NextcloudPersonalSettingsPage` plus `OpenProjectLoginPage.loginIfPrompted` / `authorizeOAuthApplicationIfPrompted`. Authorize polling must stop once the browser is already on Nextcloud (prior grant / auto-redirect). When expecting a disconnected UI, prefer a short `isConnected(500)` probe over the default multi-second negative wait; skip wizard re-dismiss on Connect if login already dismissed it (`clickConnectToOpenProject(0)`).
+- OpenProject onboarding EnjoyHint can reappear after navigating away from home and block project-storage UI clicks. `ensureProjectHasNextcloudStorage` dismisses the tutorial after navigate; do not assume home `waitForReady()` is enough for later pages.
 - OpenProject file links and Nextcloud WebDAV files have separate cleanup paths. Deleting `OpenProject/<project folder>/<file>` from Nextcloud does not remove `/api/v3/file_links` records from the work package. Repeatable upload/link tests should delete stale OpenProject file links by work package and file name before uploading, and clean them again in `afterAll`.
 - Files-tab hover actions can be icon-only. In OpenProject 17.3, the linked-file actions observed are: download via `/download`, open location with accessible name `"Open file in location"`, and unlink with accessible name `"Remove file link"`. Prefer locator keys/page-object helpers for these actions and avoid clicking destructive actions in availability-only tests.
 
@@ -222,6 +234,9 @@ test(
   - `npx playwright test --headed`
 - Default worker configuration:
   - Single worker (`workers: 1`), overridable via `E2E_WORKERS` or `--workers`.
+- Match Playwright to the deployed auth mode (`SETUP_METHOD` or `environments/override.yaml`):
+  - OAuth2 stack: `@oauth2` runs; `@sso-external` skips. Grep: `--grep @oauth2`.
+  - SSO-external stack: `@sso-external` runs; `@oauth2` skips. Grep: `--grep @sso-external`.
 - **Native (Node.js on host):**
   - Run tests: `npx playwright test`
   - Run tests headed: `npx playwright test --headed`

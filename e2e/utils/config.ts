@@ -4,9 +4,11 @@ import * as dotenv from 'dotenv';
 import { resolveEnvName, resolveHosts } from './env-hosts';
 import { logDebug } from './logger';
 
+export type SetupMethod = 'sso-external' | 'sso-nextcloud' | 'oauth2';
+
 export interface TestConfig {
   envName: string;
-  setupMethod: 'sso-external' | 'sso-nextcloud' | 'oauth2';
+  setupMethod: SetupMethod;
   openproject: {
     version: string;
     host: string;
@@ -24,7 +26,11 @@ export interface TestConfig {
   };
 }
 
-type SetupMethod = TestConfig['setupMethod'];
+const SETUP_METHODS: readonly SetupMethod[] = ['sso-external', 'sso-nextcloud', 'oauth2'];
+
+function isSetupMethod(value: string | undefined): value is SetupMethod {
+  return value !== undefined && (SETUP_METHODS as readonly string[]).includes(value);
+}
 
 function getArgValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
@@ -47,27 +53,71 @@ function loadDotEnvLocal(): void {
   }
 }
 
+/** Local helm override — mirrors cluster setupMethod when SETUP_METHOD is unset. */
+function readSetupMethodFromOverrideYaml(): SetupMethod | undefined {
+  const overridePath = path.resolve(__dirname, '../../environments/override.yaml');
+  if (!fs.existsSync(overridePath)) {
+    return undefined;
+  }
+  try {
+    const text = fs.readFileSync(overridePath, 'utf8');
+    const match = text.match(/^\s*setupMethod:\s*['"]?(oauth2|sso-external|sso-nextcloud)['"]?/m);
+    if (match && isSetupMethod(match[1])) {
+      logDebug(`[config] setupMethod from environments/override.yaml: ${match[1]}`);
+      return match[1];
+    }
+  } catch {
+    // fall through
+  }
+  return undefined;
+}
+
+/**
+ * Resolve auth setup method for gating @oauth2 / @sso-external tests.
+ * Priority: SETUP_METHOD env → --setupMethod → environments/override.yaml →
+ * e2e-env.json (same-run worker handoff) → sso-external.
+ * Override beats stale e2e-env from a previous run with a different SETUP_METHOD.
+ */
+export function resolveSetupMethod(fromE2eEnv?: string): SetupMethod {
+  for (const candidate of [
+    process.env.SETUP_METHOD,
+    getArgValue('--setupMethod'),
+    readSetupMethodFromOverrideYaml(),
+    fromE2eEnv,
+  ]) {
+    if (isSetupMethod(candidate)) {
+      return candidate;
+    }
+  }
+  return 'sso-external';
+}
+
 const E2E_ENV_FILE = path.resolve(path.dirname(__dirname), 'test-results', 'e2e-env.json');
 
 export function loadConfig(): TestConfig {
   loadDotEnvLocal();
 
+  let e2eEnvSetupMethod: string | undefined;
   if (fs.existsSync(E2E_ENV_FILE)) {
     try {
       const data = JSON.parse(fs.readFileSync(E2E_ENV_FILE, 'utf8')) as Record<string, string>;
-      for (const [k, v] of Object.entries(data)) if (v != null) process.env[k] = v;
+      for (const [k, v] of Object.entries(data)) {
+        if (v == null) continue;
+        // Do not let a stale SETUP_METHOD in e2e-env clobber shell / override resolution order.
+        if (k === 'SETUP_METHOD') {
+          e2eEnvSetupMethod = v;
+          continue;
+        }
+        process.env[k] = v;
+      }
     } catch {
       // use env defaults
     }
   }
 
   const envName = resolveEnvName();
-
-  const setupMethod = (
-    process.env.SETUP_METHOD ||
-    getArgValue('--setupMethod') ||
-    'sso-external'
-  ) as SetupMethod;
+  const setupMethod = resolveSetupMethod(e2eEnvSetupMethod);
+  process.env.SETUP_METHOD = setupMethod;
 
   const hosts = resolveHosts(envName);
   const openprojectHost = hosts.openproject;

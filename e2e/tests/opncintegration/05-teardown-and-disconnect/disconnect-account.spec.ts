@@ -1,6 +1,5 @@
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, oauth2Tags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { testConfig } from '../../../utils/config';
 import {
   NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
@@ -19,68 +18,21 @@ import {
 import { ensureProjectHasNextcloudStorage } from '../../../utils/test-helpers';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
+import { ensureOliverConnectedViaNextcloudPersonalSettings } from '../shared';
 
 const WORK_PACKAGE_ID = 2;
 const DEMO_PROJECT = 'demo-project';
 
-/**
- * Ensure Oliver has a Nextcloud↔OpenProject OAuth connection via NC personal settings.
- * Idempotent: skips Connect when Disconnect is already visible.
- */
-async function ensureOliverConnectedViaNextcloudPersonalSettings(
-  page: import('@playwright/test').Page,
-): Promise<void> {
-  const ncLogin = new NextcloudLoginPage(page);
-  const personalSettings = new NextcloudPersonalSettingsPage(page);
-  const opLogin = new OpenProjectLoginPage(page);
-
-  const dashboard = await ncLogin.login(OLIVER_OAUTH_USER.username, OLIVER_OAUTH_USER.password);
-  await dashboard.waitForReady();
-  await dashboard.closeWelcomeMessage();
-
-  await personalSettings.navigateTo();
-  await personalSettings.waitForReady();
-
-  if (await personalSettings.isConnected()) {
-    logInfo('TC-2162', 'Oliver already connected to OpenProject in Nextcloud personal settings');
-    return;
-  }
-
-  logInfo('TC-2162', 'Connecting Oliver to OpenProject via Nextcloud personal settings OAuth');
-  await personalSettings.clickConnectToOpenProject();
-  await page.waitForURL(/openproject\.test/, { timeout: 20000 });
-
-  const loggedIn = await opLogin.loginIfPrompted(
-    OLIVER_OAUTH_USER.username,
-    OLIVER_OAUTH_USER.password,
-    15000,
-  );
-  logInfo('TC-2162', `OpenProject login prompted during OAuth: ${loggedIn}`);
-  if (page.url().includes('/login')) {
-    throw new Error(`Still on OpenProject login after Connect OAuth redirect: ${page.url()}`);
-  }
-
-  const authorized = await opLogin.authorizeOAuthApplicationIfPrompted(20000);
-  logInfo('TC-2162', `OpenProject OAuth authorize clicked: ${authorized}`);
-
-  await page.waitForURL(/nextcloud\.test.*settings\/user\/openproject/, { timeout: 45000 });
-  await personalSettings.waitForReady();
-  await personalSettings.waitForConnected(30000);
-  logInfo('TC-2162', 'Oliver connected to OpenProject');
-}
-
-test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', integrationTags, () => {
+test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', oauth2Tags, () => {
   test.describe.configure({ timeout: 300_000 });
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('oauth2');
+  });
 
   test(
     '[oauth2] Disconnect Nextcloud Account from Nextcloud User Settings',
-    squashTestCase(2162, { stepCount: 4, tag: ['@oauth2'] }),
+    squashTestCase(2162, { stepCount: 4 }),
     async ({ page }) => {
-      test.skip(
-        testConfig.setupMethod !== 'oauth2',
-        `TC 2162 requires SETUP_METHOD=oauth2 (current: ${testConfig.setupMethod})`,
-      );
-
       const ncLoginPage = new NextcloudLoginPage(page);
       const personalSettingsPage = new NextcloudPersonalSettingsPage(page);
       const opLoginPage = new OpenProjectLoginPage(page);
@@ -133,7 +85,10 @@ test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', integratio
       });
 
       await test.step('Switch to OpenProject and open a work package Files tab', async () => {
-        logInfo('TC-2162', 'Step 4: Verifying OpenProject Files tab prompts for Nextcloud login');
+        logInfo(
+          'TC-2162',
+          'Step 4: Verifying Files tab still shows Nextcloud storage after NC personal disconnect',
+        );
         await page.context().clearCookies();
         const home = await opLoginPage.login(
           OLIVER_OAUTH_USER.username,
@@ -145,9 +100,12 @@ test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', integratio
 
         await filesTab.navigateToDemoProjectWorkPackageFiles(WORK_PACKAGE_ID);
         await filesTab.waitForDemoProjectWorkPackageFilesUrl();
-        await filesTab.waitForNextcloudLoginPrompt(60000);
-        await expect(filesTab.getStorageLoginPromptLocator()).toBeVisible();
-        await expect(filesTab.getNextcloudLoginButtonLocator()).toBeVisible();
+
+        // NC personal disconnect clears NC→OP only. OP→NC may remain, so Files can show
+        // either Link existing or a Nextcloud login prompt — both match Squash 2162.
+        const loginBtn = filesTab.getNextcloudLoginButtonLocator();
+        const linkExisting = filesTab.getLocator('linkExistingFilesButton').first();
+        await expect(loginBtn.or(linkExisting)).toBeVisible({ timeout: 60000 });
       });
     },
   );

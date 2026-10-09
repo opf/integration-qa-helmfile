@@ -1,5 +1,6 @@
 import { Page } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
+import { OpenProjectHomePage } from './OpenProjectHomePage';
 
 /**
  * Page object for a project's external file storages settings page.
@@ -53,6 +54,10 @@ export class OpenProjectProjectStoragesPage extends OpenProjectBasePage {
    * Assumes we are on the add-storage wizard page.
    */
   async openStorageDropdown(): Promise<void> {
+    // EnjoyHint can reappear on the new-storage form and block the <select>.
+    const homePage = new OpenProjectHomePage(this.page);
+    await homePage.dismissTutorialOverlayIfPresent();
+
     const storageDropdown = this.getLocator('storageDropdown');
     await storageDropdown.waitFor({ state: 'visible', timeout: 10000 });
     await storageDropdown.click();
@@ -140,9 +145,34 @@ export class OpenProjectProjectStoragesPage extends OpenProjectBasePage {
    * Assumes we are on the project storages external page and storage is not yet linked.
    */
   async addNextcloudStorage(): Promise<void> {
+    const homePage = new OpenProjectHomePage(this.page);
+    await homePage.dismissTutorialOverlayIfPresent();
     await this.openNewStorageForm();
     await this.openStorageDropdown();
     await this.selectNextcloudStorageAndContinue();
     await this.selectAutomaticFolderModeAndAdd();
+  }
+
+  /**
+   * Remove the Nextcloud project storage row (if present) so AMPF can be re-linked.
+   */
+  async removeNextcloudStorageIfPresent(): Promise<boolean> {
+    if (!(await this.hasNextcloudStorage())) {
+      return false;
+    }
+    const homePage = new OpenProjectHomePage(this.page);
+    await homePage.dismissTutorialOverlayIfPresent();
+    const removeBtn = this.getLocator('nextcloudStorageRemoveButton').first();
+    await removeBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await removeBtn.click();
+    const confirm = this.getLocator('storageRemoveConfirmButton').first();
+    if (await confirm.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await confirm.click();
+    }
+    await this.getLocator('nextcloudStorageRow')
+      .first()
+      .waitFor({ state: 'hidden', timeout: 30000 })
+      .catch(() => undefined);
+    return true;
   }
 }

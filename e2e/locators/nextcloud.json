@@ -116,7 +116,7 @@
     },
     "openProjectIntegrationAppLink": {
       "by": "locator",
-      "value": "a[href*='integration_openproject']"
+      "value": "a[href*='settings/apps/enabled/integration_openproject'], a[href*='settings/apps/disabled/integration_openproject']"
     },
     "openProjectIntegrationAppVersion": {
       "by": "locator",
@@ -283,6 +283,35 @@
     "ncPersonalSettingsConnectSuccessMessage": {
       "by": "getByText",
       "value": "Successfully connected to OpenProject!"
+    },
+    "oauthConnectLoginButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Log in"
+      }
+    },
+    "oauthGrantAccessButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Grant access"
+      }
+    },
+
+    "oauthAuthorizeButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Authorize"
+      }
+    },
+    "oauthAllowButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Allow"
+      }
     }
   }
 }

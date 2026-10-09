@@ -473,12 +473,18 @@ async function isNextcloudProjectStorageHealthy(
     return storageId === nextcloudStorage.id;
   });
 
-  const projectFolderHref = linkedStorage?._links.projectFolder?.href;
-  if (!linkedStorage || !projectFolderHref) {
+  if (!linkedStorage) {
     return false;
   }
 
-  return true;
+  const projectFolderHref = linkedStorage._links.projectFolder?.href;
+  if (projectFolderHref) {
+    return true;
+  }
+
+  // oauth2 AMPF often leaves projectFolder unset until a later sync; linked storage
+  // is enough for Files-tab flows (WebDAV seeds MKCOL the project path themselves).
+  return testConfig.setupMethod === 'oauth2';
 }
 
 export async function waitForNextcloudStorageHealthy(

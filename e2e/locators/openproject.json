@@ -167,6 +167,19 @@
       "by": "locator",
       "value": "table tbody tr:has(td.provider_type:has-text('Nextcloud'))"
     },
+    "nextcloudStorageRemoveButton": {
+      "by": "locator",
+      "value": "table tbody tr:has(td.provider_type:has-text('Nextcloud')) a[href*='delete'], table tbody tr:has(td.provider_type:has-text('Nextcloud')) button:has(.octicon-trash), table tbody tr:has(td.provider_type:has-text('Nextcloud')) a:has(.octicon-trash)"
+    },
+
+    "storageRemoveConfirmButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Delete"
+      }
+    },
+
     "workPackageFilesUploadInput": {
       "by": "locator",
       "value": "input#upload_files[name='upload_files']"
@@ -348,12 +361,13 @@
     },
     "tutorialOverlay": {
       "by": "locator",
-      "value": "body:has-text('introduction tour')"
+      "value": "body:has-text('introduction tour'), .enjoyhint, .enjoyhint_disable_events"
     },
     "tutorialSkipButton": {
       "by": "locator",
       "value": "body:has-text('introduction tour') :text-is('Skip'), .enjoyhint_skip_btn:visible, [data-test-selector='op-tour--skip']:visible"
     },
+
     "tutorialNextButton": {
       "by": "locator",
       "value": "text=Next"
