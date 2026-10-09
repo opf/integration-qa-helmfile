@@ -17,6 +17,8 @@ helmfile_common=(helmfile -f "${helmfile_path}" -e pullpreview)
 # cpx42 (8 vCPU / 16 GB RAM) handles 4 concurrent Helm releases without heavy contention.
 # Lower this via PULLPREVIEW_HELMFILE_CONCURRENCY if running on a smaller instance.
 helmfile_concurrency="${PULLPREVIEW_HELMFILE_CONCURRENCY:-4}"
+sync_log="$(mktemp)"
+trap 'rm -f "${sync_log}"' EXIT
 
 declare -a PP_TIMING_ROWS=()
 pp_deploy_start=$(date +%s)
@@ -106,7 +108,7 @@ run_helmfile_dag_sync() {
   echo "[pullpreview helmfile] Running Helmfile DAG sync in namespace ${namespace} (concurrency=${helmfile_concurrency})."
 
   set +e
-  "${helmfile_common[@]}" "${sync_args[@]}" &
+  "${helmfile_common[@]}" "${sync_args[@]}" > >(tee "${sync_log}") 2>&1 &
   local sync_pid=$!
   watch_buildsource_job "${sync_pid}" &
   local watcher_pid=$!
@@ -144,6 +146,12 @@ echo "[pullpreview helmfile] DAG deploy starting (namespace=${namespace}, host=$
 set +e
 run_helmfile_dag_sync
 sync_rc=$?
+if [[ "${sync_rc}" -ne 0 ]] && is_transient_network_failure "${sync_log}"; then
+  echo "::warning::[pullpreview helmfile] Helmfile sync hit a transient network/DNS error; retrying once in 30s."
+  sleep 30
+  run_helmfile_dag_sync
+  sync_rc=$?
+fi
 set -e
 if [[ "${sync_rc}" -ne 0 ]]; then
   echo "::error::Helmfile DAG sync failed"

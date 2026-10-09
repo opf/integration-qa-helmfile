@@ -73,7 +73,7 @@ test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', integratio
   test.describe.configure({ timeout: 300_000 });
 
   test(
-    'Disconnect Nextcloud Account from Nextcloud User Settings [oauth2]',
+    '[oauth2] Disconnect Nextcloud Account from Nextcloud User Settings',
     squashTestCase(2162, { stepCount: 4, tag: ['@oauth2'] }),
     async ({ page }) => {
       test.skip(

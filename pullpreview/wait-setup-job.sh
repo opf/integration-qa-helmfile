@@ -37,6 +37,21 @@ job_condition() {
     -o jsonpath="{.status.conditions[?(@.type==\"${condition_type}\")].status}" 2>/dev/null || true
 }
 
+report_progress() {
+  local pod
+  echo "[pullpreview] setup-job is still running:"
+  kubectl get job setup-job -n "${namespace}" 2>&1 | redact_stream || true
+  kubectl get pods -n "${namespace}" -l job-name=setup-job 2>&1 | redact_stream || true
+
+  pod="$(kubectl get pods -n "${namespace}" -l job-name=setup-job \
+    --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | tail -n 1)"
+  if [[ -n "${pod}" ]]; then
+    echo "[pullpreview] recent setup-job logs (${pod}):"
+    kubectl logs -n "${namespace}" "${pod}" --all-containers=true \
+      --prefix=true --tail=20 2>&1 | redact_stream || true
+  fi
+}
+
 echo "[pullpreview] Waiting for setup-job in namespace ${namespace} (timeout ${timeout})..."
 
 if ! kubectl get job setup-job -n "${namespace}" >/dev/null 2>&1; then
@@ -46,6 +61,7 @@ if ! kubectl get job setup-job -n "${namespace}" >/dev/null 2>&1; then
 fi
 
 deadline=$(( $(date +%s) + timeout_secs ))
+next_progress_report=$(( $(date +%s) + 60 ))
 while true; do
   if [[ "$(job_condition Complete)" == "True" ]]; then
     echo "[pullpreview] setup-job completed successfully."
@@ -62,6 +78,11 @@ while true; do
     echo "::error::setup-job did not complete within ${timeout}"
     dump_diagnostics
     exit 1
+  fi
+
+  if (( $(date +%s) >= next_progress_report )); then
+    report_progress
+    next_progress_report=$(( $(date +%s) + 60 ))
   fi
 
   sleep 10

@@ -1,6 +1,12 @@
 {{- if include "opnc.renderSetupJob" . }}
 {{- $mcp := .Values.mcp | default (dict "enabled" true "oauthToken" "bob_ai_mcp_test_token_1234567890") }}
 {{- $standalone := .Values.openproject.standalone | default false }}
+{{- $integrationAppGitBranch := "" }}
+{{- range .Values.nextcloud.enableApps }}
+{{- if eq .name "integration_openproject" }}
+{{- $integrationAppGitBranch = (.gitBranch | default "") }}
+{{- end }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -84,6 +90,7 @@ spec:
       {{- if not $standalone }}
         - name: setup-integration
           image: ddev/ddev-utilities
+          imagePullPolicy: IfNotPresent
           command: ['/scripts/setup-integration.sh']
           env:
             - name: NEXTCLOUD_HOST
@@ -94,6 +101,8 @@ spec:
               value: '{{ include "opnc.keycloakHost" . }}'
             - name: INTEGRATION_APP_SETUP_METHOD
               value: '{{ .Values.integrationSetupMethod }}'
+            - name: INTEGRATION_APP_GIT_BRANCH
+              value: {{ $integrationAppGitBranch | quote }}
             - name: OIDC_KEYCLOAK_PROVIDER_NAME
               value: '{{ include "opnc.oidc.providerName" . }}'
             - name: OIDC_OPENPROJECT_CLIENT_ID

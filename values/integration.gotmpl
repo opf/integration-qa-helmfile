@@ -1,5 +1,5 @@
 {{- $openprojectXwiki := .Values.openproject.xwiki | default dict -}}
-{{- $mcp := .Values.mcp | default dict -}}
+{{- $mcp := dig "mcp" dict .Values -}}
 integrationSetupMethod: {{ .Values.integration.setupMethod }}
 previewMode: {{ dig "previewMode" false .Values }}
 

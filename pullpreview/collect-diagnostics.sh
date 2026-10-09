@@ -9,7 +9,16 @@ redact_stream() {
   sed -E \
     -e 's#postgres(ql)?://[^[:space:]"'\''<>]+#postgresql://[REDACTED]#g' \
     -e 's#(Authorization: Bearer )[A-Za-z0-9._~+/-]+#\1[REDACTED]#Ig' \
+    -e 's#("[^"]*(password|token|secret|cookie)[^"]*"[[:space:]]*:[[:space:]]*)"([^"\\]|\\.)*"#\1"[REDACTED]"#Ig' \
     -e 's#((password|token|secret|cookie)[A-Za-z0-9_ -]*(=|:))[[:space:]]*[^[:space:]"'\''<>]+#\1 [REDACTED]#Ig'
+}
+
+# is_transient_network_failure LOG_FILE
+#
+# True when the log shows a DNS/network blip (preview VM resolver timeouts while
+# Helm pulls charts or images) rather than a deterministic deploy error.
+is_transient_network_failure() {
+  grep -qE 'dial tcp: lookup |Temporary failure in name resolution|TLS handshake timeout|connection reset by peer|i/o timeout' "${1:?log file required}"
 }
 
 # collect_diagnostics CONTEXT NAMESPACE [RELEASE]
