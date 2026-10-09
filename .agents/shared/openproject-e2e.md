@@ -22,6 +22,7 @@ The Playwright project lives under `e2e/` in this repository. Paths below are **
 - `utils/`: Shared helpers (config, env/hosts, API clients, error handling, logging, version detection, test helpers).
 - `global-setup.ts`: Pre-test setup (Kubernetes setup-job wait, version detection, env var enrichment).
 - `playwright.config.ts`: Playwright runner config (headless by default, workers, retries, etc.).
+- Spec discovery order: with `workers: 1` / `fullyParallel: false`, Playwright runs specs alphabetically by path. Specs that mutate shared stack state (e.g. marketplace install → latest app) must run **after** tests that need the older helm-pinned version. Prefer numeric filename prefixes (as in `00-installation-and-upgrade/` and `02-project-storages/`) when order matters.
 
 Page object inheritance:
 - `BasePage` → domain base pages (`OpenProjectBasePage`, `NextcloudBasePage`, `KeycloakBasePage`) → concrete pages (Login, Home, Admin, etc.).
