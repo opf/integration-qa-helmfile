@@ -74,14 +74,16 @@ function readSetupMethodFromOverrideYaml(): SetupMethod | undefined {
 
 /**
  * Resolve auth setup method for gating @oauth2 / @sso-external tests.
- * Priority: SETUP_METHOD env → --setupMethod → e2e-env.json → environments/override.yaml → sso-external.
+ * Priority: SETUP_METHOD env → --setupMethod → environments/override.yaml →
+ * e2e-env.json (same-run worker handoff) → sso-external.
+ * Override beats stale e2e-env from a previous run with a different SETUP_METHOD.
  */
 export function resolveSetupMethod(fromE2eEnv?: string): SetupMethod {
   for (const candidate of [
     process.env.SETUP_METHOD,
     getArgValue('--setupMethod'),
-    fromE2eEnv,
     readSetupMethodFromOverrideYaml(),
+    fromE2eEnv,
   ]) {
     if (isSetupMethod(candidate)) {
       return candidate;

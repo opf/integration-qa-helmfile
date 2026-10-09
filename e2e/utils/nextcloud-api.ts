@@ -1,9 +1,17 @@
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { ADMIN_USER, NC_ADMIN_USER } from './test-users';
 import { getErrorMessage } from './error-utils';
 import { resolveEnvName, resolveHosts } from './env-hosts';
 import { tlsFetch } from './tls-dispatcher';
 import { logInfo, logWarn } from './logger';
+import { testConfig } from './config';
 import type { TestUser } from './test-users';
+
+const execAsync = promisify(exec);
+const OPENPROJECT_NC_GROUP = 'OpenProject';
+const DEFAULT_AMPF_FOLDER_ID = '1';
+const DEFAULT_AMPF_PROJECT_FOLDER = 'Demo project (1)';
 
 const KC_REALM = process.env.E2E_KC_REALM || 'opnc';
 const KC_NC_CLIENT_ID = process.env.E2E_KC_NC_CLIENT_ID || 'nextcloud';
@@ -166,7 +174,7 @@ function extractNextcloudUserId(data: NextcloudUserResponse): string | undefined
  */
 async function resolveNextcloudUserId(
   ncHost: string,
-  bearerToken: string,
+  authorization: string,
   fallbackUsername: string
 ): Promise<string> {
   const maxAttempts = 6;
@@ -176,7 +184,7 @@ async function resolveNextcloudUserId(
       `https://${ncHost}/ocs/v1.php/cloud/user?format=json`,
       {
         headers: {
-          authorization: `Bearer ${bearerToken}`,
+          authorization,
           'OCS-APIRequest': 'true',
           accept: 'application/json'
         }
@@ -242,22 +250,26 @@ function buildWebDavUrl(ncHost: string, userId: string, filePath: string): strin
 
 async function withWebDavAuth(
   user: TestUser
-): Promise<{ ncHost: string; userId: string; bearerToken: string }> {
+): Promise<{ ncHost: string; userId: string; authorization: string }> {
   const hosts = resolveHosts(resolveEnvName());
-  const bearerToken = await getKeycloakTokenForUser(hosts.keycloak, user);
-  const userId = await resolveNextcloudUserId(hosts.nextcloud, bearerToken, user.username);
-  return { ncHost: hosts.nextcloud, userId, bearerToken };
+  // oauth2 local users authenticate with Nextcloud basic auth; SSO uses Keycloak ROPC.
+  const authorization =
+    testConfig.setupMethod === 'oauth2'
+      ? `Basic ${buildNextcloudBasicAuth(user)}`
+      : `Bearer ${await getKeycloakTokenForUser(hosts.keycloak, user)}`;
+  const userId = await resolveNextcloudUserId(hosts.nextcloud, authorization, user.username);
+  return { ncHost: hosts.nextcloud, userId, authorization };
 }
 
 async function fileExists(
   ncHost: string,
   userId: string,
   filePath: string,
-  bearerToken: string
+  authorization: string
 ): Promise<boolean> {
   const response = await tlsFetch(buildWebDavUrl(ncHost, userId, filePath), {
     method: 'HEAD',
-    headers: { authorization: `Bearer ${bearerToken}` }
+    headers: { authorization }
   });
   return response.ok;
 }
@@ -266,11 +278,11 @@ async function deleteFile(
   ncHost: string,
   userId: string,
   filePath: string,
-  bearerToken: string
+  authorization: string
 ): Promise<void> {
   const response = await tlsFetch(buildWebDavUrl(ncHost, userId, filePath), {
     method: 'DELETE',
-    headers: { authorization: `Bearer ${bearerToken}` }
+    headers: { authorization }
   });
   if (response.status !== 204 && response.status !== 404) {
     const text = await response.text();
@@ -284,19 +296,19 @@ async function createFolder(
   ncHost: string,
   userId: string,
   folderPath: string,
-  bearerToken: string
+  authorization: string
 ): Promise<void> {
   const maxAttempts = 8;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const response = await tlsFetch(buildWebDavUrl(ncHost, userId, folderPath), {
       method: 'MKCOL',
-      headers: { authorization: `Bearer ${bearerToken}` }
+      headers: { authorization }
     });
     // 201 created; 405 already exists (WebDAV)
     if (response.status === 201 || response.status === 405 || response.status === 301) {
       return;
     }
-    if (response.status === 409 && (await fileExists(ncHost, userId, folderPath, bearerToken))) {
+    if (response.status === 409 && (await fileExists(ncHost, userId, folderPath, authorization))) {
       return;
     }
     // Transient Nextcloud lock / startup races
@@ -325,14 +337,14 @@ async function putFile(
   userId: string,
   filePath: string,
   content: string | Buffer,
-  bearerToken: string
+  authorization: string
 ): Promise<void> {
   const body =
     typeof content === 'string' ? content : new Uint8Array(content);
   const response = await tlsFetch(buildWebDavUrl(ncHost, userId, filePath), {
     method: 'PUT',
     headers: {
-      authorization: `Bearer ${bearerToken}`,
+      authorization,
       'content-type': 'text/markdown',
     },
     body: body as import('undici').RequestInit['body'],
@@ -435,6 +447,100 @@ export async function ensureNextcloudLocalUser(
 }
 
 /**
+ * Idempotently add a Nextcloud user to a group (admin OCS).
+ * Used so oauth2 local users can see the OpenProject Team Folder mount.
+ */
+export async function ensureNextcloudUserInGroup(
+  username: string,
+  groupId: string,
+  admin: TestUser = NC_ADMIN_USER,
+): Promise<void> {
+  const hosts = resolveHosts(resolveEnvName());
+  const auth = buildNextcloudBasicAuth(admin);
+  const body = new URLSearchParams({ groupid: groupId });
+  const response = await tlsFetch(
+    `https://${hosts.nextcloud}/ocs/v1.php/cloud/users/${encodeURIComponent(username)}/groups?format=json`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Basic ${auth}`,
+        'OCS-APIRequest': 'true',
+        accept: 'application/json',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    },
+  );
+  const text = await response.text();
+  let statusCode: number | undefined;
+  try {
+    const data = JSON.parse(text) as { ocs?: { meta?: NextcloudOcsMeta } };
+    statusCode = data.ocs?.meta?.statuscode;
+  } catch (error: unknown) {
+    logWarn('Nextcloud add-to-group response was not JSON: %s', getErrorMessage(error));
+  }
+  // 100 success; 102 already in group
+  if (statusCode === 100 || statusCode === 102) {
+    logInfo('Nextcloud user %s is in group %s', username, groupId);
+    return;
+  }
+  throw new Error(
+    `Nextcloud OCS add user to group failed for '${username}' → '${groupId}': HTTP ${response.status} statuscode=${statusCode} - ${text}`,
+  );
+}
+
+async function setGroupfoldersUserPermissions(
+  folderId: string,
+  path: string,
+  username: string,
+  permissions: string[],
+): Promise<void> {
+  const namespace = process.env.KUBERNETES_NAMESPACE || 'opnc-integration';
+  const permArgs = permissions.map((p) => `'${p.replace(/'/g, `'\\''`)}'`).join(' ');
+  const pathArg = path.replace(/'/g, `'\\''`);
+  const cmd =
+    `kubectl exec -n ${namespace} deploy/nextcloud -- su -s /bin/sh www-data -c ` +
+    `"php occ groupfolders:permissions ${folderId} '${pathArg}' -u ${username} ${permArgs} --"`;
+  try {
+    await execAsync(cmd, { timeout: 60_000 });
+  } catch (error: unknown) {
+    throw new Error(
+      `Failed to set groupfolders permissions for ${username} on '${path}': ${getErrorMessage(error)}`,
+    );
+  }
+}
+
+/**
+ * oauth2-only: give a local NC user Team Folder mount + write access to the AMPF project folder.
+ * SSO users get this via the integration app; local Oliver does not until these grants exist.
+ */
+export async function ensureOauth2AmpfWebDavAccess(
+  user: TestUser,
+  options: { folderId?: string; projectFolder?: string } = {},
+): Promise<void> {
+  if (testConfig.setupMethod !== 'oauth2') {
+    return;
+  }
+  const folderId = options.folderId ?? DEFAULT_AMPF_FOLDER_ID;
+  const projectFolder = options.projectFolder ?? DEFAULT_AMPF_PROJECT_FOLDER;
+
+  await ensureNextcloudUserInGroup(user.username, OPENPROJECT_NC_GROUP);
+  await setGroupfoldersUserPermissions(folderId, '/', user.username, ['+read']);
+  await setGroupfoldersUserPermissions(folderId, projectFolder, user.username, [
+    '+read',
+    '+write',
+    '+create',
+    '+delete',
+  ]);
+  logInfo(
+    'Granted oauth2 AMPF WebDAV access for %s on %s/%s',
+    user.username,
+    OPENPROJECT_NC_GROUP,
+    projectFolder,
+  );
+}
+
+/**
  * Ensure direct access grants are enabled on the Keycloak nextcloud client.
  * This allows password-based token requests (ROPC flow) for Nextcloud users.
  * Should be called once during test setup (e.g. in global-setup.ts).
@@ -455,16 +561,16 @@ export async function deleteNextcloudFile(
   filePath: string,
   user: TestUser
 ): Promise<void> {
-  const { ncHost, userId, bearerToken } = await withWebDavAuth(user);
+  const { ncHost, userId, authorization } = await withWebDavAuth(user);
 
   // Check if file exists before attempting deletion (idempotency check)
-  const exists = await fileExists(ncHost, userId, filePath, bearerToken);
+  const exists = await fileExists(ncHost, userId, filePath, authorization);
   if (!exists) {
     logInfo('File not found (already deleted or never existed): %s', filePath);
     return;
   }
 
-  await deleteFile(ncHost, userId, filePath, bearerToken);
+  await deleteFile(ncHost, userId, filePath, authorization);
 }
 
 /**
@@ -475,12 +581,12 @@ export async function ensureNextcloudFolder(
   folderPath: string,
   user: TestUser
 ): Promise<void> {
-  const { ncHost, userId, bearerToken } = await withWebDavAuth(user);
-  if (await fileExists(ncHost, userId, folderPath, bearerToken)) {
+  const { ncHost, userId, authorization } = await withWebDavAuth(user);
+  if (await fileExists(ncHost, userId, folderPath, authorization)) {
     logInfo('Nextcloud folder already exists: %s', folderPath);
     return;
   }
-  await createFolder(ncHost, userId, folderPath, bearerToken);
+  await createFolder(ncHost, userId, folderPath, authorization);
   logInfo('Created Nextcloud folder: %s', folderPath);
 }
 
@@ -493,8 +599,8 @@ export async function uploadNextcloudFile(
   content: string | Buffer,
   user: TestUser
 ): Promise<void> {
-  const { ncHost, userId, bearerToken } = await withWebDavAuth(user);
-  await putFile(ncHost, userId, filePath, content, bearerToken);
+  const { ncHost, userId, authorization } = await withWebDavAuth(user);
+  await putFile(ncHost, userId, filePath, content, authorization);
   logInfo('Uploaded Nextcloud file: %s', filePath);
 }
 

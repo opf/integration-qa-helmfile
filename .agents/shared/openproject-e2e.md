@@ -105,12 +105,13 @@ try {
   - Setup method and environment name.
   - Any additional test-level configuration.
 - **Setup method (`testConfig.setupMethod`)** — used to mutually gate auth-mode suites:
-  - Resolution order: `SETUP_METHOD` env → `--setupMethod` CLI → `test-results/e2e-env.json` → `environments/override.yaml` → default `sso-external`.
+  - Resolution order: `SETUP_METHOD` env → `--setupMethod` CLI → `environments/override.yaml` → `test-results/e2e-env.json` → default `sso-external`. Override beats a stale e2e-env from a prior run.
   - Helm `integration.setupMethod` in override configures the **cluster**; Playwright must resolve the same value (via env or override.yaml) or tests skip incorrectly.
   - `@oauth2` specs use `oauth2Tags` + `skipUnlessSetupMethod('oauth2')` — run only on oauth2 stacks.
   - `@sso-external` specs use `ssoExternalTags` + `skipUnlessSetupMethod('sso-external')` — run only on Keycloak SSO stacks.
+  - Dual-mode specs use `dualSetupTags` + `skipUnlessSetupMethod('sso-external', 'oauth2')` and switch Alice SSO vs Oliver local auth inside the same Squash case (`loginOpenProjectAsIntegrationUser` / `prepareIntegrationUserForDemoStorage` in `tests/opncintegration/shared.ts`). Do not duplicate TCs per setup method.
   - Guard `beforeAll` / `afterAll` with `isSetupMethod(...)` so skipped suites do not run API cleanup hooks.
-  - Do not run Keycloak/Alice SSO flows on oauth2, or Oliver personal-settings OAuth flows on sso-external.
+  - Pure Keycloak-only or Oliver-personal-settings-only flows stay single-mode; shared product flows (enable/marketplace/upgrade/file picker/deleted files) are dual-mode.
   - Local example: with `setupMethod: 'oauth2'` in override.yaml, `E2E_ENV=local npx playwright test --project=op-integration-tests` runs `@oauth2` and skips `@sso-external` without exporting `SETUP_METHOD`.
 - `global-setup.ts`:
   - Optionally waits for Kubernetes `setup-job` completion when `SETUP_JOB_CHECK=true` (uses `utils/pod-waiter.ts`).

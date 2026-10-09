@@ -18,55 +18,10 @@ import {
 import { ensureProjectHasNextcloudStorage } from '../../../utils/test-helpers';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
+import { ensureOliverConnectedViaNextcloudPersonalSettings } from '../shared';
 
 const WORK_PACKAGE_ID = 2;
 const DEMO_PROJECT = 'demo-project';
-
-/**
- * Ensure Oliver has a Nextcloud↔OpenProject OAuth connection via NC personal settings.
- * Idempotent: skips Connect when Disconnect is already visible.
- */
-async function ensureOliverConnectedViaNextcloudPersonalSettings(
-  page: import('@playwright/test').Page,
-): Promise<void> {
-  const ncLogin = new NextcloudLoginPage(page);
-  const personalSettings = new NextcloudPersonalSettingsPage(page);
-  const opLogin = new OpenProjectLoginPage(page);
-
-  const dashboard = await ncLogin.login(OLIVER_OAUTH_USER.username, OLIVER_OAUTH_USER.password);
-  await dashboard.waitForReady();
-  await dashboard.closeWelcomeMessage();
-
-  await personalSettings.navigateTo();
-  await personalSettings.waitForReady();
-
-  if (await personalSettings.isConnected()) {
-    logInfo('TC-2162', 'Oliver already connected to OpenProject in Nextcloud personal settings');
-    return;
-  }
-
-  logInfo('TC-2162', 'Connecting Oliver to OpenProject via Nextcloud personal settings OAuth');
-  await personalSettings.clickConnectToOpenProject();
-  await page.waitForURL(/openproject\.test/, { timeout: 20000 });
-
-  const loggedIn = await opLogin.loginIfPrompted(
-    OLIVER_OAUTH_USER.username,
-    OLIVER_OAUTH_USER.password,
-    15000,
-  );
-  logInfo('TC-2162', `OpenProject login prompted during OAuth: ${loggedIn}`);
-  if (page.url().includes('/login')) {
-    throw new Error(`Still on OpenProject login after Connect OAuth redirect: ${page.url()}`);
-  }
-
-  const authorized = await opLogin.authorizeOAuthApplicationIfPrompted(20000);
-  logInfo('TC-2162', `OpenProject OAuth authorize clicked: ${authorized}`);
-
-  await page.waitForURL(/nextcloud\.test.*settings\/user\/openproject/, { timeout: 45000 });
-  await personalSettings.waitForReady();
-  await personalSettings.waitForConnected(30000);
-  logInfo('TC-2162', 'Oliver connected to OpenProject');
-}
 
 test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', oauth2Tags, () => {
   test.describe.configure({ timeout: 300_000 });
@@ -78,7 +33,6 @@ test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', oauth2Tags
     '[oauth2] Disconnect Nextcloud Account from Nextcloud User Settings',
     squashTestCase(2162, { stepCount: 4 }),
     async ({ page }) => {
-
       const ncLoginPage = new NextcloudLoginPage(page);
       const personalSettingsPage = new NextcloudPersonalSettingsPage(page);
       const opLoginPage = new OpenProjectLoginPage(page);

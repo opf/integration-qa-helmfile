@@ -1,23 +1,19 @@
-import { test, expect, ssoExternalTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
+import { test, expect, dualSetupTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
 import {
-  OpenProjectLoginPage,
-  OpenProjectHomePage,
   OpenProjectWorkPackageFilesTab,
   OpenProjectFilePickerModal,
 } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { ALICE_USER } from '../../../utils/test-users';
-import {
-  ensureProjectHasNextcloudStorage,
-  waitForNextcloudStorageHealthy,
-} from '../../../utils/test-helpers';
 import { deleteWorkPackageFileLinksByName } from '../../../utils/openproject-api';
 import { deleteNextcloudFile, seedAmpfFolderWithFile } from '../../../utils/nextcloud-api';
 import { logInfo } from '../../../utils/logger';
 import {
   ampProjectFolder,
-  ensureAliceAdminForCurrentSession,
-  ensureAliceIsDemoProjectMember,
+  ensureFilesTabNextcloudConnected,
+  integrationBrowserUser,
+  isOauth2Setup,
+  loginOpenProjectAsIntegrationUser,
+  prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
 const WORK_PACKAGE_ID = 2;
@@ -25,14 +21,14 @@ const SEED_FOLDER = 'tc-2165';
 const SEEDED_FILE = 'delete.md';
 const SEEDED_FILE_PATH = `OpenProject/${ampProjectFolder}/${SEED_FOLDER}/${SEEDED_FILE}`;
 
-test.describe('Work Package Integration - Deleted Files Handling', ssoExternalTags, () => {
+test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags, () => {
   test.describe.configure({ timeout: 180_000 });
   test.beforeEach(() => {
-    skipUnlessSetupMethod('sso-external');
+    skipUnlessSetupMethod('sso-external', 'oauth2');
   });
 
   test.afterAll(async () => {
-    if (!isSetupMethod('sso-external')) return;
+    if (!isSetupMethod('sso-external', 'oauth2')) return;
     await deleteWorkPackageFileLinksByName(WORK_PACKAGE_ID, SEEDED_FILE);
   });
 
@@ -40,29 +36,27 @@ test.describe('Work Package Integration - Deleted Files Handling', ssoExternalTa
     'Display and Handle Deleted Nextcloud Files in Files Tab',
     squashTestCase(2165, { stepCount: 5 }),
     async ({ page }) => {
-      const loginPage = new OpenProjectLoginPage(page);
-      const homePage = new OpenProjectHomePage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const filePicker = new OpenProjectFilePickerModal(page);
+      const user = integrationBrowserUser();
 
-      // Prerequisites (not Squash steps): Alice SSO, membership, storage, Files tab connected.
-      logInfo('TC-2165', 'Setup: Logging in as Alice via Keycloak SSO');
-      await loginPage.navigateTo();
-      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+      // Prerequisites (not Squash steps): login, membership, storage, Files tab connected.
+      logInfo(
+        'TC-2165',
+        'Setup: Logging in as %s (%s)',
+        user.username,
+        isOauth2Setup() ? 'local oauth2' : 'Keycloak SSO',
+      );
+      let homePage = await loginOpenProjectAsIntegrationUser(page);
+      const prepared = await prepareIntegrationUserForDemoStorage(page, homePage);
+      homePage = prepared.homePage;
       await homePage.waitForReady();
-
-      await ensureAliceIsDemoProjectMember();
-      await ensureAliceAdminForCurrentSession(page, homePage);
-      await homePage.waitForReady();
-      await ensureProjectHasNextcloudStorage('demo-project', page);
-      await waitForNextcloudStorageHealthy('demo-project');
       await deleteWorkPackageFileLinksByName(WORK_PACKAGE_ID, SEEDED_FILE);
 
       await filesTab.navigateToDemoProjectWorkPackage(WORK_PACKAGE_ID);
       await filesTab.waitForDemoProjectWorkPackageUrl();
       await filesTab.openWorkPackageFilesTab();
-      await filesTab.waitForNextcloudFilesSectionConnected(WORK_PACKAGE_ID);
+      await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
 
       await test.step('Log in to Nextcloud and upload file delete.md', async () => {
         logInfo('TC-2165', 'Step 1: Seeding %s via WebDAV AMPF helper', SEEDED_FILE_PATH);
@@ -70,7 +64,7 @@ test.describe('Work Package Integration - Deleted Files Handling', ssoExternalTa
           projectFolder: ampProjectFolder,
           folderName: SEED_FOLDER,
           fileName: SEEDED_FILE,
-          user: ALICE_USER,
+          user,
           content: `# ${SEEDED_FILE}\nSeeded for TC-2165 deleted-files handling.\n`,
         });
       });
@@ -106,16 +100,14 @@ test.describe('Work Package Integration - Deleted Files Handling', ssoExternalTa
 
       await test.step('Delete the file from the Nextcloud', async () => {
         logInfo('TC-2165', 'Step 3: Deleting %s from Nextcloud via WebDAV', SEEDED_FILE_PATH);
-        await deleteNextcloudFile(SEEDED_FILE_PATH, ALICE_USER);
+        await deleteNextcloudFile(SEEDED_FILE_PATH, user);
       });
 
       await test.step(
         'Switch back to OpenProject, go to the work package and open the Files tab',
         async () => {
           logInfo('TC-2165', 'Step 4: Reloading WP #%s Files tab', WORK_PACKAGE_ID);
-          await filesTab.navigateToDemoProjectWorkPackageFiles(WORK_PACKAGE_ID);
-          await filesTab.waitForDemoProjectWorkPackageFilesUrl();
-          await filesTab.waitForNextcloudFilesSectionConnected(WORK_PACKAGE_ID);
+          await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
         }
       );
 

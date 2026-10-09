@@ -283,6 +283,35 @@
     "ncPersonalSettingsConnectSuccessMessage": {
       "by": "getByText",
       "value": "Successfully connected to OpenProject!"
+    },
+    "oauthConnectLoginButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Log in"
+      }
+    },
+    "oauthGrantAccessButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Grant access"
+      }
+    },
+
+    "oauthAuthorizeButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Authorize"
+      }
+    },
+    "oauthAllowButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Allow"
+      }
     }
   }
 }

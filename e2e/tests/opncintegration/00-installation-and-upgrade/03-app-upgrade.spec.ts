@@ -1,16 +1,8 @@
-import { test, expect, ssoExternalTags, skipUnlessSetupMethod } from '../../base-test';
+import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { NextcloudLoginPage, NextcloudActiveAppsPage } from '../../../pageobjects/nextcloud';
-import {
-  OpenProjectLoginPage,
-  OpenProjectHomePage,
-  OpenProjectWorkPackageFilesTab,
-} from '../../../pageobjects/openproject';
+import { OpenProjectWorkPackageFilesTab } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { ALICE_USER, NC_ADMIN_USER } from '../../../utils/test-users';
-import {
-  ensureProjectHasNextcloudStorage,
-  waitForNextcloudStorageHealthy,
-} from '../../../utils/test-helpers';
+import { NC_ADMIN_USER } from '../../../utils/test-users';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError, logWarn } from '../../../utils/logger';
 import {
@@ -18,14 +10,21 @@ import {
   fetchLatestMarketplaceIntegrationAppVersion,
   isUnstableIntegrationAppVersion,
 } from '../../../utils/integration-app-version';
-import { ensureAliceAdminForCurrentSession } from '../shared';
+import {
+  ensureFilesTabNextcloudConnected,
+  integrationBrowserUser,
+  isOauth2Setup,
+  loginOpenProjectAsIntegrationUser,
+  prepareIntegrationUserForDemoStorage,
+} from '../shared';
+import { waitForNextcloudStorageHealthy } from '../../../utils/test-helpers';
 
 const WORK_PACKAGE_ID = 2;
 
-test.describe('SSO External - Installation & Upgrade', ssoExternalTags, () => {
+test.describe('Installation & Upgrade - App Upgrade', dualSetupTags, () => {
   test.describe.configure({ timeout: 600_000 });
   test.beforeEach(() => {
-    skipUnlessSetupMethod('sso-external');
+    skipUnlessSetupMethod('sso-external', 'oauth2');
   });
 
   test(
@@ -34,29 +33,29 @@ test.describe('SSO External - Installation & Upgrade', ssoExternalTags, () => {
     async ({ page }) => {
       const loginPage = new NextcloudLoginPage(page);
       const activeAppsPage = new NextcloudActiveAppsPage(page);
-      const opLoginPage = new OpenProjectLoginPage(page);
-      const opHomePage = new OpenProjectHomePage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
+      const user = integrationBrowserUser();
 
       let marketplaceVersion: string | null = null;
 
       // Prerequisite (not a Squash step): Demo project linked so the post-check proves
       // the link survives the upgrade. Mirrors TC-2145 marketplace install setup.
-      logInfo('TC-2146', 'Setup: Ensuring Demo project Nextcloud storage as Alice');
-      await opLoginPage.navigateTo();
-      const keycloakLoginPage = await opLoginPage.clickKeycloakAuthButton();
-      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
-      await opHomePage.waitForReady();
-      await ensureAliceAdminForCurrentSession(page, opHomePage);
-      // Admin reload skips onboarding dismiss; clear enjoyhint before storage UI clicks.
-      await opHomePage.waitForReady();
-      await ensureProjectHasNextcloudStorage('demo-project', page);
-      await waitForNextcloudStorageHealthy('demo-project');
+      logInfo(
+        'TC-2146',
+        'Setup: Ensuring Demo project Nextcloud storage as %s (%s)',
+        user.username,
+        isOauth2Setup() ? 'oauth2' : 'sso-external',
+      );
+      let homePage = await loginOpenProjectAsIntegrationUser(page);
+      const prepared = await prepareIntegrationUserForDemoStorage(page, homePage);
+      homePage = prepared.homePage;
+      await homePage.waitForReady();
 
       await test.step(
         'Obtain and install an older release (e.g., version 2.11.2) of the integration app from GitHub releases OR install via helm setup',
         async () => {
           logInfo('TC-2146', 'Step 1: Logging in to Nextcloud and noting deployed app version');
+          await page.context().clearCookies();
           const dashboardPage = await loginPage.login(
             NC_ADMIN_USER.username,
             NC_ADMIN_USER.password,
@@ -146,9 +145,10 @@ test.describe('SSO External - Installation & Upgrade', ssoExternalTags, () => {
         // Post-Squash checks (not extra steps): storage healthy and Files tab connected.
         logInfo('TC-2146', 'Post: Verifying OpenProject storage and Files tab');
         await waitForNextcloudStorageHealthy('demo-project', { timeoutMs: 120_000 });
-        await filesTab.navigateToDemoProjectWorkPackageFiles(WORK_PACKAGE_ID);
-        await filesTab.waitForDemoProjectWorkPackageFilesUrl();
-        await filesTab.waitForNextcloudFilesSectionConnected(WORK_PACKAGE_ID);
+        await page.context().clearCookies();
+        homePage = await loginOpenProjectAsIntegrationUser(page);
+        await homePage.waitForReady();
+        await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
         logInfo('TC-2146', 'Post: Files tab connected successfully');
       });
     },

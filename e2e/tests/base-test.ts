@@ -19,6 +19,14 @@ export const ssoExternalTags = {
   tag: ['@regression', '@integration', '@smoke', '@sso-external'],
 };
 
+/**
+ * Specs that run on both sso-external and oauth2 (auth path switches inside the test).
+ * Tagged with both mode tags so `--grep @oauth2` / `--grep @sso-external` still discover them.
+ */
+export const dualSetupTags = {
+  tag: ['@regression', '@integration', '@smoke', '@sso-external', '@oauth2'],
+};
+
 /** True when `testConfig.setupMethod` is one of the allowed values. */
 export function isSetupMethod(...allowed: SetupMethod[]): boolean {
   return allowed.includes(testConfig.setupMethod);

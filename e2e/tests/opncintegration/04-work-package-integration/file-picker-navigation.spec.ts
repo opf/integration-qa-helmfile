@@ -1,37 +1,33 @@
-import { test, expect, ssoExternalTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
+import { test, expect, dualSetupTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
 import {
-  OpenProjectLoginPage,
-  OpenProjectHomePage,
   OpenProjectWorkPackageFilesTab,
   OpenProjectFilePickerModal,
 } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { ALICE_USER } from '../../../utils/test-users';
-import {
-  ensureProjectHasNextcloudStorage,
-  waitForNextcloudStorageHealthy,
-} from '../../../utils/test-helpers';
 import { deleteWorkPackageFileLinksByName } from '../../../utils/openproject-api';
 import { seedAmpfFolderWithFile } from '../../../utils/nextcloud-api';
 import { logInfo } from '../../../utils/logger';
 import {
   ampProjectFolder,
-  ensureAliceAdminForCurrentSession,
-  ensureAliceIsDemoProjectMember,
+  ensureFilesTabNextcloudConnected,
+  integrationBrowserUser,
+  isOauth2Setup,
+  loginOpenProjectAsIntegrationUser,
+  prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
 const WORK_PACKAGE_ID = 2;
 const AMPERSAND_FOLDER = 'R&D';
 const SEEDED_FILE = 'report.md';
 
-test.describe('Work Package Integration - File Picker Navigation', ssoExternalTags, () => {
+test.describe('Work Package Integration - File Picker Navigation', dualSetupTags, () => {
   test.describe.configure({ timeout: 180_000 });
   test.beforeEach(() => {
-    skipUnlessSetupMethod('sso-external');
+    skipUnlessSetupMethod('sso-external', 'oauth2');
   });
 
   test.afterAll(async () => {
-    if (!isSetupMethod('sso-external')) return;
+    if (!isSetupMethod('sso-external', 'oauth2')) return;
     await deleteWorkPackageFileLinksByName(WORK_PACKAGE_ID, SEEDED_FILE);
   });
 
@@ -39,27 +35,23 @@ test.describe('Work Package Integration - File Picker Navigation', ssoExternalTa
     'OpenProject user can Navigate into a Nextcloud folder with & in the name from OpenProject file picker',
     squashTestCase(2159, { stepCount: 6 }),
     async ({ page }) => {
-      const loginPage = new OpenProjectLoginPage(page);
-      const homePage = new OpenProjectHomePage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const filePicker = new OpenProjectFilePickerModal(page);
+      const user = integrationBrowserUser();
 
       await test.step('Log in to OpenProject as a user connected to Nextcloud', async () => {
-        logInfo('TC-2159', 'Step 1: Logging in as Alice via Keycloak SSO');
-        await loginPage.navigateTo();
-        const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-        await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+        logInfo(
+          'TC-2159',
+          'Step 1: Logging in as %s (%s)',
+          user.username,
+          isOauth2Setup() ? 'local oauth2' : 'Keycloak SSO',
+        );
+        let homePage = await loginOpenProjectAsIntegrationUser(page);
+        const prepared = await prepareIntegrationUserForDemoStorage(page, homePage);
+        homePage = prepared.homePage;
         await homePage.waitForReady();
       });
 
-      // SSO users exist in OpenProject only after first browser login.
-      // Admin elevation is required only if Demo project storage is not linked yet.
-      await ensureAliceIsDemoProjectMember();
-      await ensureAliceAdminForCurrentSession(page, homePage);
-      // Admin reload skips onboarding dismiss; clear enjoyhint before storage UI clicks.
-      await homePage.waitForReady();
-      await ensureProjectHasNextcloudStorage('demo-project', page);
-      await waitForNextcloudStorageHealthy('demo-project');
       await deleteWorkPackageFileLinksByName(WORK_PACKAGE_ID, SEEDED_FILE);
 
       await test.step('Open a work package in the project', async () => {
@@ -71,7 +63,7 @@ test.describe('Work Package Integration - File Picker Navigation', ssoExternalTa
       await test.step('Go to the Files tab', async () => {
         logInfo('TC-2159', 'Step 3: Opening Files tab');
         await filesTab.openWorkPackageFilesTab();
-        await filesTab.waitForNextcloudFilesSectionConnected(WORK_PACKAGE_ID);
+        await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
       });
 
       // Seed after Files-tab connect so AMPF user ACLs / groupfolders mounts have settled.
@@ -79,7 +71,7 @@ test.describe('Work Package Integration - File Picker Navigation', ssoExternalTa
         projectFolder: ampProjectFolder,
         folderName: AMPERSAND_FOLDER,
         fileName: SEEDED_FILE,
-        user: ALICE_USER,
+        user,
       });
 
       await test.step(

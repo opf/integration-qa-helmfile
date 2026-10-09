@@ -39,6 +39,27 @@ export class NextcloudLoginPage extends NextcloudBasePage {
   }
 
   /**
+   * Storage OAuth interstitial ("Please log in before granting…") → click Log in.
+   * No-op when the username form is already shown or consent is next.
+   */
+  async clickOAuthConnectLoginIfPrompted(timeoutMs = 8000): Promise<boolean> {
+    const connectLogin = this.getLocator('oauthConnectLoginButton').first();
+    const usernameInput = this.getLocator('usernameInput').first();
+    if (await usernameInput.isVisible().catch(() => false)) {
+      return false;
+    }
+    const visible = await connectLogin
+      .waitFor({ state: 'visible', timeout: timeoutMs })
+      .then(() => true)
+      .catch(() => false);
+    if (!visible) {
+      return false;
+    }
+    await connectLogin.click();
+    return true;
+  }
+
+  /**
    * If the Nextcloud login form is visible (e.g. during OAuth redirect), sign in.
    * Does not require landing on the dashboard — OAuth may continue elsewhere.
    */
@@ -56,6 +77,31 @@ export class NextcloudLoginPage extends NextcloudBasePage {
     await this.fillPassword(password);
     await this.clickLogin();
     return true;
+  }
+
+  /**
+   * On the Nextcloud OAuth consent screen (storage login), click Grant access / Authorize / Allow.
+   * No-op when already past the consent screen.
+   */
+  async grantAccessIfPrompted(timeoutMs = 15000): Promise<boolean> {
+    const grant = this.getLocator('oauthGrantAccessButton').first();
+    const authorize = this.getLocator('oauthAuthorizeButton').first();
+    const allow = this.getLocator('oauthAllowButton').first();
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      if (/openproject\./i.test(this.page.url())) {
+        return false;
+      }
+      for (const candidate of [grant, authorize, allow]) {
+        if (await candidate.isVisible().catch(() => false)) {
+          await candidate.click();
+          return true;
+        }
+      }
+      await this.page.waitForTimeout(500);
+    }
+    return false;
   }
 }
 
