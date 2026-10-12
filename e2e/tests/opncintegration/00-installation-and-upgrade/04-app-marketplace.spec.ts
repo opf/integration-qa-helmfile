@@ -40,9 +40,7 @@ test.describe('Installation & Upgrade - Marketplace', dualSetupTags, () => {
         user.username,
         isOauth2Setup() ? 'oauth2' : 'sso-external',
       );
-      let homePage = await loginOpenProjectAsIntegrationUser(page);
-      const prepared = await prepareIntegrationUserForDemoStorage(page, homePage);
-      homePage = prepared.homePage;
+      let { homePage } = await prepareIntegrationUserForDemoStorage(page);
       await homePage.waitForReady();
 
       await test.step('Login to Nextcloud as an administrator', async () => {

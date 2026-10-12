@@ -251,15 +251,17 @@ const DEMO_WORK_PACKAGE_ID = 2;
 /**
  * Membership + Demo project Nextcloud storage for the dual-setup user.
  * oauth2: admin links storage, Oliver NC↔OP + Files storage OAuth, then AMPF WebDAV ACL.
- * sso-external: Alice member/admin elevation + storage link (existing path).
+ * sso-external: Alice login + member/admin elevation + storage link.
+ * Callers must not log in beforehand — oauth2 starts as admin; SSO logs in Alice here.
  */
 export async function prepareIntegrationUserForDemoStorage(
   page: Page,
-  homePage: OpenProjectHomePage,
 ): Promise<{ homePage: OpenProjectHomePage; user: TestUser }> {
   const user = integrationBrowserUser();
 
   if (isOauth2Setup()) {
+    await ensureOpenProjectLocalUser(OLIVER_OAUTH_USER);
+    await ensureNextcloudLocalUser(OLIVER_OAUTH_USER);
     await ensureUserIsProjectMember(OLIVER_OAUTH_USER.username, 'demo-project', 'Member');
 
     await page.context().clearCookies();
@@ -273,7 +275,7 @@ export async function prepareIntegrationUserForDemoStorage(
     await ensureOliverConnectedViaNextcloudPersonalSettings(page);
 
     await page.context().clearCookies();
-    let oliverHome = await opLogin.login(
+    const oliverHome = await opLogin.login(
       OLIVER_OAUTH_USER.username,
       OLIVER_OAUTH_USER.password,
     );
@@ -293,6 +295,7 @@ export async function prepareIntegrationUserForDemoStorage(
     return { homePage: oliverHome, user };
   }
 
+  const homePage = await loginOpenProjectAsIntegrationUser(page);
   await ensureAliceIsDemoProjectMember();
   await ensureAliceAdminForCurrentSession(page, homePage);
   await homePage.waitForReady();

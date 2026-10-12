@@ -10,6 +10,8 @@ environment:
   OPENPROJECT_SSRF_PROTECTION_IP_ALLOWLIST: '0.0.0.0/0,::0/0'
   OPENPROJECT_DEFAULT__LANGUAGE: en
   OPENPROJECT_ONBOARDING__ENABLED: false
+  # Avoid /?first_time_user=true so EnjoyHint onboarding never starts for first logins.
+  OPENPROJECT_AFTER__FIRST__LOGIN__REDIRECT__URL: /
   OPENPROJECT_SEED__ADMIN__USER__PASSWORD__RESET: false
   {{- if dig "features" "wikiEnhancements" false .Values.openproject }}
   OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS_ACTIVE: 'true'

@@ -367,6 +367,10 @@
       "by": "locator",
       "value": "body:has-text('introduction tour') :text-is('Skip'), .enjoyhint_skip_btn:visible, [data-test-selector='op-tour--skip']:visible"
     },
+    "tutorialCloseButton": {
+      "by": "locator",
+      "value": ".enjoyhint_close_btn"
+    },
 
     "tutorialNextButton": {
       "by": "locator",

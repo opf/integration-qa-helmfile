@@ -9,7 +9,6 @@ import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
   isOauth2Setup,
-  loginOpenProjectAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
@@ -100,9 +99,7 @@ test.describe('Installation & Upgrade - Enable App', dualSetupTags, () => {
         isOauth2Setup() ? 'oauth2' : 'sso-external',
       );
       await page.context().clearCookies();
-      let homePage = await loginOpenProjectAsIntegrationUser(page);
-      const prepared = await prepareIntegrationUserForDemoStorage(page, homePage);
-      homePage = prepared.homePage;
+      const { homePage } = await prepareIntegrationUserForDemoStorage(page);
       await homePage.waitForReady();
 
       const filesTab = new OpenProjectWorkPackageFilesTab(page);

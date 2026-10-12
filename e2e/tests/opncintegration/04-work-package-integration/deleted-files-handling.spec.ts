@@ -12,7 +12,6 @@ import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
   isOauth2Setup,
-  loginOpenProjectAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
@@ -47,9 +46,7 @@ test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags
         user.username,
         isOauth2Setup() ? 'local oauth2' : 'Keycloak SSO',
       );
-      let homePage = await loginOpenProjectAsIntegrationUser(page);
-      const prepared = await prepareIntegrationUserForDemoStorage(page, homePage);
-      homePage = prepared.homePage;
+      const { homePage } = await prepareIntegrationUserForDemoStorage(page);
       await homePage.waitForReady();
       await deleteWorkPackageFileLinksByName(WORK_PACKAGE_ID, SEEDED_FILE);
 
