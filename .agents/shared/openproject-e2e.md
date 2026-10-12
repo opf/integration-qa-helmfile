@@ -237,6 +237,9 @@ test(
 - Match Playwright to the deployed auth mode (`SETUP_METHOD` or `environments/override.yaml`):
   - OAuth2 stack: `@oauth2` runs; `@sso-external` skips. Grep: `--grep @oauth2`.
   - SSO-external stack: `@sso-external` runs; `@oauth2` skips. Grep: `--grep @sso-external`.
+  - CI scheduled/manual OP-NC runs always pass `--grep @${SETUP_METHOD}` so opposite-mode
+    specs are not collected. Squash publish also omits skips whose reason matches
+    `Requires SETUP_METHOD` (safety net for ungated local full-suite runs).
 - **Native (Node.js on host):**
   - Run tests: `npx playwright test`
   - Run tests headed: `npx playwright test --headed`

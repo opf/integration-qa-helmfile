@@ -393,7 +393,9 @@ jobs:
           SETUP_METHOD: ${{ inputs.setup_method }}
         run: |
           set -uo pipefail
-          args=(npx playwright test)
+          # Discover only the auth-mode suite for this stack so opposite-mode specs
+          # are not collected as skips and published to Squash as SKIPPED.
+          args=(npx playwright test --grep "@${SETUP_METHOD}")
           echo "Running: ${args[*]}"
           echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST}"
           _test_start=$(date +%s)
