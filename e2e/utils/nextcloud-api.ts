@@ -749,6 +749,28 @@ export async function uploadNextcloudFile(
   logInfo('Uploaded Nextcloud file: %s', filePath);
 }
 
+/**
+ * Download a Nextcloud file as UTF-8 text via WebDAV GET.
+ * Prefer this over OP Files-tab download when storage OAuth direct-download links are flaky (oauth2).
+ */
+export async function downloadNextcloudFileText(
+  filePath: string,
+  user: TestUser
+): Promise<string> {
+  const { ncHost, userId, authorization } = await withWebDavAuth(user);
+  const response = await tlsFetch(buildWebDavUrl(ncHost, userId, filePath), {
+    method: 'GET',
+    headers: { authorization },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(
+      `Nextcloud WebDAV GET failed for '${filePath}': HTTP ${response.status} ${response.statusText} - ${text}`,
+    );
+  }
+  return response.text();
+}
+
 export interface SeedAmpfFolderWithFileOptions {
   projectFolder: string;
   folderName: string;

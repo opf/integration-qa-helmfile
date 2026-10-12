@@ -11,6 +11,7 @@ helmfile-*/
 helmfile.yaml-*/
 tmp/
 environments/override.yaml
+opnc-root-ca.crt
 
 # E2E (Playwright)
 logs

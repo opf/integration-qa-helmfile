@@ -10,7 +10,17 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
   }
 
   async waitForReady(): Promise<void> {
-    await this.page.waitForURL(/.*\/apps\/dashboard.*/, { timeout: 10000 });
+    // NC 34 Dashboard may resolve as /apps/dashboard or as authenticated chrome without that path.
+    // Prefer chrome signal — waitForURL(..., load) can hang on lingering assets.
+    const userMenu = this.getLocator('userMenu').first();
+    try {
+      await userMenu.waitFor({ state: 'visible', timeout: 30000 });
+    } catch {
+      await this.page.waitForURL(/\/apps\/(dashboard|files)/, {
+        timeout: 10000,
+        waitUntil: 'domcontentloaded',
+      });
+    }
   }
 
   async isLoggedIn(): Promise<boolean> {

@@ -1,46 +1,45 @@
-
-import { test, expect, openProjectUrl, ssoExternalTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
-import { OpenProjectLoginPage, OpenProjectHomePage, OpenProjectProjectListPage } from '../../../pageobjects/openproject';
-import { squashTestCase } from '../../../utils/squash-metadata';
-import { ALICE_USER } from '../../../utils/test-users';
+import { test, expect, openProjectUrl, dualSetupTags, skipUnlessSetupMethod, isSetupMethod } from '../../base-test';
+import { OpenProjectProjectListPage } from '../../../pageobjects/openproject';
 import { deleteProject, ensureProjectHasNextcloudStorage } from '../../../utils/test-helpers';
 import { logInfo, logWarn } from '../../../utils/logger';
-import { 
-  captureAliceAdminStatus, 
-  ensureAliceAdminForCurrentSession, 
-  restoreAliceAdminStatus 
+import {
+  captureAliceAdminStatus,
+  dualSetupSquashCase,
+  isOauth2Setup,
+  loginOpenProjectAsStorageAdmin,
+  restoreAliceAdminStatus,
 } from '../shared';
 
-test.describe('Project Setup', ssoExternalTags, () => {
+const squash = dualSetupSquashCase(
+  { id: 2161, title: 'Copy AMPF Demo project and verify Nextcloud storage' },
+  { id: 2229, title: '[oauth2] Copy AMPF Demo project and verify Nextcloud storage' },
+  5,
+);
+
+test.describe('Project Setup', dualSetupTags, () => {
   test.beforeEach(() => {
-    skipUnlessSetupMethod('sso-external');
+    skipUnlessSetupMethod('sso-external', 'oauth2');
   });
   // Copy + AMPF folder provisioning needs more than the default 30s.
   test.describe.configure({ timeout: 90_000 });
 
   test.beforeAll(async () => {
-    if (!isSetupMethod('sso-external')) return;
-    await captureAliceAdminStatus();
+    if (!isSetupMethod('sso-external', 'oauth2')) return;
+    if (!isOauth2Setup()) {
+      await captureAliceAdminStatus();
+    }
   });
 
   test(
-    'Copy AMPF Demo project and verify Nextcloud storage',
-    squashTestCase(2161, { stepCount: 5 }),
+    squash.title,
+    squash.details,
     async ({ page }) => {
-      const loginPage = new OpenProjectLoginPage(page);
-      let homePage: OpenProjectHomePage;
       const projectList = new OpenProjectProjectListPage(page);
 
-      await test.step(
-        'Log in to OpenProject via Keycloak as a user with admin permissions',
+      let homePage = await test.step(
+        'Log in to OpenProject as a user with admin permissions',
         async () => {
-          await loginPage.navigateTo();
-          const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-          await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
-
-          homePage = new OpenProjectHomePage(page);
-          await homePage.waitForReady();
-          await ensureAliceAdminForCurrentSession(page, homePage);
+          return loginOpenProjectAsStorageAdmin(page);
         }
       );
 
@@ -72,7 +71,7 @@ test.describe('Project Setup', ssoExternalTags, () => {
   );
 
   test.afterAll(async () => {
-    if (!isSetupMethod('sso-external')) return;
+    if (!isSetupMethod('sso-external', 'oauth2')) return;
     try {
       const deleted = await deleteProject('test');
       if (deleted) {
@@ -83,6 +82,8 @@ test.describe('Project Setup', ssoExternalTags, () => {
     } catch (err: unknown) {
       logWarn('[Cleanup] Failed to delete project "test":', err);
     }
-    await restoreAliceAdminStatus();
+    if (!isOauth2Setup()) {
+      await restoreAliceAdminStatus();
+    }
   });
 });

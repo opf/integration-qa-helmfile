@@ -1,29 +1,24 @@
+import { test, expect, dualSetupTags, skipUnlessSetupMethod, openProjectUrl } from '../../base-test';
+import { loginOpenProjectAsStorageAdmin, dualSetupSquashCase } from '../shared';
+import { OpenProjectProjectStoragesPage } from '../../../pageobjects/openproject';
 
-import { test, expect, ssoExternalTags, skipUnlessSetupMethod, openProjectUrl } from '../../base-test';
-import { testConfig } from '../../../utils/config';
-import { ensureAliceAdminForCurrentSession } from '../shared';
-import { OpenProjectLoginPage, OpenProjectHomePage, OpenProjectProjectStoragesPage } from '../../../pageobjects/openproject';
-import { squashTestCase } from '../../../utils/squash-metadata';
-import { ALICE_USER } from '../../../utils/test-users';
-import { ensureUserIsAdmin, ensureUserIsProjectMember } from '../../../utils/test-helpers';
+const squash = dualSetupSquashCase(
+  { id: 2064, title: 'Add Nextcloud file storage to Demo project' },
+  { id: 2228, title: '[oauth2] Activate file storage (Nextcloud) in a project' },
+  6,
+);
 
-test.describe('Storage Configuration', ssoExternalTags, () => {
+test.describe('Storage Configuration', dualSetupTags, () => {
   test.beforeEach(() => {
-    skipUnlessSetupMethod('sso-external');
+    skipUnlessSetupMethod('sso-external', 'oauth2');
   });
   test(
-    'Add Nextcloud file storage to Demo project',
-    squashTestCase(2064, { stepCount: 6 }),
+    squash.title,
+    squash.details,
     async ({ page }) => {
-      const loginPage = new OpenProjectLoginPage(page);
       const storagesPage = new OpenProjectProjectStoragesPage(page);
 
-      await loginPage.navigateTo();
-      const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-      await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
-      const homePage = new OpenProjectHomePage(page);
-      await homePage.waitForReady();
-      await ensureAliceAdminForCurrentSession(page, homePage);
+      await loginOpenProjectAsStorageAdmin(page);
 
       let storageAlreadyLinked = false;
 

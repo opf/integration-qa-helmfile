@@ -379,6 +379,21 @@
     "wikiTab": {
       "by": "locator",
       "value": ".op-tab-wiki, [data-test-selector='op-tab-wiki']"
+    },
+    "myAccessTokensHeading": {
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Access tokens"
+      }
+    },
+    "oauthClientTokensDeleteButton": {
+      "by": "locator",
+      "value": "a[href*='remove_oauth_client_token'], [data-test-selector^='oauth-client-token-'][data-test-selector$='-remove']"
+    },
+    "accessTokenDialogCloseButton": {
+      "by": "locator",
+      "value": "#new-access-token-dialog button[aria-label='Close'], dialog#new-access-token-dialog button:has-text('Close'), dialog#new-access-token-dialog button:has-text('Cancel')"
     }
   }
 }
