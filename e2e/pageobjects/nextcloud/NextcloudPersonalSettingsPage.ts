@@ -21,9 +21,9 @@ export class NextcloudPersonalSettingsPage extends NextcloudBasePage {
       .waitFor({ state: 'visible', timeout: 15000 });
   }
 
-  async isConnected(): Promise<boolean> {
+  async isConnected(timeoutMs = 3000): Promise<boolean> {
     const disconnect = this.getLocator('ncPersonalSettingsDisconnectButton').first();
-    return disconnect.isVisible({ timeout: 3000 }).catch(() => false);
+    return disconnect.isVisible({ timeout: timeoutMs }).catch(() => false);
   }
 
   async waitForConnected(timeoutMs = 30000): Promise<void> {
@@ -40,9 +40,12 @@ export class NextcloudPersonalSettingsPage extends NextcloudBasePage {
       .waitFor({ state: 'visible', timeout: timeoutMs });
   }
 
-  async clickConnectToOpenProject(): Promise<void> {
+  async clickConnectToOpenProject(wizardAppearanceMs = 5000): Promise<void> {
     // First-run wizard can intercept pointer events on first login.
-    await this.dismissFirstRunWizardIfPresent(5000);
+    // Pass 0 when the wizard was already dismissed earlier in the same session.
+    if (wizardAppearanceMs > 0) {
+      await this.dismissFirstRunWizardIfPresent(wizardAppearanceMs);
+    }
     const connect = this.getLocator('ncPersonalSettingsConnectButton').first();
     await connect.waitFor({ state: 'visible', timeout: 15000 });
     await connect.click();

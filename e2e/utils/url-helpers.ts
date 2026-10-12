@@ -18,6 +18,18 @@ export function resolveHostname(value?: string): string {
 }
 
 /**
+ * Build a waitForURL RegExp that matches a resolved service host (local *.test or PullPreview *.opf.run).
+ * Optional pathPattern is appended after `.*` (already regex-safe fragments, e.g. `settings\\/user\\/openproject`).
+ */
+export function hostUrlPattern(hostOrUrl: string, pathPattern?: string): RegExp {
+  const host = escapeForRegex(resolveHostname(hostOrUrl) || hostOrUrl);
+  if (pathPattern) {
+    return new RegExp(`${host}.*${pathPattern}`);
+  }
+  return new RegExp(host);
+}
+
+/**
  * Resolve the URL used for `page.goto` for a service: prefer full URL env, then build from
  * host env / config host using pathname + search from the locator default, else locator default.
  */

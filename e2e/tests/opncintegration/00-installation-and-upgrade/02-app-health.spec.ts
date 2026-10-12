@@ -1,11 +1,14 @@
 
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, ssoExternalTags, skipUnlessSetupMethod } from '../../base-test';
 import { NextcloudLoginPage, NextcloudActiveAppsPage } from '../../../pageobjects/nextcloud';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { NC_ADMIN_USER } from '../../../utils/test-users';
 import { logInfo } from '../../../utils/logger';
 
-test.describe('SSO External - App Health', integrationTags, () => {
+test.describe('SSO External - App Health', ssoExternalTags, () => {
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('sso-external');
+  });
   test(
     'should login to Nextcloud and verify OpenProject Integration app',
     squashTestCase(2167, { stepCount: 5 }),

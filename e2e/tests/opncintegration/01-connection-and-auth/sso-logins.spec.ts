@@ -1,5 +1,5 @@
 
-import { test, expect, integrationTags } from '../../base-test';
+import { test, expect, ssoExternalTags, skipUnlessSetupMethod } from '../../base-test';
 import { testConfig } from '../../../utils/config';
 import { KeycloakLoginPage, KeycloakHomePage } from '../../../pageobjects/keycloak';
 import { NextcloudLoginPage, NextcloudOpenIDConnectPage } from '../../../pageobjects/nextcloud';
@@ -7,7 +7,10 @@ import { OpenProjectLoginPage, OpenProjectHomePage } from '../../../pageobjects/
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { NC_ADMIN_USER, ALICE_USER } from '../../../utils/test-users';
 
-test.describe('SSO External - Auth and Logins', integrationTags, () => {
+test.describe('SSO External - Auth and Logins', ssoExternalTags, () => {
+  test.beforeEach(() => {
+    skipUnlessSetupMethod('sso-external');
+  });
   test(
     'should login to Keycloak and check op and nc client are present',
     squashTestCase(2187),

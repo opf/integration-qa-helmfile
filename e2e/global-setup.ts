@@ -7,6 +7,7 @@ import { ensureKeycloakDirectAccessForNextcloud } from './utils/nextcloud-api';
 import { getErrorMessage } from './utils/error-utils';
 import { logInfo, logError, logWarn } from './utils/logger';
 import { resolveEnvName, resolveHosts } from './utils/env-hosts';
+import { resolveSetupMethod } from './utils/config';
 
 /**
  * Global setup that runs before all tests.
@@ -50,7 +51,8 @@ async function globalSetup(config: FullConfig) {
   // Step 2: Detect service versions via API and persist for workers
   const envName = resolveEnvName();
   const hosts = resolveHosts(envName);
-  const setupMethod = process.env.SETUP_METHOD || 'sso-external';
+  const setupMethod = resolveSetupMethod();
+  process.env.SETUP_METHOD = setupMethod;
   let detectedVersions: Record<string, string> = {
     OPENPROJECT_VERSION: 'not-detected',
     NEXTCLOUD_VERSION: 'not-detected',
@@ -58,6 +60,7 @@ async function globalSetup(config: FullConfig) {
     INTEGRATION_APP_VERSION: 'not-detected',
     NEXTCLOUD_TEAM_FOLDERS_VERSION: 'not-detected',
     KEYCLOAK_VERSION: 'not-detected',
+    SETUP_METHOD: setupMethod,
   };
 
   try {
@@ -78,6 +81,7 @@ async function globalSetup(config: FullConfig) {
     logWarn('Version detection failed:', getErrorMessage(error));
   }
 
+  detectedVersions.SETUP_METHOD = setupMethod;
   const outDir = path.join(process.cwd(), 'test-results');
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(

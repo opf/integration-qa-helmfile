@@ -187,6 +187,27 @@ export class OpenProjectFilePickerModal extends OpenProjectBasePage {
     await breadcrumb.waitFor({ state: 'visible', timeout: 15000 });
   }
 
+  /**
+   * When AMPF projectFolder is not registered, the picker opens at the user home listing
+   * (Documents, OpenProject, …). Walk OpenProject → {projectFolder} to match SSO AMPF root.
+   * No-op when already inside the managed project folder.
+   */
+  async ensureAtAmpfProjectFolder(projectFolder: string): Promise<void> {
+    const teamFolder = this.getLocator('filesPickerListItem')
+      .filter({ hasText: /^OpenProject$/ })
+      .first();
+    if (!(await teamFolder.isVisible({ timeout: 3000 }).catch(() => false))) {
+      return;
+    }
+    await this.navigateIntoFolder('OpenProject');
+    const projectRow = this.getLocator('filesPickerListItem')
+      .filter({ hasText: projectFolder })
+      .first();
+    if (await projectRow.isVisible({ timeout: 10000 }).catch(() => false)) {
+      await this.navigateIntoFolder(projectFolder);
+    }
+  }
+
   /** Toggle selection of a file row in the link picker. */
   async selectFileInPicker(fileName: string): Promise<void> {
     const item = this.getLocator('filesPickerListItem').filter({ hasText: fileName }).first();

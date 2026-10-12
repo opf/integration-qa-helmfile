@@ -109,6 +109,9 @@ openproject:
     OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_USER: admin
     OPENPROJECT_AUTHENTICATION_GLOBAL__BASIC__AUTH_PASSWORD: admin
     OPENPROJECT_SSRF_PROTECTION_IP_ALLOWLIST: "0.0.0.0/0,::0/0"
+    OPENPROJECT_ONBOARDING__ENABLED: "false"
+    # Avoid /?first_time_user=true so EnjoyHint onboarding never starts for first logins.
+    OPENPROJECT_AFTER__FIRST__LOGIN__REDIRECT__URL: /
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_ISSUER: https://keycloak.preview.invalid/realms/opnc
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_JWKS__URI: https://keycloak.preview.invalid/realms/opnc/protocol/openid-connect/certs
     OPENPROJECT_OPENID__CONNECT_KEYCLOAK_POST__LOGOUT__REDIRECT__URI: https://preview.invalid/

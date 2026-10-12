@@ -105,30 +105,44 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
   async dismissTutorialOverlayIfPresent(): Promise<boolean> {
     const overlay = this.getLocator('tutorialOverlay').first();
     const overlayVisible = await overlay.isVisible({ timeout: 500 }).catch(() => false);
+    const enjoyHint = this.page.locator('.enjoyhint, .enjoyhint_disable_events').first();
+    const enjoyHintVisible = await enjoyHint.isVisible({ timeout: 200 }).catch(() => false);
     const urlExpectsTour = this.isFirstTimeUserUrl();
 
     // Onboarding JS can load on repeat logins without showing the tour overlay.
-    if (!overlayVisible && !urlExpectsTour) {
+    // EnjoyHint on settings pages often lacks "introduction tour" copy — still dismiss it.
+    if (!overlayVisible && !enjoyHintVisible && !urlExpectsTour) {
       this.firstTimeTourExpected = false;
       return false;
     }
 
+    // Prefer Close (X): present on every EnjoyHint step and calls the same onSkip path.
+    // Mid-tour steps (e.g. "+ Create") often have no Skip. Never force-click — a force
+    // click on Skip before EnjoyHint positions it can hit the highlighted header and
+    // advance the tour to work_packages?start_onboarding_tour=true.
+    const closeButton = this.getLocator('tutorialCloseButton').first();
     const skipButton = this.getLocator('tutorialSkipButton').first();
-    const skipWaitTimeout = overlayVisible ? 10_000 : 5_000;
+    const waitTimeout = overlayVisible || enjoyHintVisible ? 10_000 : 5_000;
 
+    let dismissControl = closeButton;
     try {
-      await skipButton.waitFor({ state: 'visible', timeout: skipWaitTimeout });
+      await closeButton.waitFor({ state: 'visible', timeout: waitTimeout });
     } catch {
-      this.firstTimeTourExpected = false;
-      return false;
+      try {
+        await skipButton.waitFor({ state: 'visible', timeout: waitTimeout });
+        dismissControl = skipButton;
+      } catch {
+        this.firstTimeTourExpected = false;
+        return false;
+      }
     }
 
-    logDebug('[OpenProject] Tutorial overlay detected, skipping it');
+    logDebug('[OpenProject] Tutorial overlay detected, dismissing it');
     await this.closeUserMenuDialogIfOpen();
 
     try {
-      await skipButton.click();
-      await skipButton.waitFor({ state: 'hidden', timeout: 10000 });
+      await dismissControl.click();
+      await enjoyHint.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => undefined);
       this.firstTimeTourExpected = false;
       return true;
     } catch (error: unknown) {

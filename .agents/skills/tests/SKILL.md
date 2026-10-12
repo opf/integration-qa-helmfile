@@ -23,4 +23,4 @@ Bootstrap rules:
 - Put UI flows in page objects and API/data orchestration in `utils/`.
 - For Squash TM-mapped tests, use `squashTestCase(...)` from `utils/squash-metadata.ts`; follow the canonical guide for reference format (`folder#file#title`), numeric Squash IDs, prerequisites-vs-steps, and `test.step()` alignment.
 - Use `logDebug` / `logInfo` / `logWarn` / `logError`, typed catches, and `getErrorMessage`.
-- For OpenProject/Nextcloud integration details, especially SSO user provisioning and file-link cleanup, follow the canonical guide.
+- For OpenProject/Nextcloud integration details, especially SSO user provisioning, oauth2 vs sso-external gating (`SETUP_METHOD` / override.yaml), and file-link cleanup, follow the canonical guide.
