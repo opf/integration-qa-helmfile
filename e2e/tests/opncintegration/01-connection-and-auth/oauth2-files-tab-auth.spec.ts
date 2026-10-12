@@ -2,14 +2,10 @@ import { Page } from '@playwright/test';
 import { test, expect, oauth2Tags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
-  NextcloudPersonalSettingsPage,
-} from '../../../pageobjects/nextcloud';
-import {
   OpenProjectLoginPage,
   OpenProjectWorkPackageFilesTab,
 } from '../../../pageobjects/openproject';
-import { OLIVER_OAUTH_USER, OP_ADMIN_USER } from '../../../utils/test-users';
+import { FILES_AUTH_OAUTH_USER, type TestUser } from '../../../utils/test-users';
 import { ensureNextcloudLocalUser } from '../../../utils/nextcloud-api';
 import {
   ensureOpenProjectLocalUser,
@@ -28,6 +24,16 @@ import {
 const WORK_PACKAGE_ID = 2;
 const DEMO_PROJECT = 'demo-project';
 
+/** Fresh local user each run so Files shows Login without Access-token revoke. */
+function freshFilesAuthUser(): TestUser {
+  const suffix = `${Date.now()}`.slice(-8);
+  return {
+    ...FILES_AUTH_OAUTH_USER,
+    username: `fa-${suffix}`,
+    email: `fa-${suffix}@example.com`,
+  };
+}
+
 test.describe('Connection & Auth - OAuth2 Files Tab Authorization', oauth2Tags, () => {
   test.describe.configure({ timeout: 300_000 });
   test.beforeEach(() => {
@@ -40,49 +46,19 @@ test.describe('Connection & Auth - OAuth2 Files Tab Authorization', oauth2Tags, 
     async ({ page }) => {
       const opLoginPage = new OpenProjectLoginPage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
-      const ncLoginPage = new NextcloudLoginPage(page);
-      const personalSettingsPage = new NextcloudPersonalSettingsPage(page);
       const hosts = resolveHosts();
+      const user = freshFilesAuthUser();
       let oauthPage: Page = page;
 
-      // Prerequisites (not Squash steps): Oliver provisioned, Demo storage linked,
-      // NC→OP disconnected + OP→NC OAuth client tokens revoked so Files shows login.
-      logInfo('TC-2227', 'Setup: provisioning Oliver and ensuring disconnected Files-tab state');
+      // Prerequisites: never-authorized OP→NC user (no revoke / NC disconnect).
+      logInfo('TC-2227', 'Setup: provisioning %s and Demo storage', user.username);
       try {
         await Promise.all([
-          ensureOpenProjectLocalUser(OLIVER_OAUTH_USER),
-          ensureNextcloudLocalUser(OLIVER_OAUTH_USER),
+          ensureOpenProjectLocalUser(user),
+          ensureNextcloudLocalUser(user),
         ]);
-        await ensureUserIsProjectMember(OLIVER_OAUTH_USER.username, DEMO_PROJECT, 'Member');
-
-        // Disconnect NC→OP first (fresh NC session), then link storage as admin.
-        const dashboard = await ncLoginPage.login(
-          OLIVER_OAUTH_USER.username,
-          OLIVER_OAUTH_USER.password,
-        );
-        await dashboard.waitForReady();
-        await personalSettingsPage.navigateTo();
-        await personalSettingsPage.waitForReady();
-        if (await personalSettingsPage.isConnected(500)) {
-          logInfo('TC-2227', 'Oliver connected in NC personal settings; disconnecting');
-          await personalSettingsPage.disconnectOpenProject();
-        }
-        await page.context().clearCookies();
-
-        const adminHome = await opLoginPage.login(OP_ADMIN_USER.username, OP_ADMIN_USER.password);
-        await adminHome.waitForReady();
-        await ensureProjectHasNextcloudStorage(DEMO_PROJECT, page);
-        await page.context().clearCookies();
-
-        // Two-way OAuth: NC personal disconnect leaves OP→NC tokens; revoke so Files prompts.
-        const oliverHome = await opLoginPage.login(
-          OLIVER_OAUTH_USER.username,
-          OLIVER_OAUTH_USER.password,
-        );
-        await oliverHome.waitForReady();
-        const revoked = await oliverHome.revokeOAuthClientTokensIfPresent();
-        logInfo('TC-2227', 'Revoked %s OP OAuth client token(s) before Files-tab auth', revoked);
-        await page.context().clearCookies();
+        await ensureUserIsProjectMember(user.username, DEMO_PROJECT, 'Member');
+        await ensureProjectHasNextcloudStorage(DEMO_PROJECT, undefined);
       } catch (error: unknown) {
         logError('TC-2227', 'Setup failed:', getErrorMessage(error));
         throw error;
@@ -91,11 +67,8 @@ test.describe('Connection & Auth - OAuth2 Files Tab Authorization', oauth2Tags, 
       await test.step(
         'Log in to OpenProject as the test user and navigate to a work package',
         async () => {
-          logInfo('TC-2227', 'Step 1: Logging in as Oliver and opening WP #%s', WORK_PACKAGE_ID);
-          const home = await opLoginPage.login(
-            OLIVER_OAUTH_USER.username,
-            OLIVER_OAUTH_USER.password,
-          );
+          logInfo('TC-2227', 'Step 1: Logging in as %s and opening WP #%s', user.username, WORK_PACKAGE_ID);
+          const home = await opLoginPage.login(user.username, user.password);
           await home.waitForReady();
           await filesTab.navigateToDemoProjectWorkPackage(WORK_PACKAGE_ID);
           await filesTab.waitForDemoProjectWorkPackageUrl();
@@ -118,13 +91,7 @@ test.describe('Connection & Auth - OAuth2 Files Tab Authorization', oauth2Tags, 
 
       await test.step('Authorize access in Nextcloud and return to OpenProject', async () => {
         logInfo('TC-2227', 'Step 4: Granting Nextcloud access and verifying Files tab connected');
-        await grantNextcloudOAuthFromFilesTab(
-          page,
-          oauthPage,
-          filesTab,
-          WORK_PACKAGE_ID,
-          OLIVER_OAUTH_USER,
-        );
+        await grantNextcloudOAuthFromFilesTab(page, oauthPage, filesTab, WORK_PACKAGE_ID, user);
         const linkExisting = filesTab.getLocator('linkExistingFilesButton').first();
         await expect(linkExisting).toBeVisible({ timeout: 30000 });
         await filesTab.waitForNextcloudFilesSectionConnected(WORK_PACKAGE_ID);

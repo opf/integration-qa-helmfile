@@ -7,3 +7,4 @@ export { NextcloudAppsDiscoverPage } from './NextcloudAppsDiscoverPage';
 export { NextcloudActiveAppsPage } from './NextcloudActiveAppsPage';
 export { NextcloudIntegrationAppPage } from './NextcloudIntegrationAppPage';
 export { NextcloudPersonalSettingsPage } from './NextcloudPersonalSettingsPage';
+export { NextcloudFilesPage } from './NextcloudFilesPage';

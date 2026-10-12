@@ -312,6 +312,70 @@
         "role": "button",
         "name": "Allow"
       }
+    },
+
+    "filesListTable": {
+      "by": "getByRole",
+      "value": {
+        "role": "table",
+        "name": "List of your files and folders"
+      }
+    },
+    "filesTeamFoldersNavLink": {
+      "by": "getByRole",
+      "value": {
+        "role": "link",
+        "name": "Team folders"
+      }
+    },
+    "filesSelectionCountLabel": {
+      "by": "getByText",
+      "value": {
+        "text": "1 selected",
+        "exact": true
+      }
+    },
+    "filesSelectionActionsButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Actions"
+      }
+    },
+    "filesLinkToWorkPackageButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "menuitem",
+        "name": "Link to work package"
+      }
+    },
+    "filesLinkToWorkPackageToolbarButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Link to work package"
+      }
+    },
+    "filesLinkToWorkPackageModalHeading": {
+      "by": "getByRole",
+      "value": {
+        "role": "heading",
+        "name": "Link to work package"
+      }
+    },
+    "filesNoConnectionWithOpenProjectText": {
+      "by": "getByText",
+      "value": {
+        "text": "No connection with OpenProject",
+        "exact": true
+      }
+    },
+    "filesModalConnectToOpenProjectButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Connect to OpenProject"
+      }
     }
   }
 }

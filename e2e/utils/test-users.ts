@@ -81,3 +81,15 @@ export const OLIVER_OAUTH_USER: TestUser = {
   lastName: 'Oauth',
   email: envOrDefault('E2E_OLIVER_EMAIL', 'oliver@example.com'),
 };
+
+/**
+ * Password/name defaults for TC 2227 Files-tab authorize.
+ * Spec invents a unique username per run so OP→NC starts unauthorized (no token revoke).
+ */
+export const FILES_AUTH_OAUTH_USER: TestUser = {
+  username: envOrDefault('E2E_FILES_AUTH_USER', 'oliver-files-auth'),
+  password: envOrDefault('E2E_FILES_AUTH_PASS', 'OliverFilesAuth-1234!'),
+  firstName: 'Oliver',
+  lastName: 'FilesAuth',
+  email: envOrDefault('E2E_FILES_AUTH_EMAIL', 'oliver-files-auth@example.com'),
+};
