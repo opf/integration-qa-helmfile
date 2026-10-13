@@ -24,7 +24,8 @@ export class NextcloudLoginPage extends NextcloudBasePage {
   }
 
   async clickLogin(): Promise<void> {
-    await this.getLocator('loginButton').click();
+    // NC can leave a long-lived navigation pending after submit; do not wait on it here.
+    await this.getLocator('loginButton').click({ noWaitAfter: true });
   }
 
   async login(username: string = NC_ADMIN_USER.username, password: string = NC_ADMIN_USER.password): Promise<NextcloudDashboardPage> {
@@ -33,7 +34,7 @@ export class NextcloudLoginPage extends NextcloudBasePage {
     await this.fillUsername(username);
     await this.fillPassword(password);
     await this.clickLogin();
-    await this.page.waitForURL(/.*\/apps\/dashboard.*/, { timeout: 10000 });
+    // NC 34 may land on /apps/dashboard or stay on / with the Dashboard shell.
     const dashboard = new NextcloudDashboardPage(this.page);
     await dashboard.waitForReady();
     await dashboard.closeWelcomeMessage();

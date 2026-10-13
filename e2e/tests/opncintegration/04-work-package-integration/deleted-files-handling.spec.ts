@@ -3,12 +3,12 @@ import {
   OpenProjectWorkPackageFilesTab,
   OpenProjectFilePickerModal,
 } from '../../../pageobjects/openproject';
-import { squashTestCase } from '../../../utils/squash-metadata';
 import { deleteWorkPackageFileLinksByName } from '../../../utils/openproject-api';
 import { deleteNextcloudFile, seedAmpfFolderWithFile } from '../../../utils/nextcloud-api';
 import { logInfo } from '../../../utils/logger';
 import {
   ampProjectFolder,
+  dualSetupSquashCase,
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
   isOauth2Setup,
@@ -19,6 +19,14 @@ const WORK_PACKAGE_ID = 2;
 const SEED_FOLDER = 'tc-2165';
 const SEEDED_FILE = 'delete.md';
 const SEEDED_FILE_PATH = `OpenProject/${ampProjectFolder}/${SEED_FOLDER}/${SEEDED_FILE}`;
+
+const SSO_TITLE = 'Display and Handle Deleted Nextcloud Files in Files Tab';
+
+const squash = dualSetupSquashCase(
+  { id: 2165, title: SSO_TITLE },
+  { id: 2235, title: `[oauth2] ${SSO_TITLE}` },
+  5,
+);
 
 test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags, () => {
   test.describe.configure({ timeout: 300_000 });
@@ -32,8 +40,8 @@ test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags
   });
 
   test(
-    'Display and Handle Deleted Nextcloud Files in Files Tab',
-    squashTestCase(2165, { stepCount: 5 }),
+    squash.title,
+    squash.details,
     async ({ page }) => {
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const filePicker = new OpenProjectFilePickerModal(page);
@@ -41,7 +49,7 @@ test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags
 
       // Prerequisites (not Squash steps): login, membership, storage, Files tab connected.
       logInfo(
-        'TC-2165',
+        'Deleted-files',
         'Setup: Logging in as %s (%s)',
         user.username,
         isOauth2Setup() ? 'local oauth2' : 'Keycloak SSO',
@@ -56,20 +64,20 @@ test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags
       await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
 
       await test.step('Log in to Nextcloud and upload file delete.md', async () => {
-        logInfo('TC-2165', 'Step 1: Seeding %s via WebDAV AMPF helper', SEEDED_FILE_PATH);
+        logInfo('Deleted-files', 'Step 1: Seeding %s via WebDAV AMPF helper', SEEDED_FILE_PATH);
         await seedAmpfFolderWithFile({
           projectFolder: ampProjectFolder,
           folderName: SEED_FOLDER,
           fileName: SEEDED_FILE,
           user,
-          content: `# ${SEEDED_FILE}\nSeeded for TC-2165 deleted-files handling.\n`,
+          content: `# ${SEEDED_FILE}\nSeeded for deleted-files handling.\n`,
         });
       });
 
       await test.step(
         'Link the file to the Openproject work package from the Nextcloud',
         async () => {
-          logInfo('TC-2165', 'Step 2: Linking %s to WP #%s via file picker', SEEDED_FILE, WORK_PACKAGE_ID);
+          logInfo('Deleted-files', 'Step 2: Linking %s to WP #%s via file picker', SEEDED_FILE, WORK_PACKAGE_ID);
           await filePicker.openLinkExistingFilesPicker();
           await filePicker.waitForLinkPickerReady();
           await expect(filePicker.getLocator('filesPickerModal')).toBeVisible();
@@ -96,20 +104,20 @@ test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags
       );
 
       await test.step('Delete the file from the Nextcloud', async () => {
-        logInfo('TC-2165', 'Step 3: Deleting %s from Nextcloud via WebDAV', SEEDED_FILE_PATH);
+        logInfo('Deleted-files', 'Step 3: Deleting %s from Nextcloud via WebDAV', SEEDED_FILE_PATH);
         await deleteNextcloudFile(SEEDED_FILE_PATH, user);
       });
 
       await test.step(
         'Switch back to OpenProject, go to the work package and open the Files tab',
         async () => {
-          logInfo('TC-2165', 'Step 4: Reloading WP #%s Files tab', WORK_PACKAGE_ID);
+          logInfo('Deleted-files', 'Step 4: Reloading WP #%s Files tab', WORK_PACKAGE_ID);
           await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
         }
       );
 
       await test.step('Verify the status of the deleted file item in the Files tab', async () => {
-        logInfo('TC-2165', 'Step 5: Verifying missing/faulty indicator for %s', SEEDED_FILE);
+        logInfo('Deleted-files', 'Step 5: Verifying missing/faulty indicator for %s', SEEDED_FILE);
         const linkedFileItem = await filesTab.waitForLinkedWorkPackageFileMissing(SEEDED_FILE);
         await expect(linkedFileItem).toBeVisible();
         await expect(linkedFileItem).toContainText(SEEDED_FILE);

@@ -2,7 +2,7 @@ name: E2E Scheduled
 run-name: >-
   ${{
     github.event_name == 'schedule'
-      && 'E2E Scheduled · OP dev + NC 34'
+      && 'E2E Scheduled · OP dev + NC 34 (SSO then OAuth2)'
       || 'E2E Scheduled · manual'
   }}
 
@@ -76,7 +76,7 @@ jobs:
           fi
 
   dev_nc34:
-    name: "OP dev + NC 34"
+    name: "OP dev + NC 34 (sso-external)"
     needs: [cleanup_stale]
     if: >-
       always() &&
@@ -88,6 +88,26 @@ jobs:
       openproject_version: dev-slim
       nextcloud_version: "34"
       integration_openproject_version: "3.1.1"
+      setup_method: sso-external
       squash_iteration_id: "7"
       preview_label: sched-dev-nc34
-      run_label: "OP dev + NC 34"
+      run_label: "OP dev + NC 34 (sso-external)"
+
+  # Runs after the SSO stack is torn down so only one scheduled Hetzner preview is live.
+  dev_nc34_oauth2:
+    name: "OP dev + NC 34 (oauth2)"
+    needs: [dev_nc34]
+    if: >-
+      always() &&
+      github.event_name == 'workflow_dispatch' &&
+      needs.dev_nc34.result != 'cancelled'
+    uses: ./.github/workflows/e2e-deploy-test.yml
+    secrets: inherit
+    with:
+      openproject_version: dev-slim
+      nextcloud_version: "34"
+      integration_openproject_version: "3.1.1"
+      setup_method: oauth2
+      squash_iteration_id: "7"
+      preview_label: sched-dev-nc34-oauth2
+      run_label: "OP dev + NC 34 (oauth2)"

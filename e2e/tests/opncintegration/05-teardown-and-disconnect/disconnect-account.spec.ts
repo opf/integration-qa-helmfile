@@ -3,14 +3,13 @@ import { squashTestCase } from '../../../utils/squash-metadata';
 import {
   NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
+  NextcloudFilesPage,
 } from '../../../pageobjects/nextcloud';
+import { OLIVER_OAUTH_USER } from '../../../utils/test-users';
 import {
-  OpenProjectLoginPage,
-  OpenProjectHomePage,
-  OpenProjectWorkPackageFilesTab,
-} from '../../../pageobjects/openproject';
-import { OLIVER_OAUTH_USER, OP_ADMIN_USER } from '../../../utils/test-users';
-import { ensureNextcloudLocalUser } from '../../../utils/nextcloud-api';
+  ensureNextcloudLocalUser,
+  ensureOauth2AmpfWebDavAccess,
+} from '../../../utils/nextcloud-api';
 import {
   ensureOpenProjectLocalUser,
   ensureUserIsProjectMember,
@@ -18,9 +17,8 @@ import {
 import { ensureProjectHasNextcloudStorage } from '../../../utils/test-helpers';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
-import { ensureOliverConnectedViaNextcloudPersonalSettings } from '../shared';
+import { ampProjectFolder, ensureOliverConnectedViaNextcloudPersonalSettings } from '../shared';
 
-const WORK_PACKAGE_ID = 2;
 const DEMO_PROJECT = 'demo-project';
 
 test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', oauth2Tags, () => {
@@ -35,23 +33,19 @@ test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', oauth2Tags
     async ({ page }) => {
       const ncLoginPage = new NextcloudLoginPage(page);
       const personalSettingsPage = new NextcloudPersonalSettingsPage(page);
-      const opLoginPage = new OpenProjectLoginPage(page);
-      const opHomePage = new OpenProjectHomePage(page);
-      const filesTab = new OpenProjectWorkPackageFilesTab(page);
+      const filesPage = new NextcloudFilesPage(page);
 
-      // ── Prerequisites (not Squash steps) ──────────────────────────────
-      logInfo('TC-2162', 'Setup: provisioning Oliver Oauth and Demo project storage');
+      // Prerequisites: Oliver connected NC→OP so disconnect has effect; Demo storage linked.
+      logInfo('TC-2162', 'Setup: provisioning Oliver Oauth and ensuring NC→OP connected');
       try {
         await ensureOpenProjectLocalUser(OLIVER_OAUTH_USER);
         await ensureUserIsProjectMember(OLIVER_OAUTH_USER.username, DEMO_PROJECT, 'Member');
         await ensureNextcloudLocalUser(OLIVER_OAUTH_USER);
-
-        // Link Nextcloud storage to Demo project (oauth2 setup-job may omit this).
-        const adminHome = await opLoginPage.login(OP_ADMIN_USER.username, OP_ADMIN_USER.password);
-        await adminHome.waitForReady();
-        await ensureProjectHasNextcloudStorage(DEMO_PROJECT, page);
-        await page.context().clearCookies();
-
+        await ensureProjectHasNextcloudStorage(DEMO_PROJECT, undefined);
+        // AMPF team folder must be visible so step 4 can Link-to-WP after disconnect.
+        await ensureOauth2AmpfWebDavAccess(OLIVER_OAUTH_USER, {
+          projectFolder: ampProjectFolder,
+        });
         await ensureOliverConnectedViaNextcloudPersonalSettings(page);
         await page.context().clearCookies();
       } catch (error: unknown) {
@@ -84,29 +78,23 @@ test.describe('Teardown & Disconnect - OAuth2 Account Disconnection', oauth2Tags
         ).toBeVisible();
       });
 
-      await test.step('Switch to OpenProject and open a work package Files tab', async () => {
-        logInfo(
-          'TC-2162',
-          'Step 4: Verifying Files tab still shows Nextcloud storage after NC personal disconnect',
-        );
-        await page.context().clearCookies();
-        const home = await opLoginPage.login(
-          OLIVER_OAUTH_USER.username,
-          OLIVER_OAUTH_USER.password,
-        );
-        await home.waitForReady();
-        await opHomePage.dismissLanguageSelectionModalIfPresent();
-        await opHomePage.dismissTutorialOverlayIfPresent();
-
-        await filesTab.navigateToDemoProjectWorkPackageFiles(WORK_PACKAGE_ID);
-        await filesTab.waitForDemoProjectWorkPackageFilesUrl();
-
-        // NC personal disconnect clears NC→OP only. OP→NC may remain, so Files can show
-        // either Link existing or a Nextcloud login prompt — both match Squash 2162.
-        const loginBtn = filesTab.getNextcloudLoginButtonLocator();
-        const linkExisting = filesTab.getLocator('linkExistingFilesButton').first();
-        await expect(loginBtn.or(linkExisting)).toBeVisible({ timeout: 60000 });
-      });
+      await test.step(
+        'Open Files, select an OpenProject project folder, and link to a work package',
+        async () => {
+          logInfo(
+            'TC-2162',
+            'Step 4: Verifying NC Link-to-WP shows no connection after personal disconnect',
+          );
+          await filesPage.navigateToFiles();
+          await filesPage.waitForReady();
+          await filesPage.openFolder('OpenProject');
+          await filesPage.selectFolder(ampProjectFolder);
+          await filesPage.clickLinkToWorkPackage();
+          await filesPage.waitForNoConnectionModal(20000);
+          await expect(filesPage.getNoConnectionTextLocator()).toBeVisible();
+          await expect(filesPage.getModalConnectButtonLocator()).toBeVisible();
+        },
+      );
     },
   );
 });

@@ -297,6 +297,18 @@ function collectFromSpec(
       getAnnotationDescription(annotations, SQUASH_STEP_COUNT_ANNOTATION),
     );
     const summary = summarizePlaywrightTest(testObject, reportRunDir, attachmentPolicy);
+    // Auth-mode gated skips (skipUnlessSetupMethod) are not this stack's suite —
+    // omit them so Squash does not record SKIPPED for the wrong setup method.
+    if (
+      summary.status === 'SKIPPED' &&
+      isSetupMethodGatedSkip(annotations, summary.failureDetails)
+    ) {
+      logInfo(
+        `[Squash TM] Omitting SETUP_METHOD-gated skip (not in this run's auth suite): ${reference}`,
+      );
+      continue;
+    }
+
     const importSteps = envFlag('SQUASH_TM_IMPORT_STEPS');
     const testSteps = importSteps
       ? collectTopLevelPlaywrightSteps(testObject, reportRunDir, attachmentPolicy)
@@ -316,6 +328,24 @@ function collectFromSpec(
       expectedStepCount,
     });
   }
+}
+
+/** True when Playwright skipped because SETUP_METHOD did not match the suite gate. */
+function isSetupMethodGatedSkip(
+  annotations: Annotation[],
+  failureDetails: string[],
+): boolean {
+  const setupMethodSkip = /Requires SETUP_METHOD/i;
+  for (const annotation of annotations) {
+    if (
+      (annotation.type === 'skip' || annotation.type === 'fix') &&
+      annotation.description &&
+      setupMethodSkip.test(annotation.description)
+    ) {
+      return true;
+    }
+  }
+  return failureDetails.some((detail) => setupMethodSkip.test(detail));
 }
 
 function buildAutomatedReferenceFromReport(

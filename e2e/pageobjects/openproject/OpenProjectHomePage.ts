@@ -102,6 +102,50 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
     }
   }
 
+  /**
+   * Revoke OP→external OAuth client tokens (e.g. Nextcloud storage) from My account → Access tokens.
+   * Needed so Files tab shows the Nextcloud login prompt after NC personal disconnect alone
+   * (two-way OAuth can leave the OP→NC token alive).
+   */
+  async revokeOAuthClientTokensIfPresent(): Promise<number> {
+    await this.page.goto(`${this.baseUrl}/my/access_tokens`);
+    await this.getLocator('myAccessTokensHeading')
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .catch(() => undefined);
+
+    const closeDialog = this.getLocator('accessTokenDialogCloseButton').first();
+    if (await closeDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await closeDialog.click();
+    } else {
+      await this.page.keyboard.press('Escape').catch(() => undefined);
+    }
+
+    let revoked = 0;
+    // Turbo confirm uses a native dialog in some builds; also accept Primer confirm buttons.
+    this.page.on('dialog', (dialog) => {
+      void dialog.accept();
+    });
+    for (let i = 0; i < 8; i++) {
+      const deleteBtn = this.getLocator('oauthClientTokensDeleteButton').first();
+      if (!(await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false))) {
+        break;
+      }
+      await deleteBtn.click();
+      const confirm = this.page.getByRole('button', { name: /Delete|Revoke|OK|Yes|Remove/i }).last();
+      if (await confirm.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await confirm.click();
+      }
+      revoked += 1;
+      await this.page.waitForTimeout(800);
+    }
+    this.page.removeAllListeners('dialog');
+    if (revoked > 0) {
+      logDebug(`[OpenProject] Revoked ${revoked} OAuth client token(s)`);
+    }
+    return revoked;
+  }
+
   async dismissTutorialOverlayIfPresent(): Promise<boolean> {
     const overlay = this.getLocator('tutorialOverlay').first();
     const overlayVisible = await overlay.isVisible({ timeout: 500 }).catch(() => false);

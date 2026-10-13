@@ -28,6 +28,11 @@ on:
         required: false
         type: boolean
         default: true
+      setup_method:
+        description: "integration.setupMethod for the preview stack and Playwright gating"
+        required: false
+        type: string
+        default: sso-external
       preview_label:
         required: true
         type: string
@@ -110,13 +115,15 @@ jobs:
       - name: Record run start time (Europe/Berlin)
         env:
           SQUASH_ITERATION_ID: ${{ inputs.squash_iteration_id }}
-          SETUP_METHOD: sso-external
+          SETUP_METHOD: ${{ inputs.setup_method }}
         run: |
           set -euo pipefail
           ts="$(TZ=Europe/Berlin date '+%d %b %Y %H:%M:%S')"
           squash_url="https://squashtm.openproject.org/squash/campaign-workspace/iteration/${SQUASH_ITERATION_ID}/dashboard"
           case "${SETUP_METHOD}" in
             sso-external) auth_label="SSO-External" ;;
+            oauth2) auth_label="OAuth2" ;;
+            sso-nextcloud) auth_label="SSO-Nextcloud" ;;
             *) auth_label="${SETUP_METHOD}" ;;
           esac
           {
@@ -188,7 +195,7 @@ jobs:
         env:
           PULLPREVIEW_LOGGER_LEVEL: INFO
           OPENPROJECT_ENTERPRISE_TOKEN: ${{ steps.enterprise_token.outputs.token }}
-          INTEGRATION_SETUP_METHOD: sso-external
+          INTEGRATION_SETUP_METHOD: ${{ inputs.setup_method }}
           OPENPROJECT_VERSION: ${{ inputs.openproject_version }}
           OPENPROJECT_BRANCH: ${{ inputs.openproject_branch }}
           NEXTCLOUD_VERSION: ${{ inputs.nextcloud_version }}
@@ -328,12 +335,14 @@ jobs:
         if: needs.deploy.outputs.tests_should_run == 'true'
         env:
           SQUASH_ITERATION_ID: ${{ inputs.squash_iteration_id }}
-          SETUP_METHOD: sso-external
+          SETUP_METHOD: ${{ inputs.setup_method }}
         run: |
           set -euo pipefail
           squash_url="https://squashtm.openproject.org/squash/campaign-workspace/iteration/${SQUASH_ITERATION_ID}/dashboard"
           case "${SETUP_METHOD}" in
             sso-external) auth_label="SSO-External" ;;
+            oauth2) auth_label="OAuth2" ;;
+            sso-nextcloud) auth_label="SSO-Nextcloud" ;;
             *) auth_label="${SETUP_METHOD}" ;;
           esac
           {
@@ -381,10 +390,12 @@ jobs:
         continue-on-error: true
         working-directory: e2e
         env:
-          SETUP_METHOD: sso-external
+          SETUP_METHOD: ${{ inputs.setup_method }}
         run: |
           set -uo pipefail
-          args=(npx playwright test)
+          # Discover only the auth-mode suite for this stack so opposite-mode specs
+          # are not collected as skips and published to Squash as SKIPPED.
+          args=(npx playwright test --grep "@${SETUP_METHOD}")
           echo "Running: ${args[*]}"
           echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST}"
           _test_start=$(date +%s)

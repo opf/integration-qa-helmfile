@@ -4,6 +4,7 @@ import { logInfo, logWarn } from '../../utils/logger';
 import { testConfig } from '../../utils/config';
 import { resolveHosts } from '../../utils/env-hosts';
 import { hostUrlPattern } from '../../utils/url-helpers';
+import { squashTestCase } from '../../utils/squash-metadata';
 import {
   deleteUploadedTestFile,
   ensureProjectHasNextcloudStorage,
@@ -91,7 +92,7 @@ export async function cleanupCollisionArtifacts(): Promise<void> {
     }
 
     try {
-      await deleteUploadedTestFile(name, ampProjectFolder, ALICE_USER);
+      await deleteUploadedTestFile(name, ampProjectFolder, integrationBrowserUser());
       logInfo(`[Cleanup] Deleted ${name} from ${ampProjectFolder}`);
     } catch (err: unknown) {
       logWarn(`[Cleanup] Failed to delete ${name} from Nextcloud:`, err);
@@ -170,6 +171,42 @@ export function isOauth2Setup(): boolean {
  */
 export function integrationBrowserUser(): TestUser {
   return isOauth2Setup() ? OLIVER_OAUTH_USER : ALICE_USER;
+}
+
+/**
+ * Pick Squash title + ID for the current SETUP_METHOD so each mode reports to its own case.
+ * SSO titles must stay unchanged (existing Squash automated references).
+ */
+export function dualSetupSquashCase(
+  sso: { id: number; title: string },
+  oauth2: { id: number; title: string },
+  stepCount: number,
+): { title: string; details: ReturnType<typeof squashTestCase> } {
+  const { id, title } = isOauth2Setup() ? oauth2 : sso;
+  return { title, details: squashTestCase(id, { stepCount }) };
+}
+
+/**
+ * Admin session for project-storage specs: OP admin on oauth2, Alice+admin elevation on SSO.
+ */
+export async function loginOpenProjectAsStorageAdmin(
+  page: Page,
+): Promise<OpenProjectHomePage> {
+  const loginPage = new OpenProjectLoginPage(page);
+
+  if (isOauth2Setup()) {
+    const homePage = await loginPage.login(OP_ADMIN_USER.username, OP_ADMIN_USER.password);
+    await homePage.waitForReady();
+    return homePage;
+  }
+
+  await loginPage.navigateTo();
+  const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+  await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+  const homePage = new OpenProjectHomePage(page);
+  await homePage.waitForReady();
+  await ensureAliceAdminForCurrentSession(page, homePage);
+  return homePage;
 }
 
 /**
@@ -305,6 +342,75 @@ export async function prepareIntegrationUserForDemoStorage(
 }
 
 /**
+ * Click Files-tab "Nextcloud login" and return the page that shows the OAuth flow
+ * (popup when opened, otherwise the same tab).
+ */
+export async function openNextcloudOAuthFromFilesTab(
+  page: Page,
+  filesTab: OpenProjectWorkPackageFilesTab,
+): Promise<Page> {
+  const hosts = resolveHosts();
+  const ncHostPattern = hostUrlPattern(hosts.nextcloud);
+  const popupPromise = page.context().waitForEvent('page', { timeout: 15000 }).catch(() => null);
+  await filesTab.clickNextcloudLogin();
+  const popup = await popupPromise;
+  const oauthPage = popup ?? page;
+
+  if (popup) {
+    await popup.waitForLoadState('domcontentloaded').catch(() => undefined);
+  } else {
+    await page.waitForURL(ncHostPattern, { timeout: 20000 });
+  }
+
+  return oauthPage;
+}
+
+/**
+ * Complete Nextcloud storage OAuth (login → Grant → OP Authorize) and return to Files tab.
+ */
+export async function grantNextcloudOAuthFromFilesTab(
+  page: Page,
+  oauthPage: Page,
+  filesTab: OpenProjectWorkPackageFilesTab,
+  workPackageId: number,
+  user: TestUser = integrationBrowserUser(),
+): Promise<void> {
+  const hosts = resolveHosts();
+  const opHostPattern = hostUrlPattern(hosts.openproject);
+  const isPopup = oauthPage !== page;
+
+  const ncLogin = new NextcloudLoginPage(oauthPage);
+  // NC storage OAuth: interstitial "Log in" → credentials → Grant access.
+  const interstitial = await ncLogin.clickOAuthConnectLoginIfPrompted(10000);
+  logInfo('Nextcloud OAuth interstitial Log in clicked: %s', interstitial);
+  const loggedIn = await ncLogin.loginIfPrompted(user.username, user.password, 15000);
+  logInfo('Nextcloud login form submitted: %s', loggedIn);
+  const granted = await ncLogin.grantAccessIfPrompted(20000);
+  logInfo('Nextcloud Grant access clicked: %s', granted);
+
+  const opLogin = new OpenProjectLoginPage(oauthPage);
+  // After NC grant, OP asks to Authorize Nextcloud API access (same tab or popup).
+  if (isPopup) {
+    await Promise.race([
+      oauthPage.waitForURL(opHostPattern, { timeout: 45000 }),
+      oauthPage.waitForEvent('close', { timeout: 45000 }).then(() => null),
+    ]).catch(() => null);
+    if (!oauthPage.isClosed()) {
+      const authorized = await opLogin.authorizeOAuthApplicationIfPrompted(20000);
+      logInfo('OpenProject storage OAuth authorize clicked: %s', authorized);
+      await oauthPage.waitForEvent('close', { timeout: 30000 }).catch(() => undefined);
+    }
+  } else {
+    await page.waitForURL(opHostPattern, { timeout: 45000 });
+    const authorized = await opLogin.authorizeOAuthApplicationIfPrompted(20000);
+    logInfo('OpenProject storage OAuth authorize clicked: %s', authorized);
+  }
+
+  await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
+  await filesTab.waitForDemoProjectWorkPackageFilesUrl(30000);
+}
+
+/**
  * Ensure the WP Files tab Nextcloud section is connected for the current user.
  * On oauth2 (and first SSO connect), completes the OP→NC storage OAuth login prompt:
  * Nextcloud login → Grant access → OpenProject Authorize.
@@ -344,49 +450,8 @@ export async function ensureFilesTabNextcloudConnected(
 
   if (state === 'login') {
     logInfo('Files tab shows Nextcloud login; completing storage OAuth as %s', user.username);
-    const hosts = resolveHosts();
-    const ncHostPattern = hostUrlPattern(hosts.nextcloud);
-    const opHostPattern = hostUrlPattern(hosts.openproject);
-    const popupPromise = page.context().waitForEvent('page', { timeout: 15000 }).catch(() => null);
-    await filesTab.clickNextcloudLogin();
-    const popup = await popupPromise;
-    const oauthPage = popup ?? page;
-
-    if (popup) {
-      await popup.waitForLoadState('domcontentloaded').catch(() => undefined);
-    } else {
-      await page.waitForURL(ncHostPattern, { timeout: 20000 });
-    }
-
-    const ncLogin = new NextcloudLoginPage(oauthPage);
-    // NC storage OAuth: interstitial "Log in" → credentials → Grant access.
-    const interstitial = await ncLogin.clickOAuthConnectLoginIfPrompted(10000);
-    logInfo('Nextcloud OAuth interstitial Log in clicked: %s', interstitial);
-    const loggedIn = await ncLogin.loginIfPrompted(user.username, user.password, 15000);
-    logInfo('Nextcloud login form submitted: %s', loggedIn);
-    const granted = await ncLogin.grantAccessIfPrompted(20000);
-    logInfo('Nextcloud Grant access clicked: %s', granted);
-
-    const opLogin = new OpenProjectLoginPage(oauthPage);
-    // After NC grant, OP asks to Authorize Nextcloud API access (same tab or popup).
-    if (popup) {
-      await Promise.race([
-        popup.waitForURL(opHostPattern, { timeout: 45000 }),
-        popup.waitForEvent('close', { timeout: 45000 }).then(() => null),
-      ]).catch(() => null);
-      if (!popup.isClosed()) {
-        const authorized = await opLogin.authorizeOAuthApplicationIfPrompted(20000);
-        logInfo('OpenProject storage OAuth authorize clicked: %s', authorized);
-        await popup.waitForEvent('close', { timeout: 30000 }).catch(() => undefined);
-      }
-    } else {
-      await page.waitForURL(opHostPattern, { timeout: 45000 });
-      const authorized = await opLogin.authorizeOAuthApplicationIfPrompted(20000);
-      logInfo('OpenProject storage OAuth authorize clicked: %s', authorized);
-    }
-
-    await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
-    await filesTab.waitForDemoProjectWorkPackageFilesUrl(30000);
+    const oauthPage = await openNextcloudOAuthFromFilesTab(page, filesTab);
+    await grantNextcloudOAuthFromFilesTab(page, oauthPage, filesTab, workPackageId, user);
   }
 
   // Prefer the link-existing control (Nextcloud-specific) over generic attachment dropzone.

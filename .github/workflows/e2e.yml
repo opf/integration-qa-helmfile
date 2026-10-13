@@ -585,6 +585,7 @@ jobs:
         env:
           SETUP_METHOD: ${{ github.event.inputs.setup_method }}
           TAG_GREP_B64: ${{ needs.deploy.outputs.grep_b64 }}
+          SUITE: ${{ github.event.inputs.suite }}
         run: |
           set -uo pipefail
           TAG_GREP=""
@@ -592,8 +593,19 @@ jobs:
             TAG_GREP="$(printf '%s' "${TAG_GREP_B64}" | base64 -d)"
           fi
           args=(npx playwright test)
-          if [ -n "${TAG_GREP:-}" ]; then
-            args+=(--grep "${TAG_GREP}")
+          # MCP specs are setup-method agnostic (@mcp only). For OP/NC suites, AND the
+          # auth-mode tag so opposite-mode cases are not collected as Squash SKIPPED.
+          if [[ "${SUITE}" == "mcp" ]]; then
+            if [[ -n "${TAG_GREP:-}" ]]; then
+              args+=(--grep "${TAG_GREP}")
+            fi
+          else
+            setup_tag="@${SETUP_METHOD}"
+            if [[ -n "${TAG_GREP:-}" ]]; then
+              args+=(--grep "(?=.*${TAG_GREP})(?=.*${setup_tag})")
+            else
+              args+=(--grep "${setup_tag}")
+            fi
           fi
           echo "Running: ${args[*]}"
           echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST} GL=${GITLAB_HOST}"
