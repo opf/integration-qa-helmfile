@@ -77,8 +77,9 @@ test.describe('Work Package Integration - Nextcloud Bulk File Link', dualSetupTa
         'In Nextcloud Files list, select checkboxes for multiple files',
         async () => {
           logInfo('TC-2245', 'Step 1: Logging in to Nextcloud and selecting bulk files');
-          await ncLoginPage.login(user.username, user.password);
-          await filesPage.navigateToFiles();
+          await ncLoginPage.login(user.username, user.password, {
+            redirectPath: '/index.php/apps/files/files',
+          });
           await filesPage.waitForReady();
           await filesPage.selectMultipleFiles(BULK_FILES);
         },

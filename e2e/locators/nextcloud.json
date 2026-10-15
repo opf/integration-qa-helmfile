@@ -449,7 +449,11 @@
     },
     "createWorkPackageProjectOptions": {
       "by": "locator",
-      "value": "[data-test-id='available-projects'] .vs__dropdown-menu li, [data-test-id='available-projects'] .vs__dropdown-option"
+      "value": "[data-test-id='available-projects'] .vs__dropdown-menu li, [data-test-id='available-projects'] .vs__dropdown-option, #createWorkPackageInput .vs__dropdown-menu li, #createWorkPackageInput .vs__dropdown-option, .create-workpackage-modal .vs__dropdown-menu li"
+    },
+    "createWorkPackageProjectSelected": {
+      "by": "locator",
+      "value": "[data-test-id='available-projects'] .vs__selected, #createWorkPackageInput .vs__selected"
     },
     "createWorkPackageSubjectInput": {
       "by": "locator",
@@ -461,7 +465,11 @@
     },
     "createWorkPackageTypeOptions": {
       "by": "locator",
-      "value": "[data-test-id='available-types'] .vs__dropdown-menu li, [data-test-id='available-types'] .vs__dropdown-option"
+      "value": "[data-test-id='available-types'] .vs__dropdown-menu li, [data-test-id='available-types'] .vs__dropdown-option, #createWorkPackageTypeInput .vs__dropdown-menu li, #createWorkPackageTypeInput .vs__dropdown-option"
+    },
+    "createWorkPackageTypeSelected": {
+      "by": "locator",
+      "value": "[data-test-id='available-types'] .vs__selected, #createWorkPackageTypeInput .vs__selected"
     },
     "createWorkPackageStatusInput": {
       "by": "locator",
@@ -470,6 +478,14 @@
     "createWorkPackageStatusOptions": {
       "by": "locator",
       "value": "[data-test-id='available-statuses'] .vs__dropdown-menu li, [data-test-id='available-status'] .vs__dropdown-option, [data-test-id='available-statuses'] .vs__dropdown-option"
+    },
+    "createWorkPackageStatusSelected": {
+      "by": "locator",
+      "value": "[data-test-id='available-statuses'] .vs__selected, [data-test-id='available-status'] .vs__selected, .create-workpackage-form--status .vs__selected"
+    },
+    "textViewerCloseButton": {
+      "by": "locator",
+      "value": "#viewer .header-close, #viewer button[aria-label='Close'], .viewer .header-close, .modal-header button.header-close, #viewer .modal-header button[aria-label*='Close']"
     },
     "createWorkPackageDescriptionInput": {
       "by": "locator",
@@ -505,24 +521,39 @@
     },
     "headerOpenProjectLink": {
       "by": "locator",
-      "value": "#openproject[data-app-id='integration_openproject'], header a[href*='/apps/integration_openproject'], a.app-menu-entry[data-id='integration_openproject'], a[aria-label='OpenProject']"
+      "value": "a.app-item[href*='openproject'], a.app-item:has-text('OpenProject'), #app-menu a[href*='openproject'], a[href^='https://openproject']"
+    },
+    "headerAppsMenuButton": {
+      "by": "locator",
+      "value": "button.app-menu__waffle, button[aria-label='Open apps menu'], button[aria-label*='Open apps menu']"
     },
     "unifiedSearchTrigger": {
       "by": "locator",
-      "value": "button.unified-search__trigger, .unified-search button, #unified-search, button[aria-label*='Search']"
+      "value": "button.unified-search-input__button, .unified-search-input__button"
     },
     "unifiedSearchInput": {
       "by": "locator",
-      "value": "input.unified-search__input, .unified-search input, input[type='search']"
+      "value": "[data-cy-unified-search-input], .unified-search-modal input.input-field__input, .unified-search-modal-root input.input-field__input"
     },
     "unifiedSearchOpenProjectGroup": {
       "by": "locator",
-      "value": ".unified-search__result-group[data-provider='openproject'], .unified-search__result-group:has-text('OpenProject')"
+      "value": ".unified-search-modal .result:has(h4.result-title:has-text('OpenProject')), .unified-search-modal h4.result-title:has-text('OpenProject')"
+    },
+    "unifiedSearchResultItem": {
+      "by": "locator",
+      "value": ".unified-search-modal .result:has(h4.result-title:has-text('OpenProject')) a.list-item__anchor, .unified-search-modal a.list-item__anchor[href*='openproject']"
     },
     "dashboardOpenProjectWidget": {
       "by": "locator",
-      "value": "[data-widget-id='openproject_notifications'], .widget-openproject_notifications, .openproject-dashboard-widget"
+      "value": "[data-widget-id='openproject_notifications'], .panel--widget[data-id='openproject_notifications'], .widget-openproject_notifications, .openproject-dashboard-widget, .panels--panel:has-text('OpenProject'), .panel:has-text('No OpenProject notifications'), div:has(> h2:has-text('OpenProject'))"
     },
+    "dashboardOpenProjectWidgetHeading": {
+      "by": "getByRole",
+      "value": { "role": "heading", "name": "OpenProject" }
+    },
+
+
+
     "ncPersonalSettingsNavigationLinkToggle": {
       "by": "locator",
       "value": "#openproject-prefs--link, input#openproject-prefs--link"
@@ -537,11 +568,141 @@
     },
     "ncAdminSettingsHostInput": {
       "by": "locator",
-      "value": "#openproject-host-url, .form-openproject-host input"
+      "value": "#openproject-host-url, .form-openproject-host input, [data-test-id='openproject-server-host'] input, .openproject-host input"
+    },
+    "ncAdminSettingsHostValue": {
+      "by": "locator",
+      "value": "#server-host .field-item-value, .openproject-host .field-item-value, #server-host .field-item"
+    },
+    "ncAdminSettingsHostCompleteBadge": {
+      "by": "locator",
+      "value": "#server-host .form-heading .complete, #server-host .form-heading .green-text, .openproject-host ~ .form-heading .complete"
+    },
+    "ncAdminSettingsServerHostSection": {
+      "by": "locator",
+      "value": "#server-host, .openproject-host"
+    },
+    "ncAdminSettingsAuthMethodSection": {
+      "by": "locator",
+      "value": "#authentication-method, .authentication-method, .auth-method"
+    },
+    "ncAdminSettingsAuthMethodLabel": {
+      "by": "locator",
+      "value": ".auth-method--label, #authentication-method .auth-method--label, .authentication-method .auth-method--label"
+    },
+    "ncAdminSettingsAuthMethodCompleteBadge": {
+      "by": "locator",
+      "value": "#authentication-method .form-heading .complete, #authentication-method .form-heading .green-text, .authentication-method .form-heading .complete"
     },
     "ncAdminSettingsProjectFolderSection": {
       "by": "locator",
-      "value": ".form-project-folder, #openproject_prefs .form-project-folder"
+      "value": "#project-folder, .project-folder, .form-project-folder, #openproject_prefs .form-project-folder"
+    },
+    "ncAdminSettingsProjectFolderStatus": {
+      "by": "locator",
+      "value": ".project-folder-status, .project-folder-status-value, #project-folder .form-heading .complete, #project-folder .form-heading .green-text"
+    },
+    "dashboardOpenProjectWidgetItem": {
+      "by": "locator",
+      "value": "[data-widget-id='openproject_notifications'] a, .widget-openproject_notifications a, .dashboard-widget a.item, .panel--item a, .panels--panel:has-text('OpenProject') a, a.empty-content--connect-button, .empty-content a"
+    },
+
+    "dashboardCustomizeButton": {
+      "by": "locator",
+      "value": "button[aria-label*='Customize'], button[aria-label*='Edit'], button[aria-label*='edit'], .dashboard--toolbar button, #dashboard button.icon-rename, button.action-item__menutoggle"
+    },
+    "dashboardAddWidgetButton": {
+      "by": "locator",
+      "value": "button:has-text('Add widget'), button:has-text('Add'), [aria-label*='Add widget']"
+    },
+    "dashboardAddOpenProjectWidgetOption": {
+      "by": "locator",
+      "value": "button:has-text('OpenProject'), [role='menuitem']:has-text('OpenProject'), .widget-picker button:has-text('OpenProject'), li:has-text('OpenProject')"
+    },
+    "dashboardEditDoneButton": {
+      "by": "locator",
+      "value": "button:has-text('Done'), button:has-text('Finish'), button:has-text('Close'), button:has-text('Save'), button[aria-label*='Done']"
+    },
+
+    "filesNamedListRow": {
+      "by": "locator",
+      "value": "tr[data-cy-files-list-row-name]"
+    },
+    "filesRecentCardByName": {
+      "by": "locator",
+      "value": ".files-list__row, .file-picker__file-list, [class*='recent'], a, button, span"
+    },
+    "ncAdminSettingsProjectFolderHeading": {
+      "by": "getByText",
+      "value": { "text": "Automatically managed folders", "exact": false }
+    },
+    "ncPersonalSettingsNavigationLinkLabel": {
+      "by": "locator",
+      "value": "label[for='openproject-prefs--link'], .form-check-input:has(#openproject-prefs--link) label"
+    },
+    "ncPersonalSettingsUnifiedSearchLabel": {
+      "by": "locator",
+      "value": "label[for='openproject-prefs--u-search'], .form-check-input:has(#openproject-prefs--u-search) label"
+    },
+
+
+    "smartPickerSlashMenu": {
+      "by": "locator",
+      "value": ".tippy-box .tippy-content, .tippy-content, .suggestion-list, .items"
+    },
+    "smartPickerProviderList": {
+      "by": "locator",
+      "value": ".reference-picker, .provider-list, #provider-select-input, .nc-reference-picker, [class*='ReferencePicker']"
+    },
+    "smartPickerOpenProjectProvider": {
+      "by": "locator",
+      "value": ".tippy-content :text('OpenProject work packages'), .tippy-box :text('OpenProject work packages'), button:has-text('OpenProject work packages'), li:has-text('OpenProject work packages')"
+    },
+    "smartPickerSearchInput": {
+      "by": "locator",
+      "value": "input[placeholder*='Search for work packages'], #search-select-input, .reference-picker input, .work-package-picker input, .work-package-smart-picker input"
+    },
+    "smartPickerResultItem": {
+      "by": "locator",
+      "value": "#work-package-smart-picker .vs__dropdown-option, .work-package-picker .vs__dropdown-option, #searchBar .vs__dropdown-option"
+    },
+    "smartPickerReferenceCard": {
+      "by": "locator",
+      "value": "#viewer .preview[data-text-el='preview'], #viewer .widgets--list, #viewer [id^='nc-reference-widget-'], #viewer .widget-custom, #workpackage-link-previews, .work-package-reference"
+    },
+    "smartPickerModal": {
+      "by": "locator",
+      "value": ".modal-container:has-text('OpenProject work package picker'), [role='dialog']:has-text('OpenProject work package picker')"
+    },
+
+    "textEditorContent": {
+      "by": "locator",
+      "value": "#viewer .ProseMirror[contenteditable='true'], .viewer.modal-mask .ProseMirror[contenteditable='true']"
+    },
+    "textViewerFileName": {
+      "by": "locator",
+      "value": "#viewer .modal-header__name, .viewer .modal-header__name, .modal-header__name"
+    },
+
+    "textEditorFileRow": {
+      "by": "locator",
+      "value": "tr[data-cy-files-list-row-name], [data-cy-files-list-row-name], tr.files-list__row"
+    },
+    "talkAppNavigation": {
+      "by": "locator",
+      "value": "a[href*='/apps/spreed'], #appmenu li[data-app-id='spreed'] a, a[aria-label='Talk']"
+    },
+    "talkChatInput": {
+      "by": "locator",
+      "value": ".new-message-form__input .ProseMirror, .new-message-form div[contenteditable='true'], #content-vue div[contenteditable='true'].tiptap, .tiptap.ProseMirror"
+    },
+    "talkConversationListItem": {
+      "by": "locator",
+      "value": ".conversations-list .list-item, .app-navigation__list .list-item, [data-nav-id], .conversation"
+    },
+    "talkNewConversationButton": {
+      "by": "locator",
+      "value": "button[aria-label*='conversation'], button[aria-label*='Create'], .new-conversation button, button:has-text('Start conversation')"
     }
   }
 }

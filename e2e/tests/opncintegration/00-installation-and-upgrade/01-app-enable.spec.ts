@@ -99,7 +99,9 @@ test.describe('Installation & Upgrade - Enable App', dualSetupTags, () => {
         isOauth2Setup() ? 'oauth2' : 'sso-external',
       );
       await page.context().clearCookies();
-      const { homePage } = await prepareIntegrationUserForDemoStorage(page);
+      const { homePage } = await prepareIntegrationUserForDemoStorage(page, {
+        openProjectSession: true,
+      });
       await homePage.waitForReady();
 
       const filesTab = new OpenProjectWorkPackageFilesTab(page);

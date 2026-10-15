@@ -367,6 +367,45 @@ function buildNextcloudBasicAuth(user: TestUser): string {
   return Buffer.from(`${user.username}:${user.password}`).toString('base64');
 }
 
+/**
+ * True when the NC user's stored OpenProject OAuth token can call integration APIs.
+ * Returns false on 401/other errors so callers fall back to the personal-settings UI connect.
+ * (Basic-auth alone does not always unlock the token; treat false as "unknown / reconnect".)
+ */
+export async function isNextcloudUserConnectedToOpenProject(user: TestUser): Promise<boolean> {
+  const hosts = resolveHosts(resolveEnvName());
+  const auth = `Basic ${buildNextcloudBasicAuth(user)}`;
+  try {
+    const response = await tlsFetch(
+      `https://${hosts.nextcloud}/ocs/v2.php/apps/integration_openproject/api/v1/projects`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: auth,
+          'OCS-APIRequest': 'true',
+          Accept: 'application/json',
+        },
+      },
+    );
+    if (response.ok) {
+      return true;
+    }
+    logInfo(
+      'NC→OP connection probe for %s returned HTTP %s (will use UI connect if needed)',
+      user.username,
+      response.status,
+    );
+    return false;
+  } catch (error: unknown) {
+    logWarn(
+      'NC→OP connection probe failed for %s: %s',
+      user.username,
+      getErrorMessage(error),
+    );
+    return false;
+  }
+}
+
 interface NextcloudOcsMeta {
   status?: string;
   statuscode?: number;
@@ -701,6 +740,7 @@ export async function ensureKeycloakDirectAccessForNextcloud(): Promise<void> {
  * Delete a file in a user's Nextcloud WebDAV space.
  * Uses Keycloak OIDC token (requires directAccessGrantsEnabled on the nextcloud client).
  * Checks if file exists before attempting deletion to reduce error spam.
+ * Retries on HTTP 423 (locked) — e.g. Text/Office viewer still holding the file.
  */
 export async function deleteNextcloudFile(
   filePath: string,
@@ -715,7 +755,26 @@ export async function deleteNextcloudFile(
     return;
   }
 
-  await deleteFile(ncHost, userId, filePath, authorization);
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await deleteFile(ncHost, userId, filePath, authorization);
+      return;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      const locked = /HTTP 423/.test(message);
+      if (!locked || attempt === maxAttempts) {
+        throw error;
+      }
+      logInfo(
+        'Nextcloud file locked (423) on delete attempt %s/%s for %s; retrying',
+        attempt,
+        maxAttempts,
+        filePath,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+    }
+  }
 }
 
 /**

@@ -57,14 +57,34 @@ function getStorageHrefFromLink(linkHref: string): string {
   return idx >= 0 ? linkHref.slice(idx) : linkHref;
 }
 
+/** True when Demo (or other) project already has the instance Nextcloud storage linked. */
+export async function isProjectNextcloudStorageLinked(
+  projectIdentifier: string,
+  credentials?: AdminCredentials
+): Promise<boolean> {
+  const project = await ensureProjectExists(projectIdentifier, credentials);
+  const projectStorages = await listProjectStorages(project.id, credentials);
+  const nextcloudStorage = await findNextcloudStorage(credentials);
+  if (!nextcloudStorage) {
+    return false;
+  }
+  const nextcloudStorageHref = `/api/v3/storages/${nextcloudStorage.id}`;
+  return projectStorages.some((projectStorage: OpenProjectApiProjectStorage) => {
+    const storageHref = getStorageHrefFromLink(projectStorage._links.storage.href);
+    return storageHref === nextcloudStorageHref;
+  });
+}
+
 export async function ensureProjectHasNextcloudStorage(
   projectIdentifier: string,
   page: Page | undefined,
   credentials?: AdminCredentials
 ): Promise<void> {
-  const project = await ensureProjectExists(projectIdentifier, credentials);
-  const projectStorages = await listProjectStorages(project.id, credentials);
+  if (await isProjectNextcloudStorageLinked(projectIdentifier, credentials)) {
+    return;
+  }
 
+  const project = await ensureProjectExists(projectIdentifier, credentials);
   const nextcloudStorage = await findNextcloudStorage(credentials);
 
   if (!nextcloudStorage) {
@@ -72,17 +92,6 @@ export async function ensureProjectHasNextcloudStorage(
       'No Nextcloud storage instance found via OpenProject API. ' +
         'Ensure Nextcloud integration is configured at the instance level.'
     );
-  }
-
-  const nextcloudStorageHref = `/api/v3/storages/${nextcloudStorage.id}`;
-
-  const alreadyLinked = projectStorages.some((projectStorage: OpenProjectApiProjectStorage) => {
-    const storageHref = getStorageHrefFromLink(projectStorage._links.storage.href);
-    return storageHref === nextcloudStorageHref;
-  });
-
-  if (alreadyLinked) {
-    return;
   }
 
   if (!page) {

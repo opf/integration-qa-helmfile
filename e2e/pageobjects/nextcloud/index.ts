@@ -8,3 +8,7 @@ export { NextcloudActiveAppsPage } from './NextcloudActiveAppsPage';
 export { NextcloudIntegrationAppPage } from './NextcloudIntegrationAppPage';
 export { NextcloudPersonalSettingsPage } from './NextcloudPersonalSettingsPage';
 export { NextcloudFilesPage } from './NextcloudFilesPage';
+export { NextcloudAdminSettingsPage } from './NextcloudAdminSettingsPage';
+export { NextcloudHeaderPage } from './NextcloudHeaderPage';
+export { NextcloudTextPage } from './NextcloudTextPage';
+export { NextcloudTalkPage } from './NextcloudTalkPage';

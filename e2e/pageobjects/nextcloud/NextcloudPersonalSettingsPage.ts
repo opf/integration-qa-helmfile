@@ -70,22 +70,48 @@ export class NextcloudPersonalSettingsPage extends NextcloudBasePage {
     await this.waitForDisconnected();
   }
 
-  async toggleNavigationLink(targetState?: boolean): Promise<void> {
-    const checkbox = this.getLocator('ncPersonalSettingsNavigationLinkToggle').first();
+  /**
+   * NC CheckBox hides the raw input; Playwright viewport clicks fail on it.
+   * Toggle via the associated label (or setChecked as fallback).
+   */
+  private async toggleCheckbox(
+    checkboxKey: 'ncPersonalSettingsNavigationLinkToggle' | 'ncPersonalSettingsUnifiedSearchToggle',
+    labelKey: 'ncPersonalSettingsNavigationLinkLabel' | 'ncPersonalSettingsUnifiedSearchLabel',
+    targetState?: boolean,
+  ): Promise<void> {
+    const checkbox = this.getLocator(checkboxKey).first();
     await checkbox.waitFor({ state: 'attached', timeout: 10000 });
     const isChecked = await checkbox.isChecked();
-    if (targetState === undefined || targetState !== isChecked) {
-      await checkbox.click({ force: true });
+    if (targetState !== undefined && targetState === isChecked) {
+      return;
     }
+    const label = this.getLocator(labelKey).first();
+    if (await label.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await label.scrollIntoViewIfNeeded();
+      await label.click({ timeout: 10000 });
+    } else {
+      await checkbox.setChecked(targetState ?? !isChecked, { force: true });
+    }
+    // saveOptions() is async on the Vue watcher — wait before reload/navigation.
+    const toast = this.page.getByText(/OpenProject options saved/i).first();
+    await toast.waitFor({ state: 'visible', timeout: 10000 }).catch(() => undefined);
+    await this.page.waitForTimeout(500);
+  }
+
+  async toggleNavigationLink(targetState?: boolean): Promise<void> {
+    await this.toggleCheckbox(
+      'ncPersonalSettingsNavigationLinkToggle',
+      'ncPersonalSettingsNavigationLinkLabel',
+      targetState,
+    );
   }
 
   async toggleUnifiedSearch(targetState?: boolean): Promise<void> {
-    const checkbox = this.getLocator('ncPersonalSettingsUnifiedSearchToggle').first();
-    await checkbox.waitFor({ state: 'attached', timeout: 10000 });
-    const isChecked = await checkbox.isChecked();
-    if (targetState === undefined || targetState !== isChecked) {
-      await checkbox.click({ force: true });
-    }
+    await this.toggleCheckbox(
+      'ncPersonalSettingsUnifiedSearchToggle',
+      'ncPersonalSettingsUnifiedSearchLabel',
+      targetState,
+    );
   }
 
   async isNavigationLinkEnabled(): Promise<boolean> {

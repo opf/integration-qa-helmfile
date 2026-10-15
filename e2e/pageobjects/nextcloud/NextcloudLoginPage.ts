@@ -28,7 +28,39 @@ export class NextcloudLoginPage extends NextcloudBasePage {
     await this.getLocator('loginButton').click({ noWaitAfter: true });
   }
 
-  async login(username: string = NC_ADMIN_USER.username, password: string = NC_ADMIN_USER.password): Promise<NextcloudDashboardPage> {
+  /**
+   * Log in to Nextcloud.
+   * Optional `redirectPath` (e.g. `/index.php/settings/user/openproject`) skips the
+   * dashboard settle when the next step is a specific app page.
+   */
+  async login(
+    username: string = NC_ADMIN_USER.username,
+    password: string = NC_ADMIN_USER.password,
+    options?: { redirectPath?: string },
+  ): Promise<NextcloudDashboardPage> {
+    const redirectPath = options?.redirectPath?.trim();
+    if (redirectPath) {
+      const origin = this.resolveNavigationUrl().replace(/\/$/, '');
+      const path = redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`;
+      await this.page.goto(
+        `${origin}/login?redirect_url=${encodeURIComponent(path)}`,
+        { waitUntil: 'domcontentloaded' },
+      );
+      await this.waitForReady();
+      await this.fillUsername(username);
+      await this.fillPassword(password);
+      await this.clickLogin();
+      await this.page.waitForURL(
+        (url) => {
+          const href = typeof url === 'string' ? url : url.href;
+          return href.includes(path.split('?')[0]) || /\/apps\//.test(href);
+        },
+        { timeout: 30000, waitUntil: 'domcontentloaded' },
+      );
+      await this.dismissFirstRunWizardIfPresent(3000).catch(() => false);
+      return new NextcloudDashboardPage(this.page);
+    }
+
     await this.navigateTo();
     await this.waitForReady();
     await this.fillUsername(username);

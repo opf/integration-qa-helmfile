@@ -22,11 +22,10 @@ import {
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
-const TIMESTAMP = Date.now();
-const TEST_FILE_NAME = `nc-create-wp-${TIMESTAMP}.txt`;
 const TEST_FILE_CONTENT = `Create WP test file created at ${new Date().toISOString()}\n`;
-const CREATED_WP_SUBJECT = `Created from Nextcloud ${TIMESTAMP}`;
 let createdWorkPackageId: number | undefined;
+let testFileName = '';
+let createdWpSubject = '';
 
 test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTags, () => {
   test.describe.configure({ timeout: 300_000 });
@@ -35,7 +34,7 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
     skipUnlessSetupMethod('sso-external', 'oauth2');
   });
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     const user = integrationBrowserUser();
     if (createdWorkPackageId) {
       try {
@@ -44,11 +43,14 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
       } catch (err: unknown) {
         logInfo('TC-2246', 'Cleanup WP error:', getErrorMessage(err));
       }
+      createdWorkPackageId = undefined;
     }
-    try {
-      await deleteNextcloudFile(TEST_FILE_NAME, user);
-    } catch (err: unknown) {
-      logInfo('TC-2246', 'Cleanup file error:', getErrorMessage(err));
+    if (testFileName) {
+      try {
+        await deleteNextcloudFile(testFileName, user);
+      } catch (err: unknown) {
+        logInfo('TC-2246', 'Cleanup file error:', getErrorMessage(err));
+      }
     }
   });
 
@@ -56,15 +58,18 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
     'Create Work Package Directly from Nextcloud File Panel',
     squashTestCase(2246, { stepCount: 4 }),
     async ({ page }) => {
+      const timestamp = Date.now();
+      testFileName = `nc-create-wp-${timestamp}.txt`;
+      createdWpSubject = `Created from Nextcloud ${timestamp}`;
       const ncLoginPage = new NextcloudLoginPage(page);
       const filesPage = new NextcloudFilesPage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const user = integrationBrowserUser();
 
-      logInfo('TC-2246', 'Setup: uploading test file %s', TEST_FILE_NAME);
+      logInfo('TC-2246', 'Setup: uploading test file %s', testFileName);
       try {
         await prepareIntegrationUserForDemoStorage(page);
-        await uploadNextcloudFile(TEST_FILE_NAME, TEST_FILE_CONTENT, user);
+        await uploadNextcloudFile(testFileName, TEST_FILE_CONTENT, user);
         await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2246', 'Setup failed:', getErrorMessage(error));
@@ -75,10 +80,11 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
         'Open File Details sidebar for target file -> click OpenProject tab',
         async () => {
           logInfo('TC-2246', 'Step 1: Logging in to Nextcloud and opening details sidebar');
-          await ncLoginPage.login(user.username, user.password);
-          await filesPage.navigateToFiles();
+          await ncLoginPage.login(user.username, user.password, {
+            redirectPath: '/index.php/apps/files/files',
+          });
           await filesPage.waitForReady();
-          await filesPage.openFileDetailsSidebar(TEST_FILE_NAME);
+          await filesPage.openFileDetailsSidebar(testFileName);
           await filesPage.openSidebarOpenProjectTab();
           await expect(filesPage.getLocator('filesSidebarOpenProjectView').first()).toBeVisible();
         },
@@ -96,7 +102,7 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
           logInfo('TC-2246', 'Step 3: Filling and submitting Create Work Package form');
           await filesPage.createWorkPackageFromModal({
             project: 'Demo project',
-            subject: CREATED_WP_SUBJECT,
+            subject: createdWpSubject,
             type: 'Task',
             description: 'Automated test work package created from Nextcloud sidebar',
           });
@@ -109,14 +115,14 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
         'Verify in Nextcloud sidebar and OpenProject',
         async () => {
           logInfo('TC-2246', 'Step 4: Verifying newly created WP is displayed in NC sidebar and OP Files tab');
-          const linkedItem = filesPage.getLinkedWorkPackageItem(CREATED_WP_SUBJECT);
+          const linkedItem = filesPage.getLinkedWorkPackageItem(createdWpSubject);
           await expect(linkedItem).toBeVisible({ timeout: 20000 });
 
-          createdWorkPackageId = await filesPage.getLinkedWorkPackageId(CREATED_WP_SUBJECT);
+          createdWorkPackageId = await filesPage.getLinkedWorkPackageId(createdWpSubject);
           logInfo('TC-2246', 'Discovered created work package ID: #%s', createdWorkPackageId);
 
           await ensureFilesTabNextcloudConnected(page, filesTab, createdWorkPackageId, user);
-          const opLinkedFile = filesTab.getLinkedWorkPackageFileItem(TEST_FILE_NAME);
+          const opLinkedFile = filesTab.getLinkedWorkPackageFileItem(testFileName);
           await expect(opLinkedFile).toBeVisible({ timeout: 20000 });
         },
       );
