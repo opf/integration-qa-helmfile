@@ -330,7 +330,28 @@
     },
     "filesSelectionCountLabel": {
       "by": "locator",
-      "value": "text=/^\\d+ selected$/"
+      "value": ".files-list__selected"
+    },
+    "filesListRowActionsButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Actions"
+      }
+    },
+    "filesListRowDetailsMenuItem": {
+      "by": "getByRole",
+      "value": {
+        "role": "menuitem",
+        "name": "Details"
+      }
+    },
+    "filesListRowOpenProjectMenuItem": {
+      "by": "getByRole",
+      "value": {
+        "role": "menuitem",
+        "name": "OpenProject"
+      }
     },
     "filesSelectionActionsButton": {
       "by": "getByRole",
@@ -402,6 +423,14 @@
       "by": "locator",
       "value": ".linked-workpackages--workpackage--unlinkactionbutton, button[aria-label='Unlink Work Package'], button:has-text('Unlink Work Package')"
     },
+    "filesSidebarUnlinkConfirmButton": {
+      "by": "locator",
+      "value": ".modal-wrapper .dialog__actions button, .oc-dialog__buttonrow button"
+    },
+    "filesSidebarUnlinkConfirmDialog": {
+      "by": "locator",
+      "value": ".modal-wrapper:has(.dialog__name), .oc-dialog:has-text('Confirm unlink'), [role='dialog']:has-text('Confirm unlink')"
+    },
     "filesSidebarCreateWorkPackageButton": {
       "by": "locator",
       "value": ".create-workpackage--button, button:has-text('Create and link a new work package')"
@@ -434,6 +463,14 @@
       "by": "locator",
       "value": "[data-test-id='available-types'] .vs__dropdown-menu li, [data-test-id='available-types'] .vs__dropdown-option"
     },
+    "createWorkPackageStatusInput": {
+      "by": "locator",
+      "value": "[data-test-id='available-statuses'] input, [data-test-id='available-status'] input, .create-workpackage-form--status input"
+    },
+    "createWorkPackageStatusOptions": {
+      "by": "locator",
+      "value": "[data-test-id='available-statuses'] .vs__dropdown-menu li, [data-test-id='available-status'] .vs__dropdown-option, [data-test-id='available-statuses'] .vs__dropdown-option"
+    },
     "createWorkPackageDescriptionInput": {
       "by": "locator",
       "value": "textarea.create-workpackage-form--description"
@@ -444,23 +481,23 @@
     },
     "createWorkPackageSubmitButton": {
       "by": "locator",
-      "value": ".create-workpackage-form--button--create, button:has-text('Create')"
+      "value": ".create-workpackage-form--button--create"
     },
     "bulkLinkModal": {
       "by": "locator",
-      "value": "#multipleFileLinkModal, .multiple-link-modal-container"
+      "value": "#multipleFileLinkModal [role='dialog'], #multipleFileLinkModal .modal, [role='dialog']:has-text('Link to work package'), .oc-dialog:has-text('Link to work package')"
     },
     "bulkLinkSearchInput": {
       "by": "locator",
-      "value": "#multipleFileLinkModal #searchInput input, #multipleFileLinkModal input[placeholder*='Search work package']"
+      "value": "#multipleFileLinkModal #searchInput input, #multipleFileLinkModal input[placeholder*='Search'], [role='dialog'] input[placeholder*='Search for a work package'], [role='dialog'] input[placeholder*='Search']"
     },
     "bulkLinkSearchResults": {
       "by": "locator",
-      "value": "#multipleFileLinkModal .searchInput .vs__dropdown-menu li, #multipleFileLinkModal .vs__dropdown-option"
+      "value": "#multipleFileLinkModal .vs__dropdown-menu li, #multipleFileLinkModal .vs__dropdown-option, [role='dialog'] .vs__dropdown-menu li, [role='dialog'] .vs__dropdown-option"
     },
     "bulkLinkSuccessProgress": {
       "by": "locator",
-      "value": ".link-progress-information-success"
+      "value": ".link-progress-information-success, .link-progress-information-wrapper:has-text('successfully')"
     },
     "bulkLinkFailedProgress": {
       "by": "locator",

@@ -606,3 +606,15 @@ export async function deleteProject(
 
   return true;
 }
+
+export async function deleteWorkPackage(
+  workPackageId: number,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS,
+): Promise<void> {
+  await apiRequest<void>(
+    `/work_packages/${workPackageId}`,
+    'DELETE',
+    credentials,
+  );
+}
+

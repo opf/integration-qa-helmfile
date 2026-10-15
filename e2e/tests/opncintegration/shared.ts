@@ -407,7 +407,9 @@ export async function grantNextcloudOAuthFromFilesTab(
   }
 
   await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
-  await filesTab.waitForDemoProjectWorkPackageFilesUrl(30000);
+  if (!filesTab.isOnDemoProjectWorkPackageFilesUrl()) {
+    await filesTab.openWorkPackageFilesTab(20000);
+  }
 }
 
 /**
@@ -423,7 +425,15 @@ export async function ensureFilesTabNextcloudConnected(
   user: TestUser = integrationBrowserUser(),
 ): Promise<void> {
   await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
-  await filesTab.waitForDemoProjectWorkPackageFilesUrl();
+  // After NC-only browser steps, OP session is often gone — log in if redirected.
+  const opLogin = new OpenProjectLoginPage(page);
+  if (await opLogin.loginIfPrompted(user.username, user.password, 5000)) {
+    await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
+  }
+  // OP 18 often keeps /work_packages/:id (Activity) even after a /files goto — open the Files tab.
+  if (!filesTab.isOnDemoProjectWorkPackageFilesUrl()) {
+    await filesTab.openWorkPackageFilesTab(20000);
+  }
 
   const loginBtn = filesTab.getNextcloudLoginButtonLocator();
   const linkExisting = filesTab.getLocator('linkExistingFilesButton').first();
