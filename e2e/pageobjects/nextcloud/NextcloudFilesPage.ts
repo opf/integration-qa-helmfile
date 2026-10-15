@@ -1,5 +1,6 @@
 import { expect, Locator, Page } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
+import { escapeForRegex } from '../../utils/url-helpers';
 
 /** Nextcloud Files app — OpenProject folder + Link to work package flows. */
 export class NextcloudFilesPage extends NextcloudBasePage {
@@ -22,19 +23,15 @@ export class NextcloudFilesPage extends NextcloudBasePage {
       .catch(() => undefined);
   }
 
-  private escapeRegExp(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
   private folderOpenButton(folderName: string): Locator {
-    const name = this.escapeRegExp(folderName);
+    const name = escapeForRegex(folderName);
     return this.page.getByRole('button', {
       name: new RegExp(`Open folder ${name}`, 'i'),
     });
   }
 
   private folderSelectCheckbox(folderName: string): Locator {
-    const name = this.escapeRegExp(folderName);
+    const name = escapeForRegex(folderName);
     return this.page.getByRole('checkbox', {
       name: new RegExp(`Toggle selection for folder ["']${name}["']`, 'i'),
     });
@@ -110,12 +107,12 @@ export class NextcloudFilesPage extends NextcloudBasePage {
     return this.page
       .locator(`tr[data-cy-files-list-row-name="${fileName}"]`)
       .or(this.page.locator(`tr[data-file="${fileName}"]`))
-      .or(this.page.getByRole('row', { name: new RegExp(this.escapeRegExp(fileName), 'i') }))
+      .or(this.page.getByRole('row', { name: new RegExp(escapeForRegex(fileName), 'i') }))
       .first();
   }
 
   private fileSelectCheckbox(fileName: string): Locator {
-    const name = this.escapeRegExp(fileName);
+    const name = escapeForRegex(fileName);
     return this.getFileRow(fileName)
       .getByRole('checkbox', {
         name: new RegExp(`Toggle selection for (file|folder) ["']?${name}["']?`, 'i'),
@@ -440,7 +437,7 @@ export class NextcloudFilesPage extends NextcloudBasePage {
     await searchInput.click();
     await searchInput.fill(query);
     // Prefer "#N" match so a bare id like "2" does not hit unrelated rows.
-    const idPattern = /^\d+$/.test(query) ? new RegExp(`#${query}\\b`) : new RegExp(this.escapeRegExp(query), 'i');
+    const idPattern = /^\d+$/.test(query) ? new RegExp(`#${query}\\b`) : new RegExp(escapeForRegex(query), 'i');
     const option = this.getLocator('bulkLinkSearchResults').filter({ hasText: idPattern }).first();
     await option.waitFor({ state: 'visible', timeout: 15000 });
     await option.click();

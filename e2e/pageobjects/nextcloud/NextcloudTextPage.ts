@@ -2,6 +2,7 @@ import { Page, expect } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
 import { NextcloudFilesPage } from './NextcloudFilesPage';
 import { logInfo } from '../../utils/logger';
+import { escapeForRegex } from '../../utils/url-helpers';
 
 /** Nextcloud Text editor + OpenProject smart picker / rich reference card. */
 export class NextcloudTextPage extends NextcloudBasePage {
@@ -17,7 +18,7 @@ export class NextcloudTextPage extends NextcloudBasePage {
     const row = filesPage.getFileRow(fileName);
     // Fresh WebDAV uploads can show as recommendation cards before the table row appears.
     const openByName = async () => {
-      const nameBtn = this.page.getByRole('button', { name: new RegExp(fileName.replace(/\./g, '\\.'), 'i') }).first();
+      const nameBtn = this.page.getByRole('button', { name: new RegExp(escapeForRegex(fileName), 'i') }).first();
       if (await nameBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await nameBtn.dblclick();
         return true;
@@ -48,7 +49,7 @@ export class NextcloudTextPage extends NextcloudBasePage {
     await row.waitFor({ state: 'visible', timeout: 20000 });
     await row.scrollIntoViewIfNeeded();
     // Prefer the name-link button to avoid dblclick landing on the wrong row.
-    const nameLink = row.getByRole('button', { name: new RegExp(fileName.replace(/\./g, '\\.'), 'i') }).first();
+    const nameLink = row.getByRole('button', { name: new RegExp(escapeForRegex(fileName), 'i') }).first();
     if (await nameLink.isVisible({ timeout: 2000 }).catch(() => false)) {
       await nameLink.dblclick();
     } else {

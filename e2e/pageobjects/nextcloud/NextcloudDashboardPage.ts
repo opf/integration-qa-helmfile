@@ -3,6 +3,7 @@ import { NextcloudBasePage } from './NextcloudBasePage';
 import { NextcloudAdminOverviewPage } from './NextcloudAdminOverviewPage';
 import { NextcloudAppsDiscoverPage } from './NextcloudAppsDiscoverPage';
 import { NextcloudIntegrationAppPage } from './NextcloudIntegrationAppPage';
+import { hostUrlPattern } from '../../utils/url-helpers';
 
 export class NextcloudDashboardPage extends NextcloudBasePage {
   constructor(page: Page) {
@@ -133,7 +134,7 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
     const item = this.getLocator('dashboardOpenProjectWidgetItem').first();
     if (await item.isVisible({ timeout: 5000 }).catch(() => false)) {
       await Promise.all([
-        this.page.waitForURL(new RegExp(opHost.replace(/\./g, '\\.')), { timeout: 30000 }),
+        this.page.waitForURL(hostUrlPattern(opHost), { timeout: 30000 }),
         item.click(),
       ]);
       return;
@@ -142,7 +143,7 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
     await this.page.evaluate((host) => {
       window.location.href = `https://${host}/notifications`;
     }, opHost);
-    await this.page.waitForURL(new RegExp(opHost.replace(/\./g, '\\.')), { timeout: 30000 });
+    await this.page.waitForURL(hostUrlPattern(opHost), { timeout: 30000 });
   }
 
   /** Any anchor inside the OpenProject widget (notification item or empty-state connect). */

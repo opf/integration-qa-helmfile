@@ -2,6 +2,7 @@ import { Page, expect } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
 import { resolveHosts } from '../../utils/env-hosts';
 import { logInfo } from '../../utils/logger';
+import { hostUrlPattern } from '../../utils/url-helpers';
 
 /** Nextcloud top header: OpenProject nav link and unified search. */
 export class NextcloudHeaderPage extends NextcloudBasePage {
@@ -35,7 +36,7 @@ export class NextcloudHeaderPage extends NextcloudBasePage {
 
     const opHost = resolveHosts().openproject;
     await Promise.all([
-      this.page.waitForURL(new RegExp(opHost.replace(/\./g, '\\.')), { timeout: 30000 }),
+      this.page.waitForURL(hostUrlPattern(opHost), { timeout: 30000 }),
       link.click(),
     ]);
     expect(this.page.url()).toContain(opHost);
@@ -109,7 +110,7 @@ export class NextcloudHeaderPage extends NextcloudBasePage {
 
     const opHost = resolveHosts().openproject;
     await Promise.all([
-      this.page.waitForURL(new RegExp(opHost.replace(/\./g, '\\.')), { timeout: 30000 }),
+      this.page.waitForURL(hostUrlPattern(opHost), { timeout: 30000 }),
       result.click(),
     ]);
     expect(this.page.url()).toContain(opHost);

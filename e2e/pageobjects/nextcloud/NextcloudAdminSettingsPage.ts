@@ -3,6 +3,7 @@ import { NextcloudBasePage } from './NextcloudBasePage';
 import { testConfig } from '../../utils/config';
 import { resolveHosts } from '../../utils/env-hosts';
 import { logInfo } from '../../utils/logger';
+import { escapeForRegex } from '../../utils/url-helpers';
 
 /** Nextcloud Administration → OpenProject integration settings. */
 export class NextcloudAdminSettingsPage extends NextcloudBasePage {
@@ -34,7 +35,7 @@ export class NextcloudAdminSettingsPage extends NextcloudBasePage {
     if (await hostValue.isVisible({ timeout: 3000 }).catch(() => false)) {
       await expect(hostValue).toContainText(expectedHost, { timeout: 10000 });
     } else {
-      await expect(hostInput).toHaveValue(new RegExp(expectedHost.replace(/\./g, '\\.')), {
+      await expect(hostInput).toHaveValue(new RegExp(escapeForRegex(expectedHost)), {
         timeout: 10000,
       });
     }
