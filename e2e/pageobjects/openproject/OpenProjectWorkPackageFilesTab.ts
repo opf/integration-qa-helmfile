@@ -50,7 +50,9 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
           `[OpenProject] Files tab still shows No Nextcloud connection; soft-reloading (${reloadCount}/${maxReloads})`,
         );
         await this.navigateToDemoProjectWorkPackageFiles(workPackageId);
-        await this.waitForDemoProjectWorkPackageFilesUrl(15000).catch(() => undefined);
+        if (!this.isOnDemoProjectWorkPackageFilesUrl()) {
+          await this.openWorkPackageFilesTab(15000);
+        }
         continue;
       }
 
@@ -66,10 +68,13 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
   async openWorkPackageFilesTab(timeout: number = 15000): Promise<void> {
     const filesTab = this.getLocator('filesMenuItem');
     await filesTab.waitFor({ state: 'visible', timeout });
-    await Promise.all([
+    await filesTab.click();
+    // OP 18 may keep /work_packages/:id without appending /files — accept either URL or Files UI.
+    await Promise.race([
       this.waitForDemoProjectWorkPackageFilesUrl(timeout),
-      filesTab.click(),
-    ]);
+      this.getLocator('linkExistingFilesButton').first().waitFor({ state: 'visible', timeout }),
+      this.getNextcloudLoginButtonLocator().waitFor({ state: 'visible', timeout }),
+    ]).catch(() => undefined);
   }
 
   getStorageLoginPromptLocator(): Locator {

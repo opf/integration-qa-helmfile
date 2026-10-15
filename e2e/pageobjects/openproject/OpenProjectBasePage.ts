@@ -123,7 +123,9 @@ export abstract class OpenProjectBasePage extends BasePage {
   }
 
   /**
-   * Navigate to demo project work package files page
+   * Navigate to demo project work package files page.
+   * OP 18 may redirect `/work_packages/:id/files` to the WP details shell — callers
+   * should open the Files tab via UI when the URL does not stick.
    */
   async navigateToDemoProjectWorkPackageFiles(workPackageId: number): Promise<void> {
     const url = `${this.baseUrl}${OpenProjectBasePage.URLS.DEMO_PROJECT_WORK_PACKAGE_FILES_BASE}/${workPackageId}/files`;
@@ -134,10 +136,15 @@ export abstract class OpenProjectBasePage extends BasePage {
   }
 
   /**
-   * Wait for demo project work package files URL
+   * Wait for demo project work package files URL (`.../work_packages/:id/files`).
    */
   async waitForDemoProjectWorkPackageFilesUrl(timeout: number = 15000): Promise<void> {
     await this.page.waitForURL(OpenProjectBasePage.URL_PATHS.DEMO_PROJECT_WORK_PACKAGE_FILES, { timeout });
+  }
+
+  /** True when the current URL is the dedicated WP Files route. */
+  isOnDemoProjectWorkPackageFilesUrl(): boolean {
+    return OpenProjectBasePage.URL_PATHS.DEMO_PROJECT_WORK_PACKAGE_FILES.test(this.page.url());
   }
 
   /**

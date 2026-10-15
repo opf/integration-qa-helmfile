@@ -6,7 +6,6 @@ import {
 } from '../../../pageobjects/nextcloud';
 import {
   OpenProjectWorkPackageFilesTab,
-  OpenProjectHomePage,
 } from '../../../pageobjects/openproject';
 import {
   deleteWorkPackageFileLinksByName,
@@ -98,10 +97,6 @@ test.describe('Work Package Integration - Nextcloud Sidebar Linking', dualSetupT
         'Switch to OpenProject, open work package #2, and navigate to Files tab',
         async () => {
           logInfo('TC-2244', 'Step 4: Verifying link appears in OpenProject WP Files tab');
-          const homePage = new OpenProjectHomePage(page);
-          await homePage.navigateTo();
-          await filesTab.navigateToDemoProjectWorkPackage(WORK_PACKAGE_ID);
-          await filesTab.openWorkPackageFilesTab();
           await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
           const linkedItem = filesTab.getLinkedWorkPackageFileItem(TEST_FILE_NAME);
           await expect(linkedItem).toBeVisible({ timeout: 20000 });

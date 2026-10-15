@@ -6,7 +6,6 @@ import {
 } from '../../../pageobjects/nextcloud';
 import {
   OpenProjectWorkPackageFilesTab,
-  OpenProjectHomePage,
 } from '../../../pageobjects/openproject';
 import {
   deleteWorkPackage,
@@ -116,10 +115,6 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
           createdWorkPackageId = await filesPage.getLinkedWorkPackageId(CREATED_WP_SUBJECT);
           logInfo('TC-2246', 'Discovered created work package ID: #%s', createdWorkPackageId);
 
-          const homePage = new OpenProjectHomePage(page);
-          await homePage.navigateTo();
-          await filesTab.navigateToDemoProjectWorkPackage(createdWorkPackageId);
-          await filesTab.openWorkPackageFilesTab();
           await ensureFilesTabNextcloudConnected(page, filesTab, createdWorkPackageId, user);
           const opLinkedFile = filesTab.getLinkedWorkPackageFileItem(TEST_FILE_NAME);
           await expect(opLinkedFile).toBeVisible({ timeout: 20000 });

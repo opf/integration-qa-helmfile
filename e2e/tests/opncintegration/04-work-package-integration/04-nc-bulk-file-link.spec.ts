@@ -6,7 +6,6 @@ import {
 } from '../../../pageobjects/nextcloud';
 import {
   OpenProjectWorkPackageFilesTab,
-  OpenProjectHomePage,
 } from '../../../pageobjects/openproject';
 import {
   deleteWorkPackageFileLinksByName,
@@ -90,7 +89,9 @@ test.describe('Work Package Integration - Nextcloud Bulk File Link', dualSetupTa
         async () => {
           logInfo('TC-2245', 'Step 2: Clicking Link to work package action');
           await filesPage.clickLinkToWorkPackage();
-          await expect(filesPage.getLocator('bulkLinkModal').first()).toBeVisible({ timeout: 15000 });
+          await expect(
+            filesPage.getLocator('filesLinkToWorkPackageModalHeading').first(),
+          ).toBeVisible({ timeout: 15000 });
         },
       );
 
@@ -107,10 +108,6 @@ test.describe('Work Package Integration - Nextcloud Bulk File Link', dualSetupTa
         'Open the target work package in OpenProject -> Files tab',
         async () => {
           logInfo('TC-2245', 'Step 4: Verifying all bulk linked files appear in OpenProject WP Files tab');
-          const homePage = new OpenProjectHomePage(page);
-          await homePage.navigateTo();
-          await filesTab.navigateToDemoProjectWorkPackage(WORK_PACKAGE_ID);
-          await filesTab.openWorkPackageFilesTab();
           await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
           for (const fileName of BULK_FILES) {
             const item = filesTab.getLinkedWorkPackageFileItem(fileName);
