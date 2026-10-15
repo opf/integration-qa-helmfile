@@ -329,11 +329,8 @@
       }
     },
     "filesSelectionCountLabel": {
-      "by": "getByText",
-      "value": {
-        "text": "1 selected",
-        "exact": true
-      }
+      "by": "locator",
+      "value": "text=/^\\d+ selected$/"
     },
     "filesSelectionActionsButton": {
       "by": "getByRole",
