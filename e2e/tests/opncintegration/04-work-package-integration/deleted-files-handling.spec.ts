@@ -54,7 +54,9 @@ test.describe('Work Package Integration - Deleted Files Handling', dualSetupTags
         user.username,
         isOauth2Setup() ? 'local oauth2' : 'Keycloak SSO',
       );
-      const { homePage } = await prepareIntegrationUserForDemoStorage(page);
+      const { homePage } = await prepareIntegrationUserForDemoStorage(page, {
+        openProjectSession: true,
+      });
       await homePage.waitForReady();
       await deleteWorkPackageFileLinksByName(WORK_PACKAGE_ID, SEEDED_FILE);
 

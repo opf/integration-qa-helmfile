@@ -47,8 +47,9 @@ test.describe('Work Package Integration - Nextcloud Universal Search', dualSetup
         'Ensure Enable unified search for tickets is enabled in personal settings',
         async () => {
           logInfo('TC-2249', 'Step 1: Enabling unified search preference');
-          await loginPage.login(user.username, user.password);
-          await personalSettings.navigateTo();
+          await loginPage.login(user.username, user.password, {
+            redirectPath: '/index.php/settings/user/openproject',
+          });
           await personalSettings.waitForReady();
           await personalSettings.toggleUnifiedSearch(true);
           expect(await personalSettings.isUnifiedSearchEnabled()).toBe(true);

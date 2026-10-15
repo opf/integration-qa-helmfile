@@ -10,6 +10,7 @@ import {
   ensureProjectHasNextcloudStorage,
   ensureUserIsAdmin,
   ensureUserIsProjectMember,
+  isProjectNextcloudStorageLinked,
   waitForNextcloudStorageHealthy,
 } from '../../utils/test-helpers';
 import {
@@ -23,6 +24,7 @@ import type { EnsureAdminResult } from '../../utils/openproject-api';
 import {
   ensureNextcloudLocalUser,
   ensureOauth2AmpfWebDavAccess,
+  isNextcloudUserConnectedToOpenProject,
 } from '../../utils/nextcloud-api';
 import {
   OpenProjectHomePage,
@@ -212,19 +214,23 @@ export async function loginOpenProjectAsStorageAdmin(
 /**
  * Ensure Oliver has a Nextcloud↔OpenProject OAuth connection via NC personal settings.
  * Idempotent: skips Connect when Disconnect is already visible.
+ * Uses login redirect to personal settings to avoid the dashboard settle.
  */
 export async function ensureOliverConnectedViaNextcloudPersonalSettings(
   page: Page,
 ): Promise<void> {
+  if (await isNextcloudUserConnectedToOpenProject(OLIVER_OAUTH_USER)) {
+    logInfo('Oliver already connected to OpenProject (OCS probe)');
+    return;
+  }
+
   const ncLogin = new NextcloudLoginPage(page);
   const personalSettings = new NextcloudPersonalSettingsPage(page);
   const opLogin = new OpenProjectLoginPage(page);
 
-  const dashboard = await ncLogin.login(OLIVER_OAUTH_USER.username, OLIVER_OAUTH_USER.password);
-  await dashboard.waitForReady();
-  await dashboard.closeWelcomeMessage();
-
-  await personalSettings.navigateTo();
+  await ncLogin.login(OLIVER_OAUTH_USER.username, OLIVER_OAUTH_USER.password, {
+    redirectPath: '/index.php/settings/user/openproject',
+  });
   await personalSettings.waitForReady();
 
   if (await personalSettings.isConnected(500)) {
@@ -283,52 +289,69 @@ export async function loginOpenProjectAsIntegrationUser(
 }
 
 /** Demo project WP used for Files-tab storage OAuth / health probes. */
-const DEMO_WORK_PACKAGE_ID = 2;
+export const DEMO_WORK_PACKAGE_ID = 2;
+
+export type PrepareIntegrationUserOptions = {
+  /**
+   * When true (oauth2), leave an OpenProject browser session as Oliver.
+   * Specs that only need NC should omit this — Files-tab OAuth is done by
+   * `ensureFilesTabNextcloudConnected` in those that need it.
+   */
+  openProjectSession?: boolean;
+};
 
 /**
  * Membership + Demo project Nextcloud storage for the dual-setup user.
- * oauth2: admin links storage, Oliver NC↔OP + Files storage OAuth, then AMPF WebDAV ACL.
+ * oauth2: API user/membership, link storage only if missing, NC↔OP connect (API probe
+ * or personal-settings UI), AMPF WebDAV ACL. Optional OP Oliver session.
  * sso-external: Alice login + member/admin elevation + storage link.
- * Callers must not log in beforehand — oauth2 starts as admin; SSO logs in Alice here.
+ * Callers must not log in beforehand — oauth2 may start as admin; SSO logs in Alice here.
  */
 export async function prepareIntegrationUserForDemoStorage(
   page: Page,
+  options: PrepareIntegrationUserOptions = {},
 ): Promise<{ homePage: OpenProjectHomePage; user: TestUser }> {
   const user = integrationBrowserUser();
+  const openProjectSession = options.openProjectSession === true;
 
   if (isOauth2Setup()) {
     await ensureOpenProjectLocalUser(OLIVER_OAUTH_USER);
     await ensureNextcloudLocalUser(OLIVER_OAUTH_USER);
     await ensureUserIsProjectMember(OLIVER_OAUTH_USER.username, 'demo-project', 'Member');
 
-    await page.context().clearCookies();
-    const opLogin = new OpenProjectLoginPage(page);
-    const adminHome = await opLogin.login(OP_ADMIN_USER.username, OP_ADMIN_USER.password);
-    await adminHome.waitForReady();
-    await ensureProjectHasNextcloudStorage('demo-project', page);
+    const storageLinked = await isProjectNextcloudStorageLinked('demo-project');
+    if (!storageLinked) {
+      await page.context().clearCookies();
+      const opLogin = new OpenProjectLoginPage(page);
+      const adminHome = await opLogin.login(OP_ADMIN_USER.username, OP_ADMIN_USER.password);
+      await adminHome.waitForReady();
+      await ensureProjectHasNextcloudStorage('demo-project', page);
+    } else {
+      logInfo('Demo project Nextcloud storage already linked (API); skipping admin UI');
+    }
 
-    // Personal settings (NC→OP) then Files-tab storage OAuth (OP→NC).
+    // NC→OP personal OAuth (API probe short-circuits when already connected).
     await page.context().clearCookies();
     await ensureOliverConnectedViaNextcloudPersonalSettings(page);
-
-    await page.context().clearCookies();
-    const oliverHome = await opLogin.login(
-      OLIVER_OAUTH_USER.username,
-      OLIVER_OAUTH_USER.password,
-    );
-    await oliverHome.waitForReady();
-    const filesTab = new OpenProjectWorkPackageFilesTab(page);
-    await ensureFilesTabNextcloudConnected(
-      page,
-      filesTab,
-      DEMO_WORK_PACKAGE_ID,
-      OLIVER_OAUTH_USER,
-    );
 
     await waitForNextcloudStorageHealthy('demo-project');
     await ensureOauth2AmpfWebDavAccess(OLIVER_OAUTH_USER, {
       projectFolder: ampProjectFolder,
     });
+
+    if (!openProjectSession) {
+      await page.context().clearCookies();
+      // Callers that need OP use loginOpenProjectAsIntegrationUser / ensureFilesTab…
+      return { homePage: new OpenProjectHomePage(page), user };
+    }
+
+    await page.context().clearCookies();
+    const opLogin = new OpenProjectLoginPage(page);
+    const oliverHome = await opLogin.login(
+      OLIVER_OAUTH_USER.username,
+      OLIVER_OAUTH_USER.password,
+    );
+    await oliverHome.waitForReady();
     return { homePage: oliverHome, user };
   }
 

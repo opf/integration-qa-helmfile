@@ -449,7 +449,11 @@
     },
     "createWorkPackageProjectOptions": {
       "by": "locator",
-      "value": "[data-test-id='available-projects'] .vs__dropdown-menu li, [data-test-id='available-projects'] .vs__dropdown-option"
+      "value": "[data-test-id='available-projects'] .vs__dropdown-menu li, [data-test-id='available-projects'] .vs__dropdown-option, #createWorkPackageInput .vs__dropdown-menu li, #createWorkPackageInput .vs__dropdown-option, .create-workpackage-modal .vs__dropdown-menu li"
+    },
+    "createWorkPackageProjectSelected": {
+      "by": "locator",
+      "value": "[data-test-id='available-projects'] .vs__selected, #createWorkPackageInput .vs__selected"
     },
     "createWorkPackageSubjectInput": {
       "by": "locator",
@@ -461,7 +465,11 @@
     },
     "createWorkPackageTypeOptions": {
       "by": "locator",
-      "value": "[data-test-id='available-types'] .vs__dropdown-menu li, [data-test-id='available-types'] .vs__dropdown-option"
+      "value": "[data-test-id='available-types'] .vs__dropdown-menu li, [data-test-id='available-types'] .vs__dropdown-option, #createWorkPackageTypeInput .vs__dropdown-menu li, #createWorkPackageTypeInput .vs__dropdown-option"
+    },
+    "createWorkPackageTypeSelected": {
+      "by": "locator",
+      "value": "[data-test-id='available-types'] .vs__selected, #createWorkPackageTypeInput .vs__selected"
     },
     "createWorkPackageStatusInput": {
       "by": "locator",
@@ -470,6 +478,14 @@
     "createWorkPackageStatusOptions": {
       "by": "locator",
       "value": "[data-test-id='available-statuses'] .vs__dropdown-menu li, [data-test-id='available-status'] .vs__dropdown-option, [data-test-id='available-statuses'] .vs__dropdown-option"
+    },
+    "createWorkPackageStatusSelected": {
+      "by": "locator",
+      "value": "[data-test-id='available-statuses'] .vs__selected, [data-test-id='available-status'] .vs__selected, .create-workpackage-form--status .vs__selected"
+    },
+    "textViewerCloseButton": {
+      "by": "locator",
+      "value": "#viewer .header-close, #viewer button[aria-label='Close'], .viewer .header-close, .modal-header button.header-close, #viewer .modal-header button[aria-label*='Close']"
     },
     "createWorkPackageDescriptionInput": {
       "by": "locator",
@@ -648,11 +664,11 @@
     },
     "smartPickerResultItem": {
       "by": "locator",
-      "value": ".work-package-smart-picker .autocomplete-result, .work-package-picker .autocomplete-result, .autocomplete-result, [class*='work-package-picker'] li, .work-package-picker [role='option'], .work-package-smart-picker li, .modal-container li"
+      "value": "#work-package-smart-picker .vs__dropdown-option, .work-package-picker .vs__dropdown-option, #searchBar .vs__dropdown-option"
     },
     "smartPickerReferenceCard": {
       "by": "locator",
-      "value": "#workpackage-link-previews, .work-package-reference, .work-package-reference__link-preview, [id^='workpackage-'], .ProseMirror .widgets--content, .text-el:has-text('#'), a[href*='work_packages']"
+      "value": "#viewer .preview[data-text-el='preview'], #viewer .widgets--list, #viewer [id^='nc-reference-widget-'], #viewer .widget-custom, #workpackage-link-previews, .work-package-reference"
     },
     "smartPickerModal": {
       "by": "locator",
@@ -661,7 +677,7 @@
 
     "textEditorContent": {
       "by": "locator",
-      "value": "#viewer .ProseMirror[contenteditable='true'], .viewer .ProseMirror[contenteditable='true'], .text-editor__wrapper .ProseMirror, .ProseMirror[contenteditable='true']"
+      "value": "#viewer .ProseMirror[contenteditable='true'], .viewer.modal-mask .ProseMirror[contenteditable='true']"
     },
     "textViewerFileName": {
       "by": "locator",

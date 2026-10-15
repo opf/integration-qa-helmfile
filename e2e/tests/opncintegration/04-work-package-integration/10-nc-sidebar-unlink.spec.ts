@@ -70,8 +70,9 @@ test.describe('Work Package Integration - Nextcloud Sidebar Unlink', dualSetupTa
         'In Nextcloud Files, open File Details for linked file -> click OpenProject tab',
         async () => {
           logInfo('TC-2251', 'Step 1: Logging in to Nextcloud, opening details sidebar and OpenProject tab');
-          await ncLoginPage.login(user.username, user.password);
-          await filesPage.navigateToFiles();
+          await ncLoginPage.login(user.username, user.password, {
+            redirectPath: '/index.php/apps/files/files',
+          });
           await filesPage.waitForReady();
           await filesPage.openFileDetailsSidebar(TEST_FILE_NAME);
           await filesPage.openSidebarOpenProjectTab();

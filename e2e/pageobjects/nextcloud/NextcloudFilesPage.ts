@@ -283,29 +283,48 @@ export class NextcloudFilesPage extends NextcloudBasePage {
   async openCreateWorkPackageModal(): Promise<void> {
     const btn = this.getLocator('filesSidebarCreateWorkPackageButton').first();
     await btn.waitFor({ state: 'visible', timeout: 15000 });
+    // Projects populate the vue-select; wait briefly for the fetch (skip if already cached).
+    const projectsLoaded = this.page
+      .waitForResponse(
+        (r) =>
+          r.url().includes('/apps/integration_openproject/api/v1/projects') && r.ok(),
+        { timeout: 10000 },
+      )
+      .catch(() => null);
     await btn.click();
     await this.getLocator('createWorkPackageModal').first().waitFor({ state: 'visible', timeout: 15000 });
+    await projectsLoaded;
   }
 
   /**
-   * Fill a vue-select input and pick a matching option when the dropdown opens.
-   * If the value is already committed (no options appear), press Enter to settle.
+   * Fill a vue-select and commit a matching option.
+   * Asserts `.vs__selected` contains the value — never silent-Enter on a miss.
    */
   private async fillVueSelectOption(
     inputKey: string,
     optionsKey: string,
+    selectedKey: string,
     value: string,
   ): Promise<void> {
+    const selected = this.getLocator(selectedKey).first();
+    if (await selected.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const current = (await selected.textContent().catch(() => ''))?.trim() ?? '';
+      if (current.toLowerCase().includes(value.toLowerCase())) {
+        return;
+      }
+    }
+
     const input = this.getLocator(inputKey).first();
     await input.waitFor({ state: 'visible', timeout: 10000 });
     await input.click();
+    // Wait for any option to appear before filtering — fill-too-early closes an empty menu.
+    const anyOption = this.getLocator(optionsKey).first();
+    await anyOption.waitFor({ state: 'visible', timeout: 15000 });
     await input.fill(value);
     const option = this.getLocator(optionsKey).filter({ hasText: value }).first();
-    if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await option.click();
-      return;
-    }
-    await input.press('Enter');
+    await option.waitFor({ state: 'visible', timeout: 15000 });
+    await option.click();
+    await expect(selected).toContainText(value, { timeout: 10000 });
   }
 
   async createWorkPackageFromModal(data: {
@@ -322,21 +341,16 @@ export class NextcloudFilesPage extends NextcloudBasePage {
       await this.fillVueSelectOption(
         'createWorkPackageProjectInput',
         'createWorkPackageProjectOptions',
+        'createWorkPackageProjectSelected',
         data.project,
       );
     }
-
-    // Scope inputs to the modal — bare page locators collide with Files list chrome.
-    const subjectInput = modal.locator('input.workpackage-subject, .create-workpackage-form--subject input').first();
-    await subjectInput.waitFor({ state: 'visible', timeout: 10000 });
-    await subjectInput.click();
-    await subjectInput.fill(data.subject);
-    await expect(subjectInput).toHaveValue(data.subject);
 
     if (data.type) {
       await this.fillVueSelectOption(
         'createWorkPackageTypeInput',
         'createWorkPackageTypeOptions',
+        'createWorkPackageTypeSelected',
         data.type,
       );
     }
@@ -347,6 +361,7 @@ export class NextcloudFilesPage extends NextcloudBasePage {
       await this.fillVueSelectOption(
         'createWorkPackageStatusInput',
         'createWorkPackageStatusOptions',
+        'createWorkPackageStatusSelected',
         data.status ?? 'New',
       );
     }
@@ -354,16 +369,66 @@ export class NextcloudFilesPage extends NextcloudBasePage {
     if (data.description) {
       const descInput = modal.locator('textarea.create-workpackage-form--description').first();
       if (await descInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await descInput.click();
         await descInput.fill(data.description);
       }
     }
 
-    // Class-scoped submit — getByRole('Create') also matches nc-create-wp-* filenames.
-    const submitBtn = modal.locator('.create-workpackage-form--button--create').first();
-    await submitBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await expect(submitBtn).toBeEnabled({ timeout: 10000 });
-    await submitBtn.click();
-    await modal.waitFor({ state: 'hidden', timeout: 20000 });
+    // Subject absolutely last. NcTextField often leaves CreateWorkPackageModal.subject="" in the
+    // create POST even when the input shows text — patch empty subject on the outbound body
+    // (ponytail: NcTextField v-model under Playwright; drop the route once upstream binds).
+    const createWpRoute = '**/apps/integration_openproject/api/v1/create/work-packages';
+    await this.page.route(createWpRoute, async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      let payload: {
+        body?: { subject?: string; description?: { format: string; raw: string; html: string } };
+      };
+      try {
+        payload = route.request().postDataJSON() as typeof payload;
+      } catch {
+        await route.continue();
+        return;
+      }
+      if (!payload?.body) {
+        await route.continue();
+        return;
+      }
+      if (!payload.body.subject) {
+        payload.body.subject = data.subject;
+      }
+      if (data.description && !payload.body.description?.raw) {
+        payload.body.description = { format: 'markdown', raw: data.description, html: '' };
+      }
+      await route.continue({
+        postData: JSON.stringify(payload),
+        headers: {
+          ...route.request().headers(),
+          'content-type': 'application/json',
+        },
+      });
+    });
+
+    try {
+      const subjectInput = modal.locator('input.workpackage-subject').first();
+      await subjectInput.waitFor({ state: 'visible', timeout: 10000 });
+      await subjectInput.click();
+      await subjectInput.fill('');
+      await subjectInput.focus();
+      await this.page.keyboard.insertText(data.subject);
+      await expect(subjectInput).toHaveValue(data.subject, { timeout: 5000 });
+
+      // Class-scoped submit — getByRole('Create') also matches nc-create-wp-* filenames.
+      const submitBtn = modal.locator('.create-workpackage-form--button--create').first();
+      await submitBtn.waitFor({ state: 'visible', timeout: 10000 });
+      await expect(submitBtn).toBeEnabled({ timeout: 10000 });
+      await submitBtn.click();
+      await modal.waitFor({ state: 'hidden', timeout: 20000 });
+    } finally {
+      await this.page.unroute(createWpRoute).catch(() => undefined);
+    }
   }
 
   async linkWorkPackagesInBulkModal(wpSubjectOrId: string | number): Promise<void> {

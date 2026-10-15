@@ -1,5 +1,5 @@
 import { test as base, expect } from '@playwright/test';
-import { Page } from '@playwright/test';
+import type { Frame, Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { testConfig, type SetupMethod } from '../utils/config';
@@ -42,13 +42,8 @@ export const test = base.extend({
       current = { ...classifyPageUrl(nextUrl), startedAt: now };
     };
 
-    const onNav = (frame: { url: () => string } & { equals?: unknown }) => {
-      // Only main frame; Playwright Frame has page.mainFrame() identity viaurl check below.
-      try {
-        if (frame !== page.mainFrame()) return;
-      } catch {
-        return;
-      }
+    const onNav = (frame: Frame) => {
+      if (frame !== page.mainFrame()) return;
       const next = frame.url();
       if (classifyPageUrl(next).url !== current.url) {
         flush(next);

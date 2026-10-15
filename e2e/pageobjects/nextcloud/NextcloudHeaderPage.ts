@@ -66,16 +66,32 @@ export class NextcloudHeaderPage extends NextcloudBasePage {
     const input = this.getLocator('unifiedSearchInput').first();
     await input.waitFor({ state: 'visible', timeout: 15000 });
     await input.click();
-    await Promise.all([
-      this.page.waitForResponse(
-        (res) =>
-          res.url().includes('/search/providers/openproject-search/search') &&
-          res.request().method() === 'GET' &&
-          res.ok(),
-        { timeout: 30000 },
-      ),
-      input.fill(query),
-    ]);
+    // Modal may re-render the input after providers load; retry fill until OP search fires.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const fired = this.page
+        .waitForRequest(
+          (r) =>
+            r.url().includes('/search/providers/openproject-search/search') &&
+            r.method() === 'GET',
+          { timeout: 5000 },
+        )
+        .then(() => true, () => false);
+      await input.fill(query);
+      if (await fired) {
+        break;
+      }
+      if (attempt === 3) {
+        throw new Error('Unified search never queried openproject-search');
+      }
+      await input.fill('');
+    }
+    await this.page.waitForResponse(
+      (res) =>
+        res.url().includes('/search/providers/openproject-search/search') &&
+        res.request().method() === 'GET' &&
+        res.ok(),
+      { timeout: 30000 },
+    );
   }
 
   async verifyOpenProjectSearchGroupVisible(timeoutMs = 30000): Promise<void> {

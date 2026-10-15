@@ -15,20 +15,24 @@ import { getErrorMessage } from '../../../utils/error-utils';
 
 const WORK_PACKAGE_ID = 2;
 const SEARCH_QUERY = String(WORK_PACKAGE_ID);
-const DOC_NAME = `op-smart-picker-${Date.now()}.md`;
-const DOC_BODY = `# Smart picker fixture\n\nCreated for TC-2248.\n`;
+// Plain paragraphs only — a leading `#` heading steals caret and blocks the `/` slash menu.
+const DOC_BODY = `Smart picker fixture\n\nCreated for TC-2248.\n`;
 
 test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSetupTags, () => {
   test.describe.configure({ timeout: 300_000 });
+  let docName = '';
 
   test.beforeEach(() => {
     skipUnlessSetupMethod('sso-external', 'oauth2');
   });
 
-  test.afterAll(async () => {
+  test.afterEach(async ({ page }) => {
+    if (!docName) return;
     const user = integrationBrowserUser();
     try {
-      await deleteNextcloudFile(DOC_NAME, user);
+      const textPage = new NextcloudTextPage(page);
+      await textPage.closeViewer().catch(() => undefined);
+      await deleteNextcloudFile(docName, user);
     } catch (error: unknown) {
       logInfo('TC-2248', 'Cleanup doc error:', getErrorMessage(error));
     }
@@ -42,11 +46,12 @@ test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSe
       const textPage = new NextcloudTextPage(page);
       const talkPage = new NextcloudTalkPage(page);
       const user = integrationBrowserUser();
+      docName = `op-smart-picker-${Date.now()}.md`;
 
-      logInfo('TC-2248', 'Setup: preparing user and uploading Text document %s', DOC_NAME);
+      logInfo('TC-2248', 'Setup: preparing user and uploading Text document %s', docName);
       try {
         await prepareIntegrationUserForDemoStorage(page);
-        await uploadNextcloudFile(DOC_NAME, DOC_BODY, user);
+        await uploadNextcloudFile(docName, DOC_BODY, user);
         await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2248', 'Setup failed:', getErrorMessage(error));
@@ -55,8 +60,10 @@ test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSe
 
       await test.step('Open a document in Nextcloud Text', async () => {
         logInfo('TC-2248', 'Step 1: Login and open markdown in Text');
-        await loginPage.login(user.username, user.password);
-        await textPage.openMarkdownFile(DOC_NAME);
+        await loginPage.login(user.username, user.password, {
+          redirectPath: '/index.php/apps/files/files',
+        });
+        await textPage.openMarkdownFile(docName);
       });
 
       await test.step('In editor body, type / to trigger Smart Picker menu', async () => {
@@ -77,7 +84,7 @@ test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSe
         'Select the target work package and verify rich reference card is inserted',
         async () => {
           logInfo('TC-2248', 'Step 4: Selecting WP and verifying rich reference card');
-          await textPage.selectFirstWorkPackageResult();
+          await textPage.selectFirstWorkPackageResult(SEARCH_QUERY);
           await textPage.verifyReferenceCardInserted();
         },
       );
@@ -85,6 +92,7 @@ test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSe
       // Post-Squash (not counted): Talk also exposes the OpenProject smart picker.
       try {
         logInfo('TC-2248', 'Post: verifying OpenProject provider in Talk smart picker');
+        await textPage.closeViewer();
         await talkPage.navigateTo();
         await talkPage.waitForReady();
         await talkPage.openFirstConversationOrStay();
@@ -96,6 +104,8 @@ test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSe
           'Talk smart-picker smoke check skipped/failed: %s',
           getErrorMessage(error),
         );
+      } finally {
+        await textPage.closeViewer().catch(() => undefined);
       }
     },
   );

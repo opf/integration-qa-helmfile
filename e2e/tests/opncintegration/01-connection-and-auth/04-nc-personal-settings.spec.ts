@@ -37,44 +37,54 @@ test.describe('Connection & Auth - Nextcloud Personal OpenProject Settings', dua
 
       let navEnabledAfterToggle = false;
       let searchEnabledAfterToggle = false;
+      let navBefore = false;
+      let searchBefore = false;
 
       await test.step(
         'In Nextcloud, navigate to Personal Settings -> OpenProject',
         async () => {
           logInfo('TC-2256', 'Step 1: Login and open personal OpenProject settings');
-          await loginPage.login(user.username, user.password);
-          await personalSettings.navigateTo();
+          await loginPage.login(user.username, user.password, {
+            redirectPath: '/index.php/settings/user/openproject',
+          });
           await personalSettings.waitForReady();
         },
       );
 
-      await test.step(
-        'Toggle Enable navigation link and Enable unified search for tickets checkboxes',
-        async () => {
-          logInfo('TC-2256', 'Step 2: Toggling navigation link and unified search');
-          const navBefore = await personalSettings.isNavigationLinkEnabled();
-          const searchBefore = await personalSettings.isUnifiedSearchEnabled();
-          await personalSettings.toggleNavigationLink(!navBefore);
-          await personalSettings.toggleUnifiedSearch(!searchBefore);
-          navEnabledAfterToggle = await personalSettings.isNavigationLinkEnabled();
-          searchEnabledAfterToggle = await personalSettings.isUnifiedSearchEnabled();
-          expect(navEnabledAfterToggle).toBe(!navBefore);
-          expect(searchEnabledAfterToggle).toBe(!searchBefore);
-        },
-      );
+      try {
+        await test.step(
+          'Toggle Enable navigation link and Enable unified search for tickets checkboxes',
+          async () => {
+            logInfo('TC-2256', 'Step 2: Toggling navigation link and unified search');
+            navBefore = await personalSettings.isNavigationLinkEnabled();
+            searchBefore = await personalSettings.isUnifiedSearchEnabled();
+            await personalSettings.toggleNavigationLink(!navBefore);
+            await personalSettings.toggleUnifiedSearch(!searchBefore);
+            navEnabledAfterToggle = await personalSettings.isNavigationLinkEnabled();
+            searchEnabledAfterToggle = await personalSettings.isUnifiedSearchEnabled();
+            expect(navEnabledAfterToggle).toBe(!navBefore);
+            expect(searchEnabledAfterToggle).toBe(!searchBefore);
+          },
+        );
 
-      await test.step(
-        'Reload page and verify toggled settings persist',
-        async () => {
-          logInfo('TC-2256', 'Step 3: Reloading and asserting preference persistence');
-          await page.reload({ waitUntil: 'domcontentloaded' });
-          await personalSettings.waitForReady();
-          expect(await personalSettings.isNavigationLinkEnabled()).toBe(navEnabledAfterToggle);
-          expect(await personalSettings.isUnifiedSearchEnabled()).toBe(
-            searchEnabledAfterToggle,
-          );
-        },
-      );
+        await test.step(
+          'Reload page and verify toggled settings persist',
+          async () => {
+            logInfo('TC-2256', 'Step 3: Reloading and asserting preference persistence');
+            await page.reload({ waitUntil: 'domcontentloaded' });
+            await personalSettings.waitForReady();
+            expect(await personalSettings.isNavigationLinkEnabled()).toBe(navEnabledAfterToggle);
+            expect(await personalSettings.isUnifiedSearchEnabled()).toBe(
+              searchEnabledAfterToggle,
+            );
+          },
+        );
+      } finally {
+        // Restore prefs so later dual-setup specs (header link / unified search) are not flaky.
+        logInfo('TC-2256', 'Restoring personal OpenProject preferences');
+        await personalSettings.toggleNavigationLink(navBefore).catch(() => undefined);
+        await personalSettings.toggleUnifiedSearch(searchBefore).catch(() => undefined);
+      }
     },
   );
 });

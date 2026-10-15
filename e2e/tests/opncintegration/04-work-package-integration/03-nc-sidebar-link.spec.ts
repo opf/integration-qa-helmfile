@@ -70,8 +70,9 @@ test.describe('Work Package Integration - Nextcloud Sidebar Linking', dualSetupT
         'In Nextcloud Files app, locate target file, click context menu -> Details',
         async () => {
           logInfo('TC-2244', 'Step 1: Logging in to Nextcloud and opening file details sidebar');
-          await ncLoginPage.login(user.username, user.password);
-          await filesPage.navigateToFiles();
+          await ncLoginPage.login(user.username, user.password, {
+            redirectPath: '/index.php/apps/files/files',
+          });
           await filesPage.waitForReady();
           await filesPage.openFileDetailsSidebar(TEST_FILE_NAME);
         },

@@ -41,8 +41,9 @@ test.describe('Work Package Integration - Nextcloud Header OpenProject Link', du
 
       await test.step('Navigate to Nextcloud Personal Settings -> OpenProject', async () => {
         logInfo('TC-2250', 'Step 1: Login and open personal OpenProject settings');
-        await loginPage.login(user.username, user.password);
-        await personalSettings.navigateTo();
+        await loginPage.login(user.username, user.password, {
+          redirectPath: '/index.php/settings/user/openproject',
+        });
         await personalSettings.waitForReady();
       });
 
