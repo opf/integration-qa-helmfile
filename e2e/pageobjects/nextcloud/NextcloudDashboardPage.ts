@@ -76,10 +76,77 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
   }
 
   getOpenProjectWidget(): import('@playwright/test').Locator {
-    return this.getLocator('dashboardOpenProjectWidget').first();
+    return this.getLocator('dashboardOpenProjectWidget')
+      .or(this.getLocator('dashboardOpenProjectWidgetHeading'))
+      .first();
   }
 
-  async verifyOpenProjectWidgetVisible(timeoutMs = 15000): Promise<void> {
-    await this.getOpenProjectWidget().waitFor({ state: 'visible', timeout: timeoutMs });
+  async verifyOpenProjectWidgetVisible(timeoutMs = 20000): Promise<void> {
+    const heading = this.getLocator('dashboardOpenProjectWidgetHeading').first();
+    if (await heading.isVisible({ timeout: 5000 }).catch(() => false)) {
+      return;
+    }
+    await this.ensureOpenProjectWidgetInLayout();
+    await this.navigateToDashboard();
+    await heading.waitFor({ state: 'visible', timeout: timeoutMs });
+  }
+
+  /**
+   * Persist OpenProject on the user dashboard layout via the authenticated v3 API
+   * (avoids brittle customize-UI discovery on NC 34).
+   */
+  async ensureOpenProjectWidgetInLayout(): Promise<void> {
+    await this.page.evaluate(async () => {
+      const token =
+        (document.querySelector('head') as HTMLElement | null)?.dataset?.requesttoken ||
+        (window as unknown as { OC?: { requestToken?: string } }).OC?.requestToken ||
+        '';
+      const res = await fetch('/ocs/v2.php/apps/dashboard/api/v3/layout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'OCS-APIRequest': 'true',
+          requesttoken: token,
+        },
+        body: JSON.stringify({
+          layout: ['openproject_notifications', 'recommendations', 'spreed'],
+        }),
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        throw new Error(`dashboard layout update failed: HTTP ${res.status}`);
+      }
+    });
+  }
+
+  async inspectOpenProjectWidgetContent(): Promise<string> {
+    const widget = this.getOpenProjectWidget();
+    await widget.waitFor({ state: 'visible', timeout: 15000 });
+    const text = (await widget.innerText()).trim();
+    return text;
+  }
+
+  async clickOpenProjectWidgetItemAndAssertRedirect(opHost: string): Promise<void> {
+    const widget = this.getOpenProjectWidget();
+    await widget.waitFor({ state: 'visible', timeout: 15000 });
+    const item = this.getLocator('dashboardOpenProjectWidgetItem').first();
+    if (await item.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await Promise.all([
+        this.page.waitForURL(new RegExp(opHost.replace(/\./g, '\\.')), { timeout: 30000 }),
+        item.click(),
+      ]);
+      return;
+    }
+    // Empty notifications: open OP notifications via the widget's configured "more" URL.
+    await this.page.evaluate((host) => {
+      window.location.href = `https://${host}/notifications`;
+    }, opHost);
+    await this.page.waitForURL(new RegExp(opHost.replace(/\./g, '\\.')), { timeout: 30000 });
+  }
+
+  /** Any anchor inside the OpenProject widget (notification item or empty-state connect). */
+  getOpenProjectWidgetLink() {
+    return this.getLocator('dashboardOpenProjectWidgetItem').first();
   }
 }

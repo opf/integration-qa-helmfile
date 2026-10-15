@@ -150,6 +150,16 @@ try {
 - OpenProject file links and Nextcloud WebDAV files have separate cleanup paths. Deleting `OpenProject/<project folder>/<file>` from Nextcloud does not remove `/api/v3/file_links` records from the work package. Repeatable upload/link tests should delete stale OpenProject file links by work package and file name before uploading, and clean them again in `afterAll`.
 - Files-tab hover actions can be icon-only. In OpenProject 17.3, the linked-file actions observed are: download via `/download`, open location with accessible name `"Open file in location"`, and unlink with accessible name `"Remove file link"`. Prefer locator keys/page-object helpers for these actions and avoid clicking destructive actions in availability-only tests.
 
+### Extended Nextcloud ecosystem settings (Phase 3)
+
+Squash cases for admin settings, personal prefs, header link, unified search, dashboard widget, and Text/Talk smart picker (`05-admin-settings`, `04-nc-personal-settings`, `06`–`09` under `04-work-package-integration`):
+
+- Import `dualSetupTags` and `skipUnlessSetupMethod` from `tests/base-test` (not from `shared.ts`). Use `integrationBrowserUser()` / `prepareIntegrationUserForDemoStorage(page)` from `tests/opncintegration/shared.ts` for dual-mode user setup.
+- Reuse/extend existing page objects (`NextcloudPersonalSettingsPage`, `NextcloudDashboardPage`, `NextcloudAdminSettingsPage`, `NextcloudHeaderPage`, `NextcloudTextPage`, `NextcloudTalkPage`) before adding new ones. Locators stay in `locators/nextcloud.json`.
+- Dual-mode specs run on the **current** stack auth mode (`oauth2` or `sso-external`). Do not redeploy solely to flip setup method when verifying Phase 3; match Playwright to `environments/override.yaml` / `SETUP_METHOD`.
+- Smart picker (TC-2248) needs Nextcloud **Text** (`text`) and **Talk** (`spreed`) in `nextcloud.enableApps` (local: `environments/override.yaml`). After changing `enableApps`, `make deploy` updates the configmap; if apps are missing, install/enable with `occ` or restart the Nextcloud pod so `beforestart.sh` applies them. Map Squash steps to Text; Talk may be a post-step smoke check without changing `stepCount`.
+- After `make teardown-all` + fresh `make setup` / `make deploy`, re-trust the cluster CA on macOS before browser runs (export `opnc-ca-secret` and `security add-trusted-cert` — see root README / local deploy notes).
+
 ## Squash TM Reporting
 
 - Squash TM result import maps Playwright results through the test's automated test reference, and this repository stores that mapping in Playwright annotations.
@@ -234,6 +244,8 @@ test(
   - `npx playwright test --headed`
 - Default worker configuration:
   - Single worker (`workers: 1`), overridable via `E2E_WORKERS` or `--workers`.
+  - Integration projects set `fullyParallel: false` so specs run sequentially (alphabetic path order).
+- Video recording: **on by default** for UI projects (`playwright.config.ts` `use.video.mode`). Disable with `E2E_VIDEO=off`. Videos land under `e2e/test-results/`. No separate video script is required for a recording run.
 - Match Playwright to the deployed auth mode (`SETUP_METHOD` or `environments/override.yaml`):
   - OAuth2 stack: `@oauth2` runs; `@sso-external` skips. Grep: `--grep @oauth2`.
   - SSO-external stack: `@sso-external` runs; `@oauth2` skips. Grep: `--grep @sso-external`.
@@ -244,6 +256,7 @@ test(
   - Run tests: `npx playwright test`
   - Run tests headed: `npx playwright test --headed`
   - Run tests and open report: `npx playwright test && npx playwright show-report`
+  - Phase 3 example: `E2E_ENV=local npx playwright test --project=op-integration-tests tests/opncintegration/00-installation-and-upgrade/05-admin-settings.spec.ts tests/opncintegration/01-connection-and-auth/04-nc-personal-settings.spec.ts tests/opncintegration/04-work-package-integration/0{6,7,8,9}-nc-*.spec.ts`
 - **Docker (zero local Node/browser):**
   - Run all tests: `./run-tests.sh` (default `E2E_ENV=local`)
   - Target env: `E2E_ENV=edge ./run-tests.sh` or `E2E_ENV=stage ./run-tests.sh`

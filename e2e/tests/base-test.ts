@@ -1,10 +1,91 @@
 import { test as base, expect } from '@playwright/test';
 import { Page } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 import { testConfig, type SetupMethod } from '../utils/config';
 import { escapeForRegex, resolveHostname } from '../utils/url-helpers';
 import { logDebug } from '../utils/logger';
 
-export const test = base.extend({});
+/** Optional dwell-time capture: set E2E_PAGE_TIMING=1 to write page-timing.jsonl. */
+type PageDwellSegment = { url: string; host: string; path: string; startedAt: number; ms: number };
+
+function classifyPageUrl(rawUrl: string): { url: string; host: string; path: string } {
+  try {
+    if (!rawUrl || rawUrl === 'about:blank') {
+      return { url: 'about:blank', host: '', path: '/blank' };
+    }
+    const u = new URL(rawUrl);
+    const pathOnly = (u.pathname || '/').replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/';
+    const origin = u.origin === 'null' ? `${u.protocol}//${u.hostname}` : u.origin;
+    return { url: `${origin}${pathOnly}`, host: u.hostname, path: pathOnly };
+  } catch {
+    return { url: rawUrl, host: '', path: rawUrl };
+  }
+}
+
+function pageTimingLogPath(): string {
+  return path.resolve(__dirname, '..', 'playwright-report', 'page-timing.jsonl');
+}
+
+export const test = base.extend({
+  page: async ({ page }, use, testInfo) => {
+    const timingOn = process.env.E2E_PAGE_TIMING === '1';
+    const segments: PageDwellSegment[] = [];
+    let current = { ...classifyPageUrl(page.url()), startedAt: Date.now() };
+
+    const flush = (nextUrl: string) => {
+      const now = Date.now();
+      const ms = now - current.startedAt;
+      if (current.url && current.url !== 'about:blank' && ms >= 0) {
+        segments.push({ ...current, ms });
+      }
+      current = { ...classifyPageUrl(nextUrl), startedAt: now };
+    };
+
+    const onNav = (frame: { url: () => string } & { equals?: unknown }) => {
+      // Only main frame; Playwright Frame has page.mainFrame() identity viaurl check below.
+      try {
+        if (frame !== page.mainFrame()) return;
+      } catch {
+        return;
+      }
+      const next = frame.url();
+      if (classifyPageUrl(next).url !== current.url) {
+        flush(next);
+      }
+    };
+
+    if (timingOn) {
+      page.on('framenavigated', onNav);
+    }
+
+    await use(page);
+
+    if (!timingOn) return;
+
+    page.off('framenavigated', onNav);
+    try {
+      flush(page.isClosed() ? current.url : page.url());
+    } catch {
+      flush(current.url);
+    }
+
+    // Always record (even empty segments) so we know the hook ran.
+    const out = pageTimingLogPath();
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.appendFileSync(
+      out,
+      `${JSON.stringify({
+        title: testInfo.title,
+        file: testInfo.file,
+        project: testInfo.project.name,
+        status: testInfo.status,
+        durationMs: testInfo.duration,
+        segments,
+      })}\n`,
+    );
+  },
+});
 
 /** Shared tags for opncintegration specs (no setup-method exclusivity). */
 export const integrationTags = { tag: ['@regression', '@integration', '@smoke'] };
