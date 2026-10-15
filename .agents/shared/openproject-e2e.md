@@ -110,8 +110,10 @@ try {
   - `@oauth2` specs use `oauth2Tags` + `skipUnlessSetupMethod('oauth2')` — run only on oauth2 stacks.
   - `@sso-external` specs use `ssoExternalTags` + `skipUnlessSetupMethod('sso-external')` — run only on Keycloak SSO stacks.
   - Dual-mode specs use `dualSetupTags` + `skipUnlessSetupMethod('sso-external', 'oauth2')` and switch Alice SSO vs Oliver local auth inside the same Squash case (`loginOpenProjectAsIntegrationUser` / `prepareIntegrationUserForDemoStorage` in `tests/opncintegration/shared.ts`). Do not duplicate TCs per setup method.
+  - Import `dualSetupTags` / `oauth2Tags` / `ssoExternalTags` / `skipUnlessSetupMethod` / `isSetupMethod` from `tests/base-test` — not from `shared.ts`.
   - Guard `beforeAll` / `afterAll` with `isSetupMethod(...)` so skipped suites do not run API cleanup hooks.
-  - Pure Keycloak-only or Oliver-personal-settings-only flows stay single-mode; shared product flows (enable/marketplace/upgrade/file picker/deleted files) are dual-mode.
+  - Pure Keycloak-only or Oliver-connect/disconnect-only flows stay single-mode (`oauth2Tags` or `ssoExternalTags`). Shared product flows (enable/marketplace/upgrade, project storages, file linking, NC admin/personal settings, header link, unified search, dashboard widget, Text/Talk smart picker) are dual-mode.
+  - Match Playwright to the **currently deployed** stack (`environments/override.yaml` / `SETUP_METHOD`). Do not redeploy just to flip auth mode when the suite under test is dual-mode.
   - Local example: with `setupMethod: 'oauth2'` in override.yaml, `E2E_ENV=local npx playwright test --project=op-integration-tests` runs `@oauth2` and skips `@sso-external` without exporting `SETUP_METHOD`.
 - `global-setup.ts`:
   - Optionally waits for Kubernetes `setup-job` completion when `SETUP_JOB_CHECK=true` (uses `utils/pod-waiter.ts`).
@@ -147,19 +149,23 @@ try {
 - OpenProject may store the SSO user login as an email (e.g. `alice@example.com`) even when Keycloak login uses the short username (`alice`). Helpers that locate users should prefer the configured username but fall back to `TestUser.email` and other known aliases when needed.
 - **OAuth2 (`SETUP_METHOD=oauth2`)**: use `OLIVER_OAUTH_USER` with `ensureOpenProjectLocalUser` / `ensureNextcloudLocalUser` (not Keycloak). Personal-settings connect/disconnect uses `NextcloudPersonalSettingsPage` plus `OpenProjectLoginPage.loginIfPrompted` / `authorizeOAuthApplicationIfPrompted`. Authorize polling must stop once the browser is already on Nextcloud (prior grant / auto-redirect). When expecting a disconnected UI, prefer a short `isConnected(500)` probe over the default multi-second negative wait; skip wizard re-dismiss on Connect if login already dismissed it (`clickConnectToOpenProject(0)`).
 - OpenProject onboarding EnjoyHint can reappear after navigating away from home and block project-storage UI clicks. `ensureProjectHasNextcloudStorage` dismisses the tutorial after navigate; do not assume home `waitForReady()` is enough for later pages.
-- OpenProject file links and Nextcloud WebDAV files have separate cleanup paths. Deleting `OpenProject/<project folder>/<file>` from Nextcloud does not remove `/api/v3/file_links` records from the work package. Repeatable upload/link tests should delete stale OpenProject file links by work package and file name before uploading, and clean them again in `afterAll`.
+- OpenProject file links and Nextcloud WebDAV files have separate cleanup paths. Deleting `OpenProject/<project folder>/<file>` from Nextcloud does not remove `/api/v3/file_links` records from the work package. Repeatable upload/link tests should delete stale OpenProject file links by work package and file name before uploading, and clean them again in `afterAll`. WebDAV deletes can return HTTP 423; `deleteNextcloudFile` retries — still treat leftover 423s as cleanup noise, not product failures, when the assertion already passed.
 - Files-tab hover actions can be icon-only. In OpenProject 17.3, the linked-file actions observed are: download via `/download`, open location with accessible name `"Open file in location"`, and unlink with accessible name `"Remove file link"`. Prefer locator keys/page-object helpers for these actions and avoid clicking destructive actions in availability-only tests.
 
-### Extended Nextcloud ecosystem settings (Phase 3)
+### Dual-mode prepare and Nextcloud UI
 
-Squash cases for admin settings, personal prefs, header link, unified search, dashboard widget, and Text/Talk smart picker (`05-admin-settings`, `04-nc-personal-settings`, `06`–`09` under `04-work-package-integration`):
+Prefer `integrationBrowserUser()` + `prepareIntegrationUserForDemoStorage(page)` from `tests/opncintegration/shared.ts` for dual-mode membership, Demo storage, and NC↔OP connection:
 
-- Import `dualSetupTags` and `skipUnlessSetupMethod` from `tests/base-test` (not from `shared.ts`). Use `integrationBrowserUser()` / `prepareIntegrationUserForDemoStorage(page)` from `tests/opncintegration/shared.ts` for dual-mode user setup.
-- Reuse/extend existing page objects (`NextcloudPersonalSettingsPage`, `NextcloudDashboardPage`, `NextcloudAdminSettingsPage`, `NextcloudHeaderPage`, `NextcloudTextPage`, `NextcloudTalkPage`) before adding new ones. Locators stay in `locators/nextcloud.json`.
-- Dual-mode specs run on the **current** stack auth mode (`oauth2` or `sso-external`). Do not redeploy solely to flip setup method when verifying Phase 3; match Playwright to `environments/override.yaml` / `SETUP_METHOD`.
+- Default prepare leaves **no** OpenProject browser session (oauth2). Pass `{ openProjectSession: true }` only when the spec’s next step needs Oliver already logged into OpenProject. Specs that only need Nextcloud should omit it and login with `NextcloudLoginPage` (+ optional `redirectPath`).
+- Storage link and Oliver NC↔OP connect are API-first: skip admin UI when Demo project storage is already linked; `isNextcloudUserConnectedToOpenProject` (OCS) short-circuits personal-settings Connect when already connected.
+- Use `NextcloudLoginPage.login(..., { redirectPath })` when the first useful screen is not the dashboard (e.g. `/index.php/apps/files/files`, `/index.php/settings/user/openproject`) to avoid a dashboard settle hop.
+- Reuse/extend existing NC page objects before adding new ones: `NextcloudPersonalSettingsPage`, `NextcloudDashboardPage`, `NextcloudAdminSettingsPage`, `NextcloudHeaderPage`, `NextcloudFilesPage`, `NextcloudTextPage`, `NextcloudTalkPage`. Locators stay in `locators/nextcloud.json`.
 - Smart picker (TC-2248) needs Nextcloud **Text** (`text`) and **Talk** (`spreed`) in `nextcloud.enableApps` (local: `environments/override.yaml`). After changing `enableApps`, `make deploy` updates the configmap; if apps are missing, install/enable with `occ` or restart the Nextcloud pod so `beforestart.sh` applies them. Map Squash steps to Text; Talk may be a post-step smoke check without changing `stepCount`.
+- Text editor: scope to the document viewer (`#viewer` / `textEditorContent`) — folder description ProseMirror must not receive slash-menu input. Prefer page-object helpers (`openMarkdownFile`, slash trigger, `closeViewer`) over raw editor clicks.
+- Create-WP modal: fill vue-select type/status/project via `fillVueSelectOption` (wait for options, assert `.vs__selected`); set subject last. NcTextField may leave Vue `subject` empty under Playwright — `createWorkPackageFromModal` may patch an empty subject on the create POST; keep that until upstream binds reliably.
+- Unified search: `NextcloudHeaderPage.searchUnified` retries fill until the openproject-search request fires (avoid a single fill that races the search input).
 - After `make teardown-all` + fresh `make setup` / `make deploy`, re-trust the cluster CA on macOS before browser runs (export `opnc-ca-secret` and `security add-trusted-cert` — see root README / local deploy notes).
-
+- Optional dwell capture: `E2E_PAGE_TIMING=1` writes `e2e/playwright-report/page-timing.jsonl`; summarize with `node e2e/scripts/analyze-page-timing.mjs`.
 ## Squash TM Reporting
 
 - Squash TM result import maps Playwright results through the test's automated test reference, and this repository stores that mapping in Playwright annotations.
@@ -256,7 +262,8 @@ test(
   - Run tests: `npx playwright test`
   - Run tests headed: `npx playwright test --headed`
   - Run tests and open report: `npx playwright test && npx playwright show-report`
-  - Phase 3 example: `E2E_ENV=local npx playwright test --project=op-integration-tests tests/opncintegration/00-installation-and-upgrade/05-admin-settings.spec.ts tests/opncintegration/01-connection-and-auth/04-nc-personal-settings.spec.ts tests/opncintegration/04-work-package-integration/0{6,7,8,9}-nc-*.spec.ts`
+  - Subset by path (from `e2e/`): `E2E_ENV=local npx playwright test --project=op-integration-tests tests/opncintegration/04-work-package-integration/07-nc-smart-picker.spec.ts`
+  - Flake check: `npx playwright test --project=op-integration-tests --repeat-each=3 <spec>`
 - **Docker (zero local Node/browser):**
   - Run all tests: `./run-tests.sh` (default `E2E_ENV=local`)
   - Target env: `E2E_ENV=edge ./run-tests.sh` or `E2E_ENV=stage ./run-tests.sh`
