@@ -67,4 +67,19 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
     await integrationAppPage.navigateTo();
     return integrationAppPage;
   }
+
+  async navigateToDashboard(): Promise<void> {
+    await this.page.goto(`${this.baseUrl}/index.php/apps/dashboard`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await this.waitForReady();
+  }
+
+  getOpenProjectWidget(): import('@playwright/test').Locator {
+    return this.getLocator('dashboardOpenProjectWidget').first();
+  }
+
+  async verifyOpenProjectWidgetVisible(timeoutMs = 15000): Promise<void> {
+    await this.getOpenProjectWidget().waitFor({ state: 'visible', timeout: timeoutMs });
+  }
 }

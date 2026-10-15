@@ -394,6 +394,18 @@
     "accessTokenDialogCloseButton": {
       "by": "locator",
       "value": "#new-access-token-dialog button[aria-label='Close'], dialog#new-access-token-dialog button:has-text('Close'), dialog#new-access-token-dialog button:has-text('Cancel')"
+    },
+    "filesTabAccessRestrictedNotice": {
+      "by": "locator",
+      "value": "[data-test-selector='op-storage--access-restricted'], .notification-box.-warning, .notification-box:has-text('access restricted')"
+    },
+    "adminStoragesProjectsTable": {
+      "by": "locator",
+      "value": "table.op-storages-projects-table, .generic-table--results-container"
+    },
+    "storageHealthPill": {
+      "by": "locator",
+      "value": "[data-test-selector='storage-health-status'], .op-storage-health-pill, span:has-text('Healthy')"
     }
   }
 }
