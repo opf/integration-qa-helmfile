@@ -37,7 +37,7 @@ test.describe('MCP Resource Reading & Discovery', { tag: ['@mcp'] }, () => {
       await test.step('Verify URI matches and text content is non-empty', async () => {
         expect(response.contents.length).toBeGreaterThan(0);
         expect(response.contents[0].uri).toBe(uri);
-        expect(response.contents[0].text).toContain('Bob_AI');
+        expect('text' in response.contents[0] ? response.contents[0].text : '').toContain('Bob_AI');
       });
     },
   );
@@ -56,7 +56,7 @@ test.describe('MCP Resource Reading & Discovery', { tag: ['@mcp'] }, () => {
       await test.step('Verify URI matches and contents array is non-empty', async () => {
         expect(response.contents.length).toBeGreaterThan(0);
         expect(response.contents[0].uri).toBe(uri);
-        expect(response.contents[0].text).toContain('New');
+        expect('text' in response.contents[0] ? response.contents[0].text : '').toContain('New');
       });
     },
   );
@@ -75,7 +75,7 @@ test.describe('MCP Resource Reading & Discovery', { tag: ['@mcp'] }, () => {
       await test.step('Verify URI matches and contents array is non-empty', async () => {
         expect(response.contents.length).toBeGreaterThan(0);
         expect(response.contents[0].uri).toBe(uri);
-        expect(response.contents[0].text).toContain('Task');
+        expect('text' in response.contents[0] ? response.contents[0].text : '').toContain('Task');
       });
     },
   );

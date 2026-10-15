@@ -183,4 +183,15 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
 
     return descriptor.value;
   }
+
+  async uploadOrDropFiles(filePaths: string[]): Promise<void> {
+    const uploadInput = this.getLocator('workPackageFilesUploadInput').first();
+    await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
+    await uploadInput.setInputFiles(filePaths);
+  }
+
+  async verifyAccessRestrictedNotice(timeoutMs = 15000): Promise<void> {
+    const notice = this.getLocator('filesTabAccessRestrictedNotice').first();
+    await notice.waitFor({ state: 'visible', timeout: timeoutMs });
+  }
 }

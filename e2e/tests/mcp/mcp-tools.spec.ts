@@ -182,7 +182,7 @@ test.describe('MCP Tool Invocation & Integration', { tag: ['@mcp'] }, () => {
 
       await test.step('Verify resource text contains updated subject', async () => {
         expect(resourceResult.contents.length).toBeGreaterThan(0);
-        expect(resourceResult.contents[0].text).toContain(`${testSubject} - Updated`);
+        expect('text' in resourceResult.contents[0] ? resourceResult.contents[0].text : '').toContain(`${testSubject} - Updated`);
       });
     },
   );

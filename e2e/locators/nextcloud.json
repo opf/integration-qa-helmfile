@@ -376,6 +376,138 @@
         "role": "button",
         "name": "Connect to OpenProject"
       }
+    },
+    "filesSidebarOpenProjectTab": {
+      "by": "locator",
+      "value": "button[role='tab'][aria-controls*='integration_openproject'], div#tab-integration_openproject, [data-tabid='integration_openproject']"
+    },
+    "filesSidebarOpenProjectView": {
+      "by": "locator",
+      "value": "integration_openproject-files-sidebar-tab, .projects"
+    },
+    "filesSidebarSearchInput": {
+      "by": "locator",
+      "value": "#searchInput input, #searchBar input, input[placeholder*='Search work package']"
+    },
+    "filesSidebarSearchResults": {
+      "by": "locator",
+      "value": ".searchInput .vs__dropdown-menu li, #searchBar .vs__dropdown-menu li, .vs__dropdown-option"
+    },
+    "filesSidebarLinkedWorkPackages": {
+      "by": "locator",
+      "value": "#openproject-linked-workpackages, .linked-workpackages"
+    },
+    "filesSidebarLinkedItem": {
+      "by": "locator",
+      "value": ".linked-workpackages--workpackage"
+    },
+    "filesSidebarUnlinkButton": {
+      "by": "locator",
+      "value": ".linked-workpackages--workpackage--unlinkactionbutton, button[aria-label='Unlink Work Package'], button:has-text('Unlink Work Package')"
+    },
+    "filesSidebarCreateWorkPackageButton": {
+      "by": "locator",
+      "value": ".create-workpackage--button, button:has-text('Create and link a new work package')"
+    },
+    "createWorkPackageModal": {
+      "by": "locator",
+      "value": ".create-workpackage-modal, [data-test-id='create-workpackage-modal']"
+    },
+    "createWorkPackageModalTitle": {
+      "by": "locator",
+      "value": ".create-workpackage-modal--title"
+    },
+    "createWorkPackageProjectInput": {
+      "by": "locator",
+      "value": "[data-test-id='available-projects'] input, #createWorkPackageInput input"
+    },
+    "createWorkPackageProjectOptions": {
+      "by": "locator",
+      "value": "[data-test-id='available-projects'] .vs__dropdown-menu li, [data-test-id='available-projects'] .vs__dropdown-option"
+    },
+    "createWorkPackageSubjectInput": {
+      "by": "locator",
+      "value": ".create-workpackage-form--subject input, .workpackage-subject"
+    },
+    "createWorkPackageTypeInput": {
+      "by": "locator",
+      "value": "[data-test-id='available-types'] input, #createWorkPackageTypeInput input"
+    },
+    "createWorkPackageTypeOptions": {
+      "by": "locator",
+      "value": "[data-test-id='available-types'] .vs__dropdown-menu li, [data-test-id='available-types'] .vs__dropdown-option"
+    },
+    "createWorkPackageDescriptionInput": {
+      "by": "locator",
+      "value": "textarea.create-workpackage-form--description"
+    },
+    "createWorkPackageCancelButton": {
+      "by": "locator",
+      "value": ".create-workpackage-form--button--cancel, button:has-text('Cancel')"
+    },
+    "createWorkPackageSubmitButton": {
+      "by": "locator",
+      "value": ".create-workpackage-form--button--create, button:has-text('Create')"
+    },
+    "bulkLinkModal": {
+      "by": "locator",
+      "value": "#multipleFileLinkModal, .multiple-link-modal-container"
+    },
+    "bulkLinkSearchInput": {
+      "by": "locator",
+      "value": "#multipleFileLinkModal #searchInput input, #multipleFileLinkModal input[placeholder*='Search work package']"
+    },
+    "bulkLinkSearchResults": {
+      "by": "locator",
+      "value": "#multipleFileLinkModal .searchInput .vs__dropdown-menu li, #multipleFileLinkModal .vs__dropdown-option"
+    },
+    "bulkLinkSuccessProgress": {
+      "by": "locator",
+      "value": ".link-progress-information-success"
+    },
+    "bulkLinkFailedProgress": {
+      "by": "locator",
+      "value": ".link-progress-information-failed"
+    },
+    "headerOpenProjectLink": {
+      "by": "locator",
+      "value": "#openproject[data-app-id='integration_openproject'], header a[href*='/apps/integration_openproject'], a.app-menu-entry[data-id='integration_openproject'], a[aria-label='OpenProject']"
+    },
+    "unifiedSearchTrigger": {
+      "by": "locator",
+      "value": "button.unified-search__trigger, .unified-search button, #unified-search, button[aria-label*='Search']"
+    },
+    "unifiedSearchInput": {
+      "by": "locator",
+      "value": "input.unified-search__input, .unified-search input, input[type='search']"
+    },
+    "unifiedSearchOpenProjectGroup": {
+      "by": "locator",
+      "value": ".unified-search__result-group[data-provider='openproject'], .unified-search__result-group:has-text('OpenProject')"
+    },
+    "dashboardOpenProjectWidget": {
+      "by": "locator",
+      "value": "[data-widget-id='openproject_notifications'], .widget-openproject_notifications, .openproject-dashboard-widget"
+    },
+    "ncPersonalSettingsNavigationLinkToggle": {
+      "by": "locator",
+      "value": "#openproject-prefs--link, input#openproject-prefs--link"
+    },
+    "ncPersonalSettingsUnifiedSearchToggle": {
+      "by": "locator",
+      "value": "#openproject-prefs--u-search, input#openproject-prefs--u-search"
+    },
+    "ncAdminSettingsOpenProjectSection": {
+      "by": "locator",
+      "value": "#openproject_prefs.section, #openproject_prefs"
+    },
+    "ncAdminSettingsHostInput": {
+      "by": "locator",
+      "value": "#openproject-host-url, .form-openproject-host input"
+    },
+    "ncAdminSettingsProjectFolderSection": {
+      "by": "locator",
+      "value": ".form-project-folder, #openproject_prefs .form-project-folder"
     }
   }
 }
