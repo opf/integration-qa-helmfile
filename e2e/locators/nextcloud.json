@@ -402,6 +402,10 @@
       "by": "locator",
       "value": ".linked-workpackages--workpackage--unlinkactionbutton, button[aria-label='Unlink Work Package'], button:has-text('Unlink Work Package')"
     },
+    "filesSidebarUnlinkConfirmButton": {
+      "by": "locator",
+      "value": "button:has-text('Confirm'), button:has-text('Unlink')"
+    },
     "filesSidebarCreateWorkPackageButton": {
       "by": "locator",
       "value": ".create-workpackage--button, button:has-text('Create and link a new work package')"

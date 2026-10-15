@@ -185,22 +185,72 @@ export class NextcloudFilesPage extends NextcloudBasePage {
     await linkedItem.waitFor({ state: 'visible', timeout: 15000 });
   }
 
-  async unlinkWorkPackageFromSidebar(wpId: string | number): Promise<void> {
-    const item = this.page.locator(`#workpackage-${wpId}, .linked-workpackages--workpackage:has-text("#${wpId}")`).first();
+  private getCssLocatorValue(locatorKey: string): string {
+    const descriptor = this.locators.selectors[locatorKey];
+    if (!descriptor || descriptor.by !== 'locator') {
+      throw new Error(`Locator '${locatorKey}' must be a CSS locator`);
+    }
+    return descriptor.value;
+  }
+
+  /** Linked WP card in the NC OpenProject sidebar, matched by id (#N) or subject text. */
+  getLinkedWorkPackageItem(match: string | number): Locator {
+    const text = typeof match === 'number' ? `#${match}` : String(match);
+    return this.getLocator('filesSidebarLinkedItem').filter({ hasText: text }).first();
+  }
+
+  async clickUnlinkWorkPackage(match: string | number): Promise<void> {
+    const item = this.getLinkedWorkPackageItem(match);
     await item.waitFor({ state: 'visible', timeout: 15000 });
-    const unlinkBtn = item.locator('.linked-workpackages--workpackage--unlinkactionbutton, button').first();
+    const unlinkBtn = item.locator(this.getCssLocatorValue('filesSidebarUnlinkButton')).first();
     await unlinkBtn.waitFor({ state: 'visible', timeout: 10000 });
     await unlinkBtn.click();
-    const confirmBtn = this.page.locator('button:has-text("Confirm"), button:has-text("Unlink")').first();
+  }
+
+  async confirmUnlinkIfPrompted(): Promise<void> {
+    const confirmBtn = this.getLocator('filesSidebarUnlinkConfirmButton').first();
     if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await confirmBtn.click();
     }
-    await item.waitFor({ state: 'hidden', timeout: 15000 });
+  }
+
+  async expectLinkedWorkPackageHidden(match: string | number): Promise<void> {
+    await this.getLinkedWorkPackageItem(match).waitFor({ state: 'hidden', timeout: 15000 });
+  }
+
+  /**
+   * Resolve the numeric WP id from a linked sidebar card.
+   * Prefers the element id (`workpackage-N`), falls back to `#N` in text content.
+   */
+  async getLinkedWorkPackageId(matchText: string): Promise<number> {
+    const item = this.getLinkedWorkPackageItem(matchText);
+    await item.waitFor({ state: 'visible', timeout: 20000 });
+
+    const idAttr = await item.getAttribute('id');
+    const fromAttr = idAttr?.match(/^workpackage-(\d+)$/);
+    if (fromAttr) {
+      return parseInt(fromAttr[1], 10);
+    }
+
+    const itemText = await item.textContent();
+    const fromText = itemText?.match(/#(\d+)/);
+    if (fromText) {
+      return parseInt(fromText[1], 10);
+    }
+
+    throw new Error(
+      `Could not extract work package ID from linked item (id=${idAttr ?? 'null'}, text=${itemText ?? 'null'})`,
+    );
+  }
+
+  async unlinkWorkPackageFromSidebar(wpId: string | number): Promise<void> {
+    await this.clickUnlinkWorkPackage(wpId);
+    await this.confirmUnlinkIfPrompted();
+    await this.expectLinkedWorkPackageHidden(wpId);
   }
 
   async hasLinkedWorkPackage(wpId: string | number): Promise<boolean> {
-    const item = this.page.locator(`#workpackage-${wpId}, .linked-workpackages--workpackage:has-text("#${wpId}")`).first();
-    return item.isVisible({ timeout: 5000 }).catch(() => false);
+    return this.getLinkedWorkPackageItem(wpId).isVisible({ timeout: 5000 }).catch(() => false);
   }
 
   async getLinkedWorkPackagesCount(): Promise<number> {

@@ -110,26 +110,19 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
         'Verify in Nextcloud sidebar and OpenProject',
         async () => {
           logInfo('TC-2246', 'Step 4: Verifying newly created WP is displayed in NC sidebar and OP Files tab');
-          const linkedItem = page.locator(`.linked-workpackages--workpackage:has-text("${CREATED_WP_SUBJECT}")`).first();
+          const linkedItem = filesPage.getLinkedWorkPackageItem(CREATED_WP_SUBJECT);
           await expect(linkedItem).toBeVisible({ timeout: 20000 });
 
-          // Extract created WP ID from DOM attribute or text
-          const itemText = await linkedItem.textContent();
-          const idMatch = itemText?.match(/#(\d+)/);
-          if (idMatch) {
-            createdWorkPackageId = parseInt(idMatch[1], 10);
-            logInfo('TC-2246', 'Discovered created work package ID: #%s', createdWorkPackageId);
-          }
+          createdWorkPackageId = await filesPage.getLinkedWorkPackageId(CREATED_WP_SUBJECT);
+          logInfo('TC-2246', 'Discovered created work package ID: #%s', createdWorkPackageId);
 
-          if (createdWorkPackageId) {
-            const homePage = new OpenProjectHomePage(page);
-            await homePage.navigateTo();
-            await filesTab.navigateToDemoProjectWorkPackage(createdWorkPackageId);
-            await filesTab.openWorkPackageFilesTab();
-            await ensureFilesTabNextcloudConnected(page, filesTab, createdWorkPackageId, user);
-            const opLinkedFile = filesTab.getLinkedWorkPackageFileItem(TEST_FILE_NAME);
-            await expect(opLinkedFile).toBeVisible({ timeout: 20000 });
-          }
+          const homePage = new OpenProjectHomePage(page);
+          await homePage.navigateTo();
+          await filesTab.navigateToDemoProjectWorkPackage(createdWorkPackageId);
+          await filesTab.openWorkPackageFilesTab();
+          await ensureFilesTabNextcloudConnected(page, filesTab, createdWorkPackageId, user);
+          const opLinkedFile = filesTab.getLinkedWorkPackageFileItem(TEST_FILE_NAME);
+          await expect(opLinkedFile).toBeVisible({ timeout: 20000 });
         },
       );
     },

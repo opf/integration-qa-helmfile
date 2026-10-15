@@ -87,21 +87,13 @@ test.describe('Work Package Integration - Nextcloud Sidebar Unlink', dualSetupTa
 
       await test.step('Click Unlink icon next to the work package card', async () => {
         logInfo('TC-2251', 'Step 2: Clicking Unlink icon next to WP #%s', WORK_PACKAGE_ID);
-        const item = page.locator(`#workpackage-${WORK_PACKAGE_ID}, .linked-workpackages--workpackage:has-text("#${WORK_PACKAGE_ID}")`).first();
-        await expect(item).toBeVisible({ timeout: 15000 });
-        const unlinkBtn = item.locator('.linked-workpackages--workpackage--unlinkactionbutton, button').first();
-        await unlinkBtn.waitFor({ state: 'visible', timeout: 10000 });
-        await unlinkBtn.click();
+        await filesPage.clickUnlinkWorkPackage(WORK_PACKAGE_ID);
       });
 
       await test.step('Confirm unlinking in modal', async () => {
         logInfo('TC-2251', 'Step 3: Confirming unlinking action');
-        const confirmBtn = page.locator('button:has-text("Confirm"), button:has-text("Unlink")').first();
-        if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await confirmBtn.click();
-        }
-        const item = page.locator(`#workpackage-${WORK_PACKAGE_ID}, .linked-workpackages--workpackage:has-text("#${WORK_PACKAGE_ID}")`).first();
-        await expect(item).toBeHidden({ timeout: 15000 });
+        await filesPage.confirmUnlinkIfPrompted();
+        await filesPage.expectLinkedWorkPackageHidden(WORK_PACKAGE_ID);
       });
 
       await test.step(
