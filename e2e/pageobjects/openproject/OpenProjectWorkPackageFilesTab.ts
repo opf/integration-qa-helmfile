@@ -1,4 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
+import { existsSync, readFileSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 import { logDebug } from '../../utils/logger';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
 
@@ -189,10 +191,51 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
     return descriptor.value;
   }
 
-  async uploadOrDropFiles(filePaths: string[]): Promise<void> {
+  /**
+   * Attach one or more files to `#upload_files` (drop-box / Upload files control).
+   * Real filesystem paths are used when they exist; otherwise each entry is treated as a
+   * file name and filled from `fixtures/op-to-nc-upload-test.md`.
+   */
+  /**
+   * Attach files via `#upload_files`. OpenProject's input is single-file only, so multiple
+   * names are uploaded one at a time (caller confirms the location picker between calls).
+   */
+  async uploadOrDropFiles(filePathsOrNames: string[]): Promise<void> {
+    if (filePathsOrNames.length === 0) {
+      throw new Error('uploadOrDropFiles requires at least one file');
+    }
+    await this.uploadOrDropOneFile(filePathsOrNames[0]);
+  }
+
+  async uploadOrDropOneFile(filePathOrName: string): Promise<void> {
     const uploadInput = this.getLocator('workPackageFilesUploadInput').first();
     await uploadInput.waitFor({ state: 'attached', timeout: 15000 });
-    await uploadInput.setInputFiles(filePaths);
+    if (existsSync(filePathOrName)) {
+      await uploadInput.setInputFiles(filePathOrName);
+      return;
+    }
+    const fixtureBuffer = readFileSync(resolve(process.cwd(), 'fixtures/op-to-nc-upload-test.md'));
+    await uploadInput.setInputFiles({
+      name: basename(filePathOrName),
+      mimeType: 'text/markdown',
+      buffer: fixtureBuffer,
+    });
+  }
+
+  async navigateToProjectWorkPackageFiles(
+    projectIdentifier: string,
+    workPackageId: number,
+  ): Promise<void> {
+    const url = `${this.baseUrl}/projects/${projectIdentifier}/work_packages/${workPackageId}/files`;
+    await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+  }
+
+  async openWorkPackageFilesTabIfNeeded(timeout = 20000): Promise<void> {
+    const linkExisting = this.getLocator('linkExistingFilesButton').first();
+    if (await linkExisting.isVisible({ timeout: 2000 }).catch(() => false)) {
+      return;
+    }
+    await this.openWorkPackageFilesTab(timeout);
   }
 
   async verifyAccessRestrictedNotice(timeoutMs = 15000): Promise<void> {

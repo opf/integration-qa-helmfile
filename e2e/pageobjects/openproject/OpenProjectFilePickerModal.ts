@@ -64,6 +64,23 @@ export class OpenProjectFilePickerModal extends OpenProjectBasePage {
     }
   }
 
+  /** Wait for Choose location after a multi-file `setInputFiles` (no re-upload on retry). */
+  async waitForFilesPickerConfirmReady(maxAttempts = 15): Promise<void> {
+    const modal = this.getLocator('filesPickerModal');
+    const confirmButton = this.getLocator('filesPickerConfirmButton');
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await modal.waitFor({ state: 'visible', timeout: 15000 });
+      await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
+      if (await confirmButton.isEnabled()) {
+        return;
+      }
+      await this.page.waitForTimeout(2000);
+    }
+
+    throw new Error('Files picker "Choose location" button did not become enabled.');
+  }
+
   /** Confirm location; if a name-collision modal appears, click Replace (2068 / seed path). */
   async confirmFilesPickerOptionalReplace(): Promise<void> {
     await this.getLocator('filesPickerConfirmButton').click();
