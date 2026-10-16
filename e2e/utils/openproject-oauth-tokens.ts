@@ -148,6 +148,31 @@ export async function runAutomaticallyManagedStorageSync(
   }
 }
 
+/**
+ * Purge file links whose container (work package) was deleted.
+ * Uses kubectl + rails runner (requires cluster access; not available inside Docker E2E).
+ */
+export async function runCleanupUncontaineredFileLinksJob(
+  options: { namespace?: string } = {},
+): Promise<void> {
+  const ruby = [
+    `Storages::CleanupUncontaineredFileLinksJob.perform_now`,
+    `puts 'ok'`,
+  ].join('; ');
+
+  try {
+    const stdout = await railsRunner(ruby, options);
+    if (!stdout.includes('ok')) {
+      throw new Error(`Cleanup job finished without ok marker: ${stdout.slice(0, 300)}`);
+    }
+    logInfo('CleanupUncontaineredFileLinksJob completed');
+  } catch (error: unknown) {
+    throw new Error(
+      `Failed to run CleanupUncontaineredFileLinksJob: ${getErrorMessage(error)}`,
+    );
+  }
+}
+
 const E2E_NO_FILES_ROLE = 'E2E No Files';
 
 /**

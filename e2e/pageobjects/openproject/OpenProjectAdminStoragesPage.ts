@@ -22,6 +22,50 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
     await this.page.waitForURL(/\/admin\/settings\/storages\/\d+/, { timeout: 15000 });
   }
 
+  /** True when the Nextcloud storage name link is visible on the admin storages list. */
+  async hasNextcloudStorageListed(timeoutMs = 3000): Promise<boolean> {
+    return this.getLocator('adminStoragesNextcloudLink')
+      .first()
+      .isVisible({ timeout: timeoutMs })
+      .catch(() => false);
+  }
+
+  /**
+   * Delete the instance Nextcloud storage via Administration → File storages
+   * (danger dialog with confirmation checkbox).
+   */
+  async deleteNextcloudStorage(): Promise<void> {
+    if (!(await this.hasNextcloudStorageListed(5000))) {
+      logInfo('Nextcloud storage already absent from admin list; skipping delete');
+      return;
+    }
+
+    await this.openNextcloudStorage();
+
+    // PageHeader renders a mobile-only duplicate (d-sm-none); locator excludes it.
+    const deleteBtn = this.getLocator('adminStorageDeleteButton').first();
+    await deleteBtn.waitFor({ state: 'visible', timeout: 15000 });
+    await deleteBtn.click({ force: true });
+
+    const dialog = this.getLocator('adminStorageDestroyDialog').first();
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+
+    const checkbox = this.getLocator('adminStorageDestroyConfirmCheckbox').first();
+    await checkbox.waitFor({ state: 'attached', timeout: 10000 });
+    await checkbox.check({ force: true });
+
+    const confirm = this.getLocator('adminStorageDestroyConfirmButton').first();
+    await confirm.waitFor({ state: 'visible', timeout: 10000 });
+    await confirm.click();
+
+    await this.waitForAdminStoragesSettingsUrl(30000);
+    await this.getLocator('adminStoragesNextcloudLink')
+      .first()
+      .waitFor({ state: 'hidden', timeout: 30000 })
+      .catch(() => undefined);
+    logInfo('Deleted Nextcloud storage from Administration → File storages');
+  }
+
   async openProjectsTab(): Promise<void> {
     const tab = this.getLocator('adminStoragesProjectsTab').first();
     await tab.waitFor({ state: 'visible', timeout: 15000 });

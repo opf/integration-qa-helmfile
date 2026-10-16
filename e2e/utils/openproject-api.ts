@@ -675,3 +675,73 @@ export async function deleteWorkPackage(
   );
 }
 
+interface TypesCollection {
+  _embedded?: {
+    elements?: Array<{ id: number; name: string }>;
+  };
+}
+
+export interface CreateWorkPackageOptions {
+  projectIdentifier: string;
+  subject: string;
+  /** Defaults to Task. */
+  typeName?: string;
+}
+
+/** Create a work package via API; returns the new id. */
+export async function createWorkPackage(
+  options: CreateWorkPackageOptions,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS,
+): Promise<{ id: number }> {
+  const project = await findProjectByIdentifierOrName(options.projectIdentifier, credentials);
+  if (!project) {
+    throw new Error(`Project not found: ${options.projectIdentifier}`);
+  }
+
+  const typeName = options.typeName ?? 'Task';
+  const types = await apiRequest<TypesCollection>('/types', 'GET', credentials);
+  const type = types._embedded?.elements?.find((t) => t.name === typeName);
+  if (!type) {
+    throw new Error(`Work package type not found: ${typeName}`);
+  }
+
+  const created = await apiRequest<{ id: number }>(
+    '/work_packages',
+    'POST',
+    credentials,
+    {
+      subject: options.subject,
+      _links: {
+        project: { href: `/api/v3/projects/${project.id}` },
+        type: { href: `/api/v3/types/${type.id}` },
+      },
+    },
+  );
+  logInfo('Created work package #%s (%s) in %s', created.id, options.subject, options.projectIdentifier);
+  return { id: created.id };
+}
+
+/** True when GET /file_links/:id returns 200 (false on 404). */
+export async function fileLinkExists(
+  fileLinkId: number,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS,
+): Promise<boolean> {
+  const response = await tlsFetch(`${API_BASE_URL}/file_links/${fileLinkId}`, {
+    method: 'GET',
+    headers: {
+      accept: 'application/hal+json',
+      authorization: buildBasicAuthHeader(credentials),
+    },
+  });
+  if (response.status === 404) {
+    return false;
+  }
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `OpenProject API request failed: GET /file_links/${fileLinkId} - ${response.status} ${response.statusText} - ${message}`,
+    );
+  }
+  return true;
+}
+
