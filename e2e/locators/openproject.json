@@ -309,6 +309,25 @@
       "by": "locator",
       "value": "a[data-test-selector='storage-name']:has-text('nextcloud')"
     },
+    "adminStorageDeleteButton": {
+      "by": "locator",
+      "value": "a[data-test-selector='storage-delete-button']:not(.d-sm-none), a[aria-label='Delete storage']:not(.d-sm-none)"
+    },
+    "adminStorageDestroyDialog": {
+      "by": "locator",
+      "value": "[data-test-selector='op-storages--destroy-confirm-dialog'], dialog[role='alertdialog']"
+    },
+    "adminStorageDestroyConfirmCheckbox": {
+      "by": "locator",
+      "value": "[data-test-selector='op-storages--destroy-confirm-dialog'] input[type='checkbox'], dialog[role='alertdialog'] input[type='checkbox']"
+    },
+    "adminStorageDestroyConfirmButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Delete permanently"
+      }
+    },
     "adminStoragesProjectsTab": {
       "by": "locator",
       "value": "a.tabnav-tab:has-text('Projects')"

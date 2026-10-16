@@ -830,6 +830,46 @@ export async function waitForAmpfFolderVisibleToUser(
 }
 
 /**
+ * Poll until the AMPF project folder is no longer visible to the user via WebDAV
+ * (member-removal / ACL revoke sync settled).
+ */
+export async function waitForAmpfFolderHiddenFromUser(
+  user: TestUser,
+  options: {
+    projectFolder?: string;
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+  } = {},
+): Promise<void> {
+  const projectFolder = options.projectFolder ?? DEFAULT_AMPF_PROJECT_FOLDER;
+  const timeoutMs = options.timeoutMs ?? 300_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 5_000;
+  const deadline = Date.now() + timeoutMs;
+  const projectPath = `${OPENPROJECT_NC_GROUP}/${projectFolder}`;
+
+  while (Date.now() < deadline) {
+    try {
+      const { ncHost, userId, authorization } = await withWebDavAuth(user);
+      if (!(await fileExists(ncHost, userId, projectPath, authorization))) {
+        logInfo('AMPF folder hidden from %s at %s', user.username, projectPath);
+        return;
+      }
+    } catch (error: unknown) {
+      logWarn(
+        'AMPF hiddenness probe for %s failed: %s',
+        user.username,
+        getErrorMessage(error),
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `Timed out waiting for AMPF folder '${projectPath}' to become hidden from '${user.username}'`,
+  );
+}
+
+/**
  * Ensure direct access grants are enabled on the Keycloak nextcloud client.
  * This allows password-based token requests (ROPC flow) for Nextcloud users.
  * Should be called once during test setup (e.g. in global-setup.ts).
