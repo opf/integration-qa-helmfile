@@ -725,6 +725,111 @@ export async function ensureOauth2AmpfWebDavAccess(
 }
 
 /**
+ * Deny AMPF project-folder ACL for a user (permissions=0) while leaving OP membership intact.
+ * Used for permission-boundary tests after Files-tab OAuth is connected.
+ */
+export async function ensureNextcloudUserNotInGroup(
+  username: string,
+  groupId: string,
+  admin: TestUser = NC_ADMIN_USER,
+): Promise<void> {
+  const hosts = resolveHosts(resolveEnvName());
+  const auth = buildNextcloudBasicAuth(admin);
+  const response = await tlsFetch(
+    `https://${hosts.nextcloud}/ocs/v1.php/cloud/users/${encodeURIComponent(username)}/groups/${encodeURIComponent(groupId)}?format=json`,
+    {
+      method: 'DELETE',
+      headers: {
+        authorization: `Basic ${auth}`,
+        'OCS-APIRequest': 'true',
+        accept: 'application/json',
+      },
+    },
+  );
+  const text = await response.text();
+  let statusCode: number | undefined;
+  try {
+    const data = JSON.parse(text) as { ocs?: { meta?: NextcloudOcsMeta } };
+    statusCode = data.ocs?.meta?.statuscode;
+  } catch (error: unknown) {
+    logWarn('Nextcloud remove-from-group response was not JSON: %s', getErrorMessage(error));
+  }
+  // 100 success; 101/102 not in group / already removed
+  if (statusCode === 100 || statusCode === 101 || statusCode === 102 || response.ok) {
+    logInfo('Nextcloud user %s is not in group %s', username, groupId);
+    return;
+  }
+  throw new Error(
+    `Nextcloud OCS remove user from group failed for '${username}' ← '${groupId}': HTTP ${response.status} statuscode=${statusCode} - ${text}`,
+  );
+}
+
+export async function denyAmpfProjectFolderAccess(
+  user: TestUser,
+  options: { projectFolder?: string; folderId?: string } = {},
+): Promise<void> {
+  const projectFolder = options.projectFolder ?? DEFAULT_AMPF_PROJECT_FOLDER;
+  const folderId = options.folderId ?? DEFAULT_AMPF_FOLDER_ID;
+
+  await ensureAdminCanManageGroupfolderAcl(folderId);
+  const serviceUser = await ensureOpenProjectNcServiceUser();
+  const projectPath = `${OPENPROJECT_NC_GROUP}/${projectFolder}`;
+
+  await setGroupfoldersUserAclViaWebDav(projectPath, user.username, 0, serviceUser);
+  await setGroupfoldersUserAclViaWebDav(OPENPROJECT_NC_GROUP, user.username, 0, serviceUser);
+  // Drop Team Folder mount so OP Files sees unauthorized folder access (not full write UI).
+  await ensureNextcloudUserNotInGroup(user.username, OPENPROJECT_NC_GROUP);
+  logInfo('Denied AMPF ACL + group mount for %s on %s', user.username, projectPath);
+}
+
+/**
+ * Poll until the AMPF project folder is visible to the user via WebDAV (member sync settled).
+ */
+export async function waitForAmpfFolderVisibleToUser(
+  user: TestUser,
+  options: {
+    projectFolder?: string;
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+  } = {},
+): Promise<void> {
+  const projectFolder = options.projectFolder ?? DEFAULT_AMPF_PROJECT_FOLDER;
+  const timeoutMs = options.timeoutMs ?? 300_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 5_000;
+  const deadline = Date.now() + timeoutMs;
+  const projectPath = `${OPENPROJECT_NC_GROUP}/${projectFolder}`;
+
+  while (Date.now() < deadline) {
+    try {
+      const { ncHost, userId, authorization } = await withWebDavAuth(user);
+      if (await fileExists(ncHost, userId, projectPath, authorization)) {
+        logInfo('AMPF folder visible to %s at %s', user.username, projectPath);
+        return;
+      }
+      // Team Folder mount may appear before the nested project folder.
+      if (await fileExists(ncHost, userId, OPENPROJECT_NC_GROUP, authorization)) {
+        logInfo(
+          'AMPF Team Folder mount visible to %s; waiting for project folder %s',
+          user.username,
+          projectFolder,
+        );
+      }
+    } catch (error: unknown) {
+      logWarn(
+        'AMPF visibility probe for %s failed: %s',
+        user.username,
+        getErrorMessage(error),
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `Timed out waiting for AMPF folder '${projectPath}' to become visible to '${user.username}'`,
+  );
+}
+
+/**
  * Ensure direct access grants are enabled on the Keycloak nextcloud client.
  * This allows password-based token requests (ROPC flow) for Nextcloud users.
  * Should be called once during test setup (e.g. in global-setup.ts).

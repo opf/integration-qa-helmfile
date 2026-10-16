@@ -25,8 +25,9 @@ export class NextcloudFilesPage extends NextcloudBasePage {
 
   private folderOpenButton(folderName: string): Locator {
     const name = escapeForRegex(folderName);
+    // All files: "Open folder X"; Team folders root: "Open Team folder: X"
     return this.page.getByRole('button', {
-      name: new RegExp(`Open folder ${name}`, 'i'),
+      name: new RegExp(`Open (?:Team )?folder:?\\s*${name}`, 'i'),
     });
   }
 
@@ -40,16 +41,26 @@ export class NextcloudFilesPage extends NextcloudBasePage {
   async openFolder(folderName: string): Promise<void> {
     const openBtn = this.folderOpenButton(folderName);
     if (!(await openBtn.first().isVisible({ timeout: 5000 }).catch(() => false))) {
-      // AMPF root often lives under Team folders until mounted in All files.
-      const teamFolders = this.getLocator('filesTeamFoldersNavLink').first();
-      if (await teamFolders.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await teamFolders.click();
-        await this.waitForReady();
+      // AMPF root often lives under Team folders; never jump there when opening a
+      // nested project folder (that would leave OpenProject and hide the child).
+      if (/^OpenProject$/i.test(folderName)) {
+        const teamFolders = this.getLocator('filesTeamFoldersNavLink').first();
+        if (await teamFolders.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await teamFolders.click();
+          await this.waitForReady();
+        }
       }
     }
     await openBtn.first().waitFor({ state: 'visible', timeout: 20000 });
     await openBtn.first().click();
-    await this.page.waitForTimeout(500);
+    // Confirm navigation via breadcrumb when the Files UI exposes it.
+    await this.page
+      .getByRole('navigation', { name: /Current directory path/i })
+      .getByRole('button', { name: new RegExp(escapeForRegex(folderName), 'i') })
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .catch(() => undefined);
+    await this.waitForReady();
   }
 
   async selectFolder(folderName: string): Promise<void> {

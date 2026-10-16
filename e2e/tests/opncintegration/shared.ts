@@ -1,5 +1,12 @@
 import { Page } from '@playwright/test';
-import { ALICE_USER, OLIVER_OAUTH_USER, OP_ADMIN_USER, type TestUser } from '../../utils/test-users';
+import {
+  ALICE_USER,
+  BOB_OAUTH_USER,
+  BRIAN_USER,
+  OLIVER_OAUTH_USER,
+  OP_ADMIN_USER,
+  type TestUser,
+} from '../../utils/test-users';
 import { logInfo, logWarn } from '../../utils/logger';
 import { testConfig } from '../../utils/config';
 import { resolveHosts } from '../../utils/env-hosts';
@@ -173,6 +180,14 @@ export function isOauth2Setup(): boolean {
  */
 export function integrationBrowserUser(): TestUser {
   return isOauth2Setup() ? OLIVER_OAUTH_USER : ALICE_USER;
+}
+
+/**
+ * Secondary integration user (AMPF member sync / permission boundary):
+ * Bob on oauth2, Brian on Keycloak SSO.
+ */
+export function secondaryIntegrationUser(): TestUser {
+  return isOauth2Setup() ? BOB_OAUTH_USER : BRIAN_USER;
 }
 
 /**

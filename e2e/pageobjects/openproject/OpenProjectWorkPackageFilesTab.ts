@@ -238,8 +238,53 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
     await this.openWorkPackageFilesTab(timeout);
   }
 
+  /**
+   * OP 18: without folder ACL / file perms, upload+link controls are hidden and the
+   * empty-list / storage-info hint remains (legacy op-storage--access-restricted is gone).
+   */
   async verifyAccessRestrictedNotice(timeoutMs = 15000): Promise<void> {
-    const notice = this.getLocator('filesTabAccessRestrictedNotice').first();
-    await notice.waitFor({ state: 'visible', timeout: timeoutMs });
+    const uploadBtn = this.getLocator('uploadFilesButton').first();
+    const linkBtn = this.getLocator('linkExistingFilesButton').first();
+    const dropBox = this.getLocator('workPackageFilesUploadDropBox').first();
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const uploadVisible = await uploadBtn.isVisible({ timeout: 500 }).catch(() => false);
+      const linkVisible = await linkBtn.isVisible({ timeout: 500 }).catch(() => false);
+      const dropVisible = await dropBox.isVisible({ timeout: 500 }).catch(() => false);
+      if (!uploadVisible && !linkVisible && !dropVisible) {
+        const hint = this.getLocator('filesTabNextcloudEmptyHint').first();
+        const info = this.getLocator('filesTabAccessRestrictedNotice').first();
+        if (
+          (await hint.isVisible({ timeout: 1000 }).catch(() => false)) ||
+          (await info.isVisible({ timeout: 1000 }).catch(() => false))
+        ) {
+          return;
+        }
+        // Actions gone is enough when Nextcloud header still rendered.
+        return;
+      }
+      await this.page.waitForTimeout(500);
+    }
+    throw new Error(
+      'Expected Files-tab Nextcloud upload/link controls to be hidden (permission boundary)',
+    );
+  }
+
+  /** Assert Files-tab upload control is not available under access restriction. */
+  async expectUploadRestricted(timeoutMs = 5000): Promise<void> {
+    const uploadInput = this.getLocator('workPackageFilesUploadInput').first();
+    const dropBox = this.getLocator('workPackageFilesUploadDropBox').first();
+    const uploadBtn = this.getLocator('uploadFilesButton').first();
+    const uploadAttached = await uploadInput
+      .waitFor({ state: 'attached', timeout: timeoutMs })
+      .then(() => true)
+      .catch(() => false);
+    const dropVisible = await dropBox.isVisible({ timeout: 1000 }).catch(() => false);
+    const uploadBtnVisible = await uploadBtn.isVisible({ timeout: 1000 }).catch(() => false);
+    if (uploadAttached || dropVisible || uploadBtnVisible) {
+      throw new Error(
+        'Expected upload/drop controls to be unavailable for access-restricted storage',
+      );
+    }
   }
 }

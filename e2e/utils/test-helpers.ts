@@ -10,6 +10,7 @@ import {
   listStorages,
   waitForNextcloudStorageHealthy,
   ensureUserIsProjectMember,
+  ensureUserIsNotProjectMember,
 } from './openproject-api';
 import { deleteNextcloudFile } from './nextcloud-api';
 import {
@@ -21,6 +22,7 @@ import type { TestUser } from './test-users';
 export {
   ensureUserIsAdmin,
   ensureUserIsProjectMember,
+  ensureUserIsNotProjectMember,
   deleteProject,
   waitForNextcloudStorageHealthy,
 };

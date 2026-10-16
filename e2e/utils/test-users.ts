@@ -93,3 +93,15 @@ export const FILES_AUTH_OAUTH_USER: TestUser = {
   lastName: 'FilesAuth',
   email: envOrDefault('E2E_FILES_AUTH_EMAIL', 'oliver-files-auth@example.com'),
 };
+
+/**
+ * Bob Oauth — secondary local user for AMPF member-sync / permission-boundary (oauth2).
+ * Provisioned via OpenProject API + Nextcloud OCS (not Keycloak).
+ */
+export const BOB_OAUTH_USER: TestUser = {
+  username: envOrDefault('E2E_BOB_USER', 'bob'),
+  password: envOrDefault('E2E_BOB_PASS', 'BobOauth-1234!'),
+  firstName: 'Bob',
+  lastName: 'Oauth',
+  email: envOrDefault('E2E_BOB_EMAIL', 'bob@example.com'),
+};

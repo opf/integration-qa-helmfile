@@ -181,6 +181,14 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
     await pill.waitFor({ state: 'visible', timeout: 15000 });
   }
 
+  /** Trigger AMPF / project-folder sync from the storage sidebar. */
+  async clickSyncNow(): Promise<void> {
+    const sync = this.getLocator('storageSyncNowButton').first();
+    await sync.waitFor({ state: 'visible', timeout: 15000 });
+    await sync.click();
+    logInfo('Clicked storage Sync now');
+  }
+
   async runHealthChecksNow(): Promise<void> {
     const runNow = this.getLocator('storageHealthRunChecksButton').first();
     const openReport = this.getLocator('storageHealthOpenReportLink').first();
@@ -237,5 +245,42 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
     if (await errorBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
       throw new Error('Error banner related to storage health is visible');
     }
+  }
+
+  /**
+   * Open Replace Nextcloud OAuth form (accepts turbo-confirm), fill client id/secret, save.
+   * Re-entering the same credentials is the non-destructive path for TC 2257.
+   */
+  async reenterNextcloudOAuthCredentials(
+    clientId: string,
+    clientSecret: string,
+  ): Promise<void> {
+    const replace = this.getLocator('replaceNextcloudOAuthButton').first();
+    await replace.waitFor({ state: 'attached', timeout: 15000 });
+
+    this.page.once('dialog', (dialog) => {
+      void dialog.accept();
+    });
+    await replace.click({ force: true });
+
+    const clientIdInput = this.getLocator('nextcloudOAuthClientIdInput').first();
+    const clientSecretInput = this.getLocator('nextcloudOAuthClientSecretInput').first();
+    await clientIdInput.waitFor({ state: 'visible', timeout: 20000 });
+    await clientIdInput.fill(clientId);
+    await clientSecretInput.fill(clientSecret);
+
+    const save = this.getLocator('storageOAuthSaveAndContinueButton').first();
+    await save.waitFor({ state: 'visible', timeout: 10000 });
+    await save.click();
+
+    await this.getLocator('storageOAuthCompletedLabel')
+      .first()
+      .waitFor({ state: 'visible', timeout: 30000 })
+      .catch(() => undefined);
+    // After save, Storage OAuth section shows Completed + client id again.
+    await this.page
+      .waitForURL(/\/admin\/settings\/storages\/\d+/, { timeout: 30000 })
+      .catch(() => undefined);
+    logInfo('Re-entered Nextcloud OAuth client credentials and saved');
   }
 }
