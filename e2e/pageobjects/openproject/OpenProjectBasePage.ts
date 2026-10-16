@@ -47,8 +47,8 @@ export abstract class OpenProjectBasePage extends BasePage {
     DEMO_PROJECT_WORK_PACKAGE: /.*\/projects\/demo-project\/work_packages\/\d+(?!\/files).*/,
     DEMO_PROJECT_WORK_PACKAGE_FILES: /.*\/projects\/demo-project\/work_packages\/\d+\/files.*/,
     ADMIN_SETTINGS_STORAGES: /.*\/admin\/settings\/storages\/?$/,
-    ADMIN_STORAGE_PROJECTS: /.*\/admin\/settings\/storages\/\d+\/project_storages\/?$/,
-    ADMIN_STORAGE_PROJECTS_NEW: /.*\/admin\/settings\/storages\/\d+\/project_storages\/new\/?$/,
+    ADMIN_STORAGE_PROJECTS: /.*\/admin\/settings\/storages\/\d+\/project_storages\/?(?:\?.*)?$/,
+    ADMIN_STORAGE_PROJECTS_NEW: /.*\/admin\/settings\/storages\/\d+\/project_storages\/new\/?(?:\?.*)?$/,
   } as const;
 
   // Full URL paths (for navigation)

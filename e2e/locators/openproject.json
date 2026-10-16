@@ -236,6 +236,14 @@
       "by": "locator",
       "value": ".op-toast--content:has-text('Successfully created 1 file link.'), .flash.notice:has-text('Successfully created 1 file link.'), .flash-message.-success:has-text('Successfully created 1 file link.'), [role='status']:has-text('Successfully created 1 file link.')"
     },
+    "filesUploadSuccessMessageAny": {
+      "by": "locator",
+      "value": ".op-toast--content:has-text('Successfully created'), .flash.notice:has-text('Successfully created'), .flash-message.-success:has-text('Successfully created'), [role='status']:has-text('Successfully created')"
+    },
+    "filesUploadProgressIndicator": {
+      "by": "locator",
+      "value": "[data-test-selector='op-files-upload-progress'], .op-files-upload-progress, .op-loading-indicator, [class*='upload-progress']"
+    },
     "workPackageFileLink": {
       "by": "locator",
       "value": "a.op-file-list--item-action span.ellipsis"
@@ -303,7 +311,74 @@
     },
     "adminStoragesAddProjectsButton": {
       "by": "locator",
-      "value": "a.Button--primary.Button--medium.Button:has-text('Add projects')"
+      "value": "a.Button--primary.Button--medium.Button:has-text('Add projects'), a[aria-label='Add projects']"
+    },
+    "adminStoragesAddProjectsDialog": {
+      "by": "locator",
+      "value": "dialog#storages--projects-storage-modal, dialog[open]#storages--projects-storage-modal, dialog.Overlay[open]"
+    },
+    "adminStoragesNcLoginRequired": {
+      "by": "getByText",
+      "value": "Login to Nextcloud required"
+    },
+    "adminStoragesNextcloudLogInButton": {
+      "by": "locator",
+      "value": "button[aria-label='Login to nextcloud'], button:has-text('Nextcloud log in'), [role='dialog'] button.Button--primary"
+    },
+    "adminStoragesProjectAutocompleter": {
+      "by": "locator",
+      "value": "#storages_project_storage_id, #storages--projects-storage-modal input[role='combobox'][aria-label='Search']"
+    },
+    "adminStoragesProjectOption": {
+      "by": "locator",
+      "value": ".ng-dropdown-panel .ng-option, [role='option'].ng-option, .cdk-overlay-pane [role='option']"
+    },
+    "adminStoragesSelectedProjectToken": {
+      "by": "locator",
+      "value": "#storages--projects-storage-modal .ng-value, #storages--projects-storage-modal .ng-value-label, #storages--projects-storage-modal .Label"
+    },
+    "adminStoragesAddProjectsSubmit": {
+      "by": "locator",
+      "value": "#storages--projects-storage-modal button.Button--primary:has-text('Add'), dialog#storages--projects-storage-modal button:has-text('Add'), dialog.Overlay[open] button.Button--primary:has-text('Add')"
+    },
+    "storageHealthLastCheckText": {
+      "by": "locator",
+      "value": "text=/Last check:/i"
+    },
+    "storageHealthHostAccessible": {
+      "by": "locator",
+      "value": "text=/Host URL accessible/i"
+    },
+    "storageHealthChecksPassed": {
+      "by": "locator",
+      "value": "text=/All checks passed/i"
+    },
+    "storageHealthPassedLabel": {
+      "by": "locator",
+      "value": "text=/^Passed$/i"
+    },
+    "storageHealthRunChecksButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Run checks now"
+      }
+    },
+    "storageHealthOpenReportLink": {
+      "by": "locator",
+      "value": "a:has-text('Open full health report'), button:has-text('Open full health report')"
+    },
+    "storageHealthRerunChecksButton": {
+      "by": "locator",
+      "value": "a:has-text('Re-run all checks'), button:has-text('Re-run all checks'), [data-test-selector*='re-run'], [data-test-selector*='rerun']"
+    },
+    "storageHealthUnhealthyPill": {
+      "by": "locator",
+      "value": ".Label--danger:has-text('Unhealthy'), span:has-text('Unhealthy'), [data-test-selector='storage-health-status']:has-text('Unhealthy')"
+    },
+    "storageHealthErrorBanner": {
+      "by": "locator",
+      "value": ".Banner--error, .flash.error, .flash-message.-error, .notification-box.-error, [role='alert']:has-text('Unhealthy')"
     },
     "viewAllProjectsButton": {
       "by": "locator",
@@ -405,7 +480,7 @@
     },
     "storageHealthPill": {
       "by": "locator",
-      "value": "[data-test-selector='storage-health-status'], .op-storage-health-pill, span:has-text('Healthy')"
+      "value": "[data-test-selector='storage-health-status'], .op-storage-health-pill, .Label--success:has-text('Healthy'), span.Label:has-text('Healthy')"
     }
   }
 }

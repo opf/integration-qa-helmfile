@@ -2,6 +2,7 @@ export { OpenProjectBasePage } from './OpenProjectBasePage';
 export { OpenProjectLoginPage } from './OpenProjectLoginPage';
 export { OpenProjectHomePage } from './OpenProjectHomePage';
 export { OpenProjectProjectStoragesPage } from './OpenProjectProjectStoragesPage';
+export { OpenProjectAdminStoragesPage } from './OpenProjectAdminStoragesPage';
 
 export { OpenProjectWorkPackageFilesTab } from './OpenProjectWorkPackageFilesTab';
 export { OpenProjectFilePickerModal } from './OpenProjectFilePickerModal';
