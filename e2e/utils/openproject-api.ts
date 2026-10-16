@@ -364,11 +364,25 @@ export async function ensureUserIsProjectMember(
   }
 
   const memberships = await listProjectMemberships(project.id, credentials);
-  const alreadyMember = memberships.some(
+  const existing = memberships.find(
     (membership) => getPrincipalIdFromHref(membership._links.principal.href) === user.id
   );
 
-  if (alreadyMember) {
+  if (existing) {
+    const hasRole = existing._links.roles.some((r) => r.href === `/api/v3/roles/${role.id}`);
+    if (!hasRole) {
+      await apiRequest(`/memberships/${existing.id}`, 'PATCH', credentials, {
+        _links: {
+          roles: [{ href: `/api/v3/roles/${role.id}` }],
+        },
+      });
+      logInfo(
+        'Updated OpenProject membership role for %s on %s → %s',
+        userIdentifier,
+        projectIdentifier,
+        roleName,
+      );
+    }
     return { userId: user.id, projectId: project.id, created: false };
   }
 
@@ -389,6 +403,49 @@ export async function ensureUserIsProjectMember(
   );
 
   return { userId: user.id, projectId: project.id, created: true };
+}
+
+export interface EnsureNotProjectMemberResult {
+  userId: number;
+  projectId: number;
+  removed: boolean;
+}
+
+/**
+ * Idempotently remove a user from a project membership via API v3.
+ */
+export async function ensureUserIsNotProjectMember(
+  userIdentifier: string,
+  projectIdentifier: string,
+  credentials: AdminCredentials = DEFAULT_ADMIN_CREDENTIALS
+): Promise<EnsureNotProjectMemberResult> {
+  const user = await findUserByIdentifier(userIdentifier, credentials);
+  if (!user) {
+    throw new Error(`OpenProject user '${userIdentifier}' not found via API`);
+  }
+
+  const project = await findProjectByIdentifierOrName(projectIdentifier, credentials);
+  if (!project) {
+    throw new Error(`OpenProject project '${projectIdentifier}' not found via API`);
+  }
+
+  const memberships = await listProjectMemberships(project.id, credentials);
+  const membership = memberships.find(
+    (m) => getPrincipalIdFromHref(m._links.principal.href) === user.id
+  );
+
+  if (!membership) {
+    return { userId: user.id, projectId: project.id, removed: false };
+  }
+
+  await apiRequest(`/memberships/${membership.id}`, 'DELETE', credentials);
+  logInfo(
+    'Removed OpenProject user %s from project %s (membership %s)',
+    userIdentifier,
+    projectIdentifier,
+    membership.id
+  );
+  return { userId: user.id, projectId: project.id, removed: true };
 }
 
 export async function listProjects(

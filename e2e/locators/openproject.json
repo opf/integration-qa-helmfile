@@ -188,6 +188,10 @@
       "by": "locator",
       "value": "button[data-test-selector='op-storage--drop-box']"
     },
+    "uploadFilesButton": {
+      "by": "locator",
+      "value": "button[data-test-selector='op-storage--upload-file-button']"
+    },
     "linkExistingFilesButton": {
       "by": "locator",
       "value": "button[data-test-selector='op-storage--link-existing-file-button']"
@@ -472,8 +476,13 @@
     },
     "filesTabAccessRestrictedNotice": {
       "by": "locator",
-      "value": "[data-test-selector='op-storage--access-restricted'], .notification-box.-warning, .notification-box:has-text('access restricted')"
+      "value": "[data-test-selector='op-storage--information']:has-text('no access'), [data-test-selector='op-storage--information']:has-text('not allowed'), .op-files-tab--storage-info-box:has-text('no access'), .op-file-section--empty-list-hint, [data-test-selector='op-storage--access-restricted']"
     },
+    "filesTabNextcloudEmptyHint": {
+      "by": "locator",
+      "value": ".op-file-section--empty-list-hint, [class*='op-file-section--empty']:has-text('no linked files'), text=/Currently there are no linked files/i"
+    },
+
     "adminStoragesProjectsTable": {
       "by": "locator",
       "value": "table.op-storages-projects-table, .generic-table--results-container"
@@ -481,6 +490,36 @@
     "storageHealthPill": {
       "by": "locator",
       "value": "[data-test-selector='storage-health-status'], .op-storage-health-pill, .Label--success:has-text('Healthy'), span.Label:has-text('Healthy')"
+    },
+    "storageSyncNowButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "link",
+        "name": "Sync now"
+      }
+    },
+    "replaceNextcloudOAuthButton": {
+      "by": "locator",
+      "value": "a[href*='oauth_client/new'], a[aria-labelledby]:has(+ tool-tip:has-text('Replace Nextcloud OAuth')), turbo-frame#storage_oauth_client_section a[href*='oauth_client']"
+    },
+    "nextcloudOAuthClientIdInput": {
+      "by": "getByLabel",
+      "value": "Nextcloud OAuth Client ID"
+    },
+    "nextcloudOAuthClientSecretInput": {
+      "by": "getByLabel",
+      "value": "Nextcloud OAuth Client Secret"
+    },
+    "storageOAuthSaveAndContinueButton": {
+      "by": "getByRole",
+      "value": {
+        "role": "button",
+        "name": "Save and continue"
+      }
+    },
+    "storageOAuthCompletedLabel": {
+      "by": "locator",
+      "value": "turbo-frame#storage_oauth_client_section .Label--success:has-text('Completed'), turbo-frame#storage_oauth_client_section :text('Storage OAuth')"
     }
   }
 }
