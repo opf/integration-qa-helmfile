@@ -380,6 +380,14 @@
       "by": "locator",
       "value": "text=/^Passed$/i"
     },
+    "storageHealthWarningSummary": {
+      "by": "locator",
+      "value": "text=/check returned a warning|checks returned a warning|completed with warning/i"
+    },
+    "storageHealthWarningLabel": {
+      "by": "locator",
+      "value": "text=/^Warning$/i"
+    },
     "storageHealthRunChecksButton": {
       "by": "getByRole",
       "value": {

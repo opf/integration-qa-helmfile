@@ -167,10 +167,18 @@ async function listUsers(credentials: AdminCredentials): Promise<OpenProjectApiU
 
 function matchUser(user: OpenProjectApiUser, identifier: string): boolean {
   const normalized = identifier.toLowerCase();
-  return (
-    user.login.toLowerCase() === normalized ||
-    (user.email?.toLowerCase() === normalized)
-  );
+  const login = user.login.toLowerCase();
+  const email = user.email?.toLowerCase();
+  if (login === normalized || email === normalized) {
+    return true;
+  }
+  // SSO often stores login as email (brian@example.com) while Keycloak uses short username.
+  const emailAlias = `${normalized}@example.com`;
+  if (login === emailAlias || email === emailAlias) {
+    return true;
+  }
+  const localPart = (email ?? login).split('@')[0];
+  return localPart === normalized;
 }
 
 async function findUserByIdentifier(

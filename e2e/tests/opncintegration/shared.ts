@@ -303,6 +303,32 @@ export async function loginOpenProjectAsIntegrationUser(
   return homePage;
 }
 
+/**
+ * Ensure the secondary dual-setup user exists in OpenProject (and NC on oauth2)
+ * before membership API calls. SSO Brian is JIT-created on first Keycloak login.
+ * Leaves no browser session (cookies cleared after SSO provision).
+ */
+export async function ensureSecondaryIntegrationUserProvisioned(
+  page: Page,
+): Promise<TestUser> {
+  const user = secondaryIntegrationUser();
+  if (isOauth2Setup()) {
+    await ensureOpenProjectLocalUser(user);
+    await ensureNextcloudLocalUser(user);
+    return user;
+  }
+
+  const loginPage = new OpenProjectLoginPage(page);
+  const homePage = new OpenProjectHomePage(page);
+  logInfo('Provisioning SSO secondary user %s via Keycloak → OpenProject', user.username);
+  await loginPage.navigateTo();
+  const keycloak = await loginPage.clickKeycloakAuthButton();
+  await keycloak.loginAsUser(user.username, user.password);
+  await homePage.waitForReady();
+  await page.context().clearCookies();
+  return user;
+}
+
 /** Demo project WP used for Files-tab storage OAuth / health probes. */
 export const DEMO_WORK_PACKAGE_ID = 2;
 
@@ -475,10 +501,13 @@ export async function ensureFilesTabNextcloudConnected(
 
   const loginBtn = filesTab.getNextcloudLoginButtonLocator();
   const linkExisting = filesTab.getLocator('linkExistingFilesButton').first();
+  const noConnection = filesTab.getLocator('filesTabNoConnectionError').first();
 
   // Files Nextcloud section loads async after the URL is ready — poll either outcome.
+  // After NC app toggle, UI can briefly show "No Nextcloud connection" with neither control.
   let state: 'login' | 'connected' | null = null;
-  const deadline = Date.now() + 45_000;
+  const deadline = Date.now() + 60_000;
+  let reloads = 0;
   while (Date.now() < deadline) {
     if (await linkExisting.isVisible().catch(() => false)) {
       state = 'connected';
@@ -488,11 +517,26 @@ export async function ensureFilesTabNextcloudConnected(
       state = 'login';
       break;
     }
+    if (
+      reloads < 3 &&
+      (await noConnection.isVisible().catch(() => false))
+    ) {
+      reloads += 1;
+      logWarn(
+        'Files tab shows No Nextcloud connection; soft-reloading (%s/3)',
+        reloads,
+      );
+      await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
+      if (!filesTab.isOnDemoProjectWorkPackageFilesUrl()) {
+        await filesTab.openWorkPackageFilesTab(20000);
+      }
+      continue;
+    }
     await page.waitForTimeout(500);
   }
   if (!state) {
     throw new Error(
-      'Files tab Nextcloud section neither showed login nor link-existing controls within 45s',
+      'Files tab Nextcloud section neither showed login nor link-existing controls within 60s',
     );
   }
 

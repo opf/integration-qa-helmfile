@@ -5,6 +5,7 @@ import { squashTestCase } from '../../../utils/squash-metadata';
 import { NC_ADMIN_USER } from '../../../utils/test-users';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
+import { waitForNextcloudStorageHealthy } from '../../../utils/test-helpers';
 import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
@@ -99,13 +100,27 @@ test.describe('Installation & Upgrade - Enable App', dualSetupTags, () => {
         isOauth2Setup() ? 'oauth2' : 'sso-external',
       );
       await page.context().clearCookies();
+      // prepare re-links Demo storage; wait for healthy after that (toggle can unsettle AMPF briefly).
       const { homePage } = await prepareIntegrationUserForDemoStorage(page, {
         openProjectSession: true,
       });
       await homePage.waitForReady();
+      await waitForNextcloudStorageHealthy('demo-project', { timeoutMs: 120_000 });
 
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
-      await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
+      try {
+        await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
+      } catch (error: unknown) {
+        logInfo(
+          'TC-2147',
+          'Post: Files tab connect failed after enable; reload + retry once: %s',
+          getErrorMessage(error),
+        );
+        await waitForNextcloudStorageHealthy('demo-project', { timeoutMs: 60_000 });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await homePage.waitForReady();
+        await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);
+      }
       logInfo('TC-2147', 'Post: OpenProject Files tab still connected after enable cycle');
     },
   );

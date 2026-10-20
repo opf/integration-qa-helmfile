@@ -2,14 +2,10 @@ import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-t
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { NextcloudFilesPage, NextcloudLoginPage } from '../../../pageobjects/nextcloud';
 import {
-  ensureNextcloudLocalUser,
   waitForAmpfFolderHiddenFromUser,
   waitForAmpfFolderVisibleToUser,
 } from '../../../utils/nextcloud-api';
-import {
-  ensureOpenProjectLocalUser,
-  ensureUserIsProjectMember,
-} from '../../../utils/openproject-api';
+import { ensureUserIsProjectMember } from '../../../utils/openproject-api';
 import {
   ensureProjectHasNextcloudStorage,
   ensureUserIsNotProjectMember,
@@ -19,7 +15,7 @@ import { logInfo, logError } from '../../../utils/logger';
 import { runAutomaticallyManagedStorageSync } from '../../../utils/openproject-oauth-tokens';
 import {
   ampProjectFolder,
-  isOauth2Setup,
+  ensureSecondaryIntegrationUserProvisioned,
   secondaryIntegrationUser,
 } from '../shared';
 
@@ -46,10 +42,7 @@ test.describe('AMPF Folder Permission Sync on Member Removal', dualSetupTags, ()
         bob.username,
       );
       try {
-        if (isOauth2Setup()) {
-          await ensureOpenProjectLocalUser(bob);
-          await ensureNextcloudLocalUser(bob);
-        }
+        await ensureSecondaryIntegrationUserProvisioned(page);
         await ensureProjectHasNextcloudStorage(DEMO_PROJECT, undefined);
         await ensureUserIsProjectMember(bob.username, DEMO_PROJECT, 'Member');
         await runAutomaticallyManagedStorageSync();

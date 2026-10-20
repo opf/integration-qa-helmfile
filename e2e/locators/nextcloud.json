@@ -13,6 +13,10 @@
       "by": "locator",
       "value": "button[data-login-form-submit][type='submit']"
     },
+    "keycloakLoginLink": {
+      "by": "locator",
+      "value": "a:has-text('Login with keycloak'), a[href*='/apps/user_oidc/login/keycloak'], a[href*='user_oidc'][href*='keycloak']"
+    },
     "welcomeMessageClose": {
       "by": "locator",
       "value": ".welcome .close, .modal__close, [aria-label*='close'], [aria-label*='Close']"
