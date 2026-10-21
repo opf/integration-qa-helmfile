@@ -306,9 +306,9 @@ export async function loginOpenProjectAsIntegrationUser(
 }
 
 /**
- * Ensure the secondary dual-setup user exists in OpenProject (and NC on oauth2)
- * before membership API calls. SSO Brian is JIT-created on first Keycloak login.
- * Leaves no browser session (cookies cleared after SSO provision).
+ * Ensure the secondary dual-setup user exists in OpenProject and Nextcloud
+ * before membership API calls. SSO Brian is JIT-created via Keycloak on both
+ * apps (AMPF ACL sync needs the NC identity). Leaves no browser session.
  */
 export async function ensureSecondaryIntegrationUserProvisioned(
   page: Page,
@@ -327,6 +327,14 @@ export async function ensureSecondaryIntegrationUserProvisioned(
   const keycloak = await loginPage.clickKeycloakAuthButton();
   await keycloak.loginAsUser(user.username, user.password);
   await homePage.waitForReady();
+  await page.context().clearCookies();
+
+  // NC JIT so AMPF Sync now can grant groupfolder ACL before WebDAV probes.
+  logInfo('Provisioning SSO secondary user %s via Keycloak → Nextcloud', user.username);
+  const ncLogin = new NextcloudLoginPage(page);
+  await ncLogin.login(user.username, user.password, {
+    redirectPath: '/index.php/apps/files/files',
+  });
   await page.context().clearCookies();
   return user;
 }

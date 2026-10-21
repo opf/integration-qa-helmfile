@@ -56,9 +56,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: {
-      // On by default for HTML reports; Squash publish never uploads webm/mp4/zip.
+      // Retain video only for failed tests (HTML report). Squash never uploads webm.
       // Set E2E_VIDEO=off to disable globally. MCP project forces video off below.
-      mode: process.env.E2E_VIDEO === 'off' ? 'off' : 'on',
+      mode: process.env.E2E_VIDEO === 'off' ? 'off' : 'retain-on-failure',
       size: { width: 1280, height: 800 },
     },
     ignoreHTTPSErrors: true,

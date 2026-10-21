@@ -249,16 +249,16 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
   }
 
   /**
-   * After Sync now, turbo swaps Sync now for "Synchronization queued" and does
-   * not poll — reload until Last sync advances (job finished) or Sync now is
-   * back after a settle window. Soft-timeout: folder waiter is the hard gate.
+   * After Sync now, turbo shows "Synchronization queued" only for that stream —
+   * reload always restores Sync now. Poll until Last sync advances (job finished).
+   * Re-click Sync now if Last sync stalls ~60s. Soft-timeout: folder waiter is the hard gate.
    */
-  async waitForAmpfSyncSettled(timeoutMs = 180_000): Promise<void> {
+  async waitForAmpfSyncSettled(timeoutMs = 90_000): Promise<void> {
     const queued = this.getLocator('storageSyncQueuedMessage').first();
-    const syncNow = this.getLocator('storageSyncNowButton').first();
     const syncedAt = this.getLocator('storageHealthSyncedAt').first();
     const before = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
     const started = Date.now();
+    let lastReclickAt = started;
 
     await queued.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
 
@@ -268,19 +268,20 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
       await syncedAt.waitFor({ state: 'visible', timeout: 20000 }).catch(() => undefined);
 
       const after = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
-      const stillQueued = await queued.isVisible().catch(() => false);
-      if (after && after !== before && !stillQueued) {
+      if (after && after !== before) {
         logInfo('AMPF sync settled (Last sync: %s → %s)', before || '(none)', after);
         return;
       }
-      // Minute-granularity Last sync may not change; Sync now restored = pending cleared.
-      if (
-        !stillQueued &&
-        (await syncNow.isVisible().catch(() => false)) &&
-        Date.now() - started >= 30_000
-      ) {
-        logInfo('AMPF sync settled (Sync now restored after reload)');
-        return;
+
+      // Job may have been lost / worker lag — re-queue once per ~60s while stalled.
+      if (Date.now() - lastReclickAt >= 60_000) {
+        const syncNow = this.getLocator('storageSyncNowButton').first();
+        if (await syncNow.isVisible().catch(() => false)) {
+          logInfo('AMPF Last sync unchanged; clicking Sync now again');
+          await syncNow.click();
+          await queued.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
+          lastReclickAt = Date.now();
+        }
       }
     }
     logInfo(

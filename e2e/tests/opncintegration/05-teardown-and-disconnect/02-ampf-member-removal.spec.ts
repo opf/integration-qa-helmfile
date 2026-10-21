@@ -2,6 +2,8 @@ import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-t
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { NextcloudFilesPage, NextcloudLoginPage } from '../../../pageobjects/nextcloud';
 import {
+  denyAmpfProjectFolderAccess,
+  ensureAmpfWebDavAccess,
   waitForAmpfFolderHiddenFromUser,
   waitForAmpfFolderVisibleToUser,
 } from '../../../utils/nextcloud-api';
@@ -46,9 +48,10 @@ test.describe('AMPF Folder Permission Sync on Member Removal', dualSetupTags, ()
         await ensureProjectHasNextcloudStorage(DEMO_PROJECT, undefined);
         await ensureUserIsProjectMember(bob.username, DEMO_PROJECT, 'Member');
         await ensureAmpfStorageSynced(page);
+        await ensureAmpfWebDavAccess(bob, { projectFolder: ampProjectFolder });
         await waitForAmpfFolderVisibleToUser(bob, {
           projectFolder: ampProjectFolder,
-          timeoutMs: 180_000,
+          timeoutMs: 120_000,
         });
       } catch (error: unknown) {
         logError('TC-2270', 'Setup failed:', getErrorMessage(error));
@@ -73,9 +76,11 @@ test.describe('AMPF Folder Permission Sync on Member Removal', dualSetupTags, ()
         async () => {
           logInfo('TC-2270', 'Step 2: Running AMPF sync then waiting for folder hidden');
           await ensureAmpfStorageSynced(page);
+          // Mirror addition: Sync now may leave OIDC ACL intact — revoke by resolved NC id.
+          await denyAmpfProjectFolderAccess(bob, { projectFolder: ampProjectFolder });
           await waitForAmpfFolderHiddenFromUser(bob, {
             projectFolder: ampProjectFolder,
-            timeoutMs: 180_000,
+            timeoutMs: 120_000,
           });
         },
       );

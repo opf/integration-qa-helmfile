@@ -534,8 +534,8 @@
       "value": "Synchronization queued"
     },
     "storageHealthSyncedAt": {
-      "by": "locator",
-      "value": "[data-test-selector='storage-health-checked-at']"
+      "by": "getByText",
+      "value": "Last sync:"
     },
     "replaceNextcloudOAuthButton": {
       "by": "locator",

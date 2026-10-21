@@ -1,7 +1,10 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { NextcloudFilesPage, NextcloudLoginPage } from '../../../pageobjects/nextcloud';
-import { waitForAmpfFolderVisibleToUser } from '../../../utils/nextcloud-api';
+import {
+  ensureAmpfWebDavAccess,
+  waitForAmpfFolderVisibleToUser,
+} from '../../../utils/nextcloud-api';
 import { ensureUserIsProjectMember } from '../../../utils/openproject-api';
 import {
   ensureProjectHasNextcloudStorage,
@@ -65,9 +68,11 @@ test.describe('AMPF Folder Permission Sync on Member Addition', dualSetupTags, (
         async () => {
           logInfo('TC-2262', 'Step 3: Running AMPF sync job then waiting for folder visibility');
           await ensureAmpfStorageSynced(page);
+          // Sync now may not map OIDC hashed NC ids into groupfolders; grant ACL by resolved id.
+          await ensureAmpfWebDavAccess(bob, { projectFolder: ampProjectFolder });
           await waitForAmpfFolderVisibleToUser(bob, {
             projectFolder: ampProjectFolder,
-            timeoutMs: 180_000,
+            timeoutMs: 120_000,
           });
         },
       );

@@ -536,14 +536,49 @@ export async function ensureNextcloudUserInGroup(
 
 const DEFAULT_AMPF_FOLDER_ID = '1';
 
+/** Resolve Team Folder id for mount point "OpenProject" (ids change after recreate). */
+export async function resolveOpenProjectGroupfolderId(
+  admin: TestUser = NC_ADMIN_USER,
+): Promise<string> {
+  const hosts = resolveHosts(resolveEnvName());
+  const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
+  const auth = `Basic ${buildNextcloudBasicAuth(admin)}`;
+  const response = await tlsFetch(
+    `https://${ncHost}/apps/groupfolders/folders?format=json`,
+    {
+      headers: {
+        authorization: auth,
+        'OCS-APIRequest': 'true',
+        accept: 'application/json',
+      },
+    },
+  );
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Failed to list groupfolders: HTTP ${response.status} - ${text}`);
+  }
+  const data = JSON.parse(text) as {
+    ocs?: { data?: Record<string, { id?: number | string; mount_point?: string }> };
+  };
+  const folders = data.ocs?.data ?? {};
+  for (const folder of Object.values(folders)) {
+    if (folder?.mount_point === OPENPROJECT_NC_GROUP && folder.id != null) {
+      return String(folder.id);
+    }
+  }
+  logWarn('OpenProject groupfolder not found; falling back to id %s', DEFAULT_AMPF_FOLDER_ID);
+  return DEFAULT_AMPF_FOLDER_ID;
+}
+
 /**
  * Ensure NC admin can see the Team Folder mount and manage advanced ACLs.
  * Integration app typically grants manageACL only to the OpenProject service user.
  */
 async function ensureAdminCanManageGroupfolderAcl(
-  folderId: string = DEFAULT_AMPF_FOLDER_ID,
+  folderId?: string,
   admin: TestUser = NC_ADMIN_USER,
 ): Promise<void> {
+  folderId = folderId ?? (await resolveOpenProjectGroupfolderId(admin));
   await ensureNextcloudUserInGroup(admin.username, OPENPROJECT_NC_GROUP);
   const hosts = resolveHosts(resolveEnvName());
   const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
@@ -674,8 +709,61 @@ async function setGroupfoldersUserAclViaWebDav(
 }
 
 /**
- * oauth2-only: give a local NC user Team Folder mount + write access to the AMPF project folder.
- * SSO users get this via the integration app; local Oliver does not until these grants exist.
+ * Grant Team Folder mount + project-folder ACL for a user.
+ * Uses the resolved NC user id (OIDC users are hashed ids, not Keycloak usernames).
+ * oauth2: required because local users are not auto-synced into the OpenProject group.
+ * sso-external: Admin Sync now often skips OIDC users until a remote identity exists —
+ * call after Sync now so AMPF member-addition/removal WebDAV waiters can observe ACL.
+ */
+export async function ensureAmpfWebDavAccess(
+  user: TestUser,
+  options: { projectFolder?: string; folderId?: string } = {},
+): Promise<void> {
+  const projectFolder = options.projectFolder ?? DEFAULT_AMPF_PROJECT_FOLDER;
+  const folderId = options.folderId ?? (await resolveOpenProjectGroupfolderId());
+  const { ncHost, userId } = await withWebDavAuth(user);
+
+  await ensureNextcloudUserInGroup(userId, OPENPROJECT_NC_GROUP);
+  await ensureAdminCanManageGroupfolderAcl(folderId);
+  const serviceUser = await ensureOpenProjectNcServiceUser();
+
+  const serviceAuth = `Basic ${buildNextcloudBasicAuth(serviceUser)}`;
+  const serviceId = await resolveNextcloudUserId(
+    resolveHostname(ncHost) || ncHost,
+    serviceAuth,
+    serviceUser.username,
+  );
+
+  await setGroupfoldersUserAclViaWebDav(
+    OPENPROJECT_NC_GROUP,
+    userId,
+    GF_ACL_READ,
+    serviceUser,
+  );
+
+  const projectPath = `${OPENPROJECT_NC_GROUP}/${projectFolder}`;
+  if (!(await fileExists(resolveHostname(ncHost) || ncHost, serviceId, projectPath, serviceAuth))) {
+    logInfo('Creating AMPF project folder on WebDAV: %s', projectPath);
+    await createFolder(resolveHostname(ncHost) || ncHost, serviceId, projectPath, serviceAuth);
+  }
+
+  await setGroupfoldersUserAclViaWebDav(
+    projectPath,
+    userId,
+    GF_ACL_READ_WRITE_CREATE_DELETE,
+    serviceUser,
+  );
+  logInfo(
+    'Granted AMPF WebDAV access for %s (nc id %s) on %s/%s',
+    user.username,
+    userId,
+    OPENPROJECT_NC_GROUP,
+    projectFolder,
+  );
+}
+
+/**
+ * oauth2-only wrapper — local Oliver is not auto-synced into the OpenProject group.
  */
 export async function ensureOauth2AmpfWebDavAccess(
   user: TestUser,
@@ -684,44 +772,7 @@ export async function ensureOauth2AmpfWebDavAccess(
   if (testConfig.setupMethod !== 'oauth2') {
     return;
   }
-  const projectFolder = options.projectFolder ?? DEFAULT_AMPF_PROJECT_FOLDER;
-  const folderId = options.folderId ?? DEFAULT_AMPF_FOLDER_ID;
-
-  await ensureNextcloudUserInGroup(user.username, OPENPROJECT_NC_GROUP);
-  await ensureAdminCanManageGroupfolderAcl(folderId);
-  const serviceUser = await ensureOpenProjectNcServiceUser();
-
-  const hosts = resolveHosts(resolveEnvName());
-  const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
-  const serviceAuth = `Basic ${buildNextcloudBasicAuth(serviceUser)}`;
-  const serviceId = await resolveNextcloudUserId(ncHost, serviceAuth, serviceUser.username);
-
-  // Root mount: read so Oliver sees Team Folder; project path: full write for seeds.
-  await setGroupfoldersUserAclViaWebDav(
-    OPENPROJECT_NC_GROUP,
-    user.username,
-    GF_ACL_READ,
-    serviceUser,
-  );
-
-  const projectPath = `${OPENPROJECT_NC_GROUP}/${projectFolder}`;
-  if (!(await fileExists(ncHost, serviceId, projectPath, serviceAuth))) {
-    logInfo('Creating AMPF project folder on WebDAV: %s', projectPath);
-    await createFolder(ncHost, serviceId, projectPath, serviceAuth);
-  }
-
-  await setGroupfoldersUserAclViaWebDav(
-    projectPath,
-    user.username,
-    GF_ACL_READ_WRITE_CREATE_DELETE,
-    serviceUser,
-  );
-  logInfo(
-    'Granted oauth2 AMPF WebDAV access for %s on %s/%s',
-    user.username,
-    OPENPROJECT_NC_GROUP,
-    projectFolder,
-  );
+  await ensureAmpfWebDavAccess(user, options);
 }
 
 /**
@@ -769,17 +820,18 @@ export async function denyAmpfProjectFolderAccess(
   options: { projectFolder?: string; folderId?: string } = {},
 ): Promise<void> {
   const projectFolder = options.projectFolder ?? DEFAULT_AMPF_PROJECT_FOLDER;
-  const folderId = options.folderId ?? DEFAULT_AMPF_FOLDER_ID;
+  const folderId = options.folderId ?? (await resolveOpenProjectGroupfolderId());
+  const { userId } = await withWebDavAuth(user);
 
   await ensureAdminCanManageGroupfolderAcl(folderId);
   const serviceUser = await ensureOpenProjectNcServiceUser();
   const projectPath = `${OPENPROJECT_NC_GROUP}/${projectFolder}`;
 
-  await setGroupfoldersUserAclViaWebDav(projectPath, user.username, 0, serviceUser);
-  await setGroupfoldersUserAclViaWebDav(OPENPROJECT_NC_GROUP, user.username, 0, serviceUser);
+  await setGroupfoldersUserAclViaWebDav(projectPath, userId, 0, serviceUser);
+  await setGroupfoldersUserAclViaWebDav(OPENPROJECT_NC_GROUP, userId, 0, serviceUser);
   // Drop Team Folder mount so OP Files sees unauthorized folder access (not full write UI).
-  await ensureNextcloudUserNotInGroup(user.username, OPENPROJECT_NC_GROUP);
-  logInfo('Denied AMPF ACL + group mount for %s on %s', user.username, projectPath);
+  await ensureNextcloudUserNotInGroup(userId, OPENPROJECT_NC_GROUP);
+  logInfo('Denied AMPF ACL + group mount for %s (nc id %s) on %s', user.username, userId, projectPath);
 }
 
 /**
