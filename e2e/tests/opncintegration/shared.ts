@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
 import {
   ALICE_USER,
   BOB_OAUTH_USER,
@@ -552,39 +552,34 @@ export async function ensureFilesTabNextcloudConnected(
   // Files Nextcloud section loads async after the URL is ready — poll either outcome.
   // After NC app toggle, UI can briefly show "No Nextcloud connection" with neither control.
   let state: 'login' | 'connected' | null = null;
-  const deadline = Date.now() + 60_000;
   let reloads = 0;
-  while (Date.now() < deadline) {
-    if (await linkExisting.isVisible().catch(() => false)) {
-      state = 'connected';
-      break;
-    }
-    if (await loginBtn.isVisible().catch(() => false)) {
-      state = 'login';
-      break;
-    }
-    if (
-      reloads < 3 &&
-      (await noConnection.isVisible().catch(() => false))
-    ) {
-      reloads += 1;
-      logWarn(
-        'Files tab shows No Nextcloud connection; soft-reloading (%s/3)',
-        reloads,
-      );
-      await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
-      if (!filesTab.isOnDemoProjectWorkPackageFilesUrl()) {
-        await filesTab.openWorkPackageFilesTab(20000);
-      }
-      continue;
-    }
-    await page.waitForTimeout(500);
-  }
-  if (!state) {
-    throw new Error(
-      'Files tab Nextcloud section neither showed login nor link-existing controls within 60s',
-    );
-  }
+  await expect
+    .poll(
+      async () => {
+        if (await linkExisting.isVisible().catch(() => false)) {
+          state = 'connected';
+          return true;
+        }
+        if (await loginBtn.isVisible().catch(() => false)) {
+          state = 'login';
+          return true;
+        }
+        if (reloads < 3 && (await noConnection.isVisible().catch(() => false))) {
+          reloads += 1;
+          logWarn(
+            'Files tab shows No Nextcloud connection; soft-reloading (%s/3)',
+            reloads,
+          );
+          await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
+          if (!filesTab.isOnDemoProjectWorkPackageFilesUrl()) {
+            await filesTab.openWorkPackageFilesTab(20000);
+          }
+        }
+        return false;
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true);
 
   if (state === 'login') {
     logInfo('Files tab shows Nextcloud login; completing storage OAuth as %s', user.username);

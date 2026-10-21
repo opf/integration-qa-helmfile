@@ -162,15 +162,19 @@ test.describe('Work Package Integration - Orphaned File Link Cleanup', dualSetup
               'TC-2268',
               'Step 4: kubectl unavailable; waiting for auto-cleanup then API fallback',
             );
-            const deadline = Date.now() + 15_000;
-            while (Date.now() < deadline) {
-              const remaining = [];
-              for (const id of fileLinkIds) {
-                if (await fileLinkExists(id)) remaining.push(id);
-              }
-              if (remaining.length === 0) break;
-              await page.waitForTimeout(1000);
-            }
+            await expect
+              .poll(
+                async () => {
+                  let remaining = 0;
+                  for (const id of fileLinkIds) {
+                    if (await fileLinkExists(id)) remaining += 1;
+                  }
+                  return remaining;
+                },
+                { timeout: 15_000 },
+              )
+              .toBe(0)
+              .catch(() => undefined);
             for (const id of fileLinkIds) {
               if (await fileLinkExists(id)) {
                 await deleteFileLink(id);

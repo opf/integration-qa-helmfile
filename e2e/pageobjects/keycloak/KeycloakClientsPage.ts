@@ -10,11 +10,6 @@ export class KeycloakClientsPage extends KeycloakBasePage {
 
   async waitForReady(): Promise<void> {
     await this.page.waitForURL(/.*\/admin\/.*\/console\/#\/.*\/clients/, { timeout: 15000 });
-    // Wait for the clients table/list to be visible
-    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(1000); // Additional wait for dynamic content
-    
-    // Try to find clients using multiple strategies
     const nextcloudClient = this.getLocator('nextcloudClientLink');
     await nextcloudClient.waitFor({ state: 'visible', timeout: 15000 });
   }
@@ -23,8 +18,6 @@ export class KeycloakClientsPage extends KeycloakBasePage {
     try {
       logDebug('[CLIENTS VERIFICATION] Starting client verification...');
       logDebug('[CLIENTS VERIFICATION] Current URL: %s', this.page.url());
-      await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-      await this.page.waitForTimeout(1000);
       const nextcloudClient = this.getLocator('nextcloudClientLink');
       const openprojectClient = this.getLocator('openprojectClientLink');
       logDebug('[CLIENTS VERIFICATION] Waiting for nextcloud client...');

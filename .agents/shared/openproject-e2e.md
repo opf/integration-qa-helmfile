@@ -62,6 +62,17 @@ Page object inheritance:
 - Export page objects via `index.ts` barrel files per domain for consistent imports.
 - Encapsulate complex flows in page methods rather than duplicating sequences in tests.
 
+### Waiting
+
+- Never use `page.waitForTimeout` / fixed sleeps in tests, page objects, or utils.
+- Wait for a condition instead, in this preference order:
+  1. `locator.waitFor` / `expect(locator).toBeVisible|Hidden|Enabled`
+  2. `page.waitForURL` (often `Promise.all` with the click that navigates)
+  3. `page.waitForResponse` / `waitForRequest` for known XHR
+  4. `expect.poll(...)` / `expect(...).toPass(...)` for multi-signal or soft UI polls
+- Prefer existing API pollers (`waitForNextcloudStorageHealthy`, `waitForAmpfFolderVisibleToUser`, etc.) over UI sleep loops when the durable signal is server-side.
+- Do not replace sleeps with `waitForLoadState('networkidle')` as a default.
+
 ## Error Handling Standards
 
 - Always use typed catches:

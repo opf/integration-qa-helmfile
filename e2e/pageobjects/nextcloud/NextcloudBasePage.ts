@@ -23,14 +23,11 @@ export abstract class NextcloudBasePage extends BasePage {
 
   private async waitForFirstRunWizard(appearanceTimeout: number): Promise<boolean> {
     const cappedAppearance = Math.min(appearanceTimeout, 3000);
-    const deadline = Date.now() + cappedAppearance;
-
-    while (Date.now() < deadline) {
-      if (await this.isFirstRunWizardVisible()) return true;
-      await this.page.waitForTimeout(250);
-    }
-
-    return false;
+    return this.getLocator('firstRunWizard')
+      .first()
+      .waitFor({ state: 'visible', timeout: cappedAppearance })
+      .then(() => true)
+      .catch(() => false);
   }
 
   protected getUrlEnvVar(): string {

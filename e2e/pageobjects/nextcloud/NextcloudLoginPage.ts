@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
 import { NextcloudDashboardPage } from './NextcloudDashboardPage';
 import { KeycloakLoginPage } from '../keycloak/KeycloakLoginPage';
@@ -241,21 +241,34 @@ export class NextcloudLoginPage extends NextcloudBasePage {
     const allow = this.getLocator('oauthAllowButton').first();
     const ncHost =
       resolveHostname(resolveHosts().nextcloud) || resolveHosts().nextcloud;
-    const deadline = Date.now() + timeoutMs;
-
-    while (Date.now() < deadline) {
-      // Left Nextcloud (e.g. redirected to OpenProject authorize) — stop polling.
-      if (!this.page.url().includes(ncHost)) {
-        return false;
-      }
-      for (const candidate of [grant, authorize, allow]) {
-        if (await candidate.isVisible().catch(() => false)) {
-          await candidate.click();
-          return true;
-        }
-      }
-      await this.page.waitForTimeout(500);
+    if (!this.page.url().includes(ncHost)) {
+      return false;
     }
-    return false;
+
+    let found: typeof grant | null = null;
+    try {
+      await expect
+        .poll(
+          async () => {
+            if (!this.page.url().includes(ncHost)) return 'left';
+            for (const candidate of [grant, authorize, allow]) {
+              if (await candidate.isVisible().catch(() => false)) {
+                found = candidate;
+                return 'button';
+              }
+            }
+            return null;
+          },
+          { timeout: timeoutMs },
+        )
+        .toMatch(/^(button|left)$/);
+    } catch {
+      return false;
+    }
+    if (!found || !this.page.url().includes(ncHost)) {
+      return false;
+    }
+    await found.click();
+    return true;
   }
 }

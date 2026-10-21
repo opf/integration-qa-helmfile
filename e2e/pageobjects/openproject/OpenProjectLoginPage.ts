@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
 import { KeycloakLoginPage } from '../keycloak/KeycloakLoginPage';
 import { OpenProjectHomePage } from './OpenProjectHomePage';
@@ -158,22 +158,35 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
     const submit = this.getLocator('oauthAuthorizeSubmit').first();
     const opHost =
       resolveHostname(resolveHosts().openproject) || resolveHosts().openproject;
-    const deadline = Date.now() + timeoutMs;
-
-    while (Date.now() < deadline) {
-      // Already redirected away from OpenProject (e.g. prior OAuth grant) — stop polling.
-      if (!this.page.url().includes(opHost)) {
-        return false;
-      }
-      for (const candidate of [authorize, allow, submit]) {
-        if (await candidate.isVisible().catch(() => false)) {
-          await candidate.click();
-          return true;
-        }
-      }
-      await this.page.waitForTimeout(500);
+    if (!this.page.url().includes(opHost)) {
+      return false;
     }
-    return false;
+
+    let found: typeof authorize | null = null;
+    try {
+      await expect
+        .poll(
+          async () => {
+            if (!this.page.url().includes(opHost)) return 'left';
+            for (const candidate of [authorize, allow, submit]) {
+              if (await candidate.isVisible().catch(() => false)) {
+                found = candidate;
+                return 'button';
+              }
+            }
+            return null;
+          },
+          { timeout: timeoutMs },
+        )
+        .toMatch(/^(button|left)$/);
+    } catch {
+      return false;
+    }
+    if (!found || !this.page.url().includes(opHost)) {
+      return false;
+    }
+    await found.click();
+    return true;
   }
 
   /**

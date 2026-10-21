@@ -22,17 +22,12 @@ export class KeycloakRealmsPage extends KeycloakBasePage {
    */
   async isRealmSelected(realmName: string): Promise<boolean> {
     try {
-      // Wait a bit for the page to be ready
-      await this.page.waitForTimeout(1000);
-      
       // Look for a table cell (td) that contains the realm name
       // The structure is: <td><div>realmName <span class="pf-v5-c-badge">Current realm</span></div></td>
-      // Try to find the cell that contains both the realm name and the badge
-      const realmCell = this.page.locator('td.pf-v5-c-table__td').filter({ 
-        hasText: realmName 
+      const realmCell = this.page.locator('td.pf-v5-c-table__td').filter({
+        hasText: realmName,
       });
-      
-      // Wait a bit for the table to be visible
+      await realmCell.first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => undefined);
       const cellCount = await realmCell.count();
       if (cellCount === 0) {
         logDebug('[REALM CHECK] Realm "%s" cell not found', realmName);
@@ -58,9 +53,11 @@ export class KeycloakRealmsPage extends KeycloakBasePage {
     await realmLink.waitFor({ state: 'visible', timeout: 10000 });
     logDebug('[REALM SELECTION] Realm link found, clicking...');
     await realmLink.click();
-    await this.page.waitForTimeout(3000);
-    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(1000);
+    const currentBadge = this.page
+      .locator('td.pf-v5-c-table__td')
+      .filter({ hasText: realmName })
+      .locator('span.pf-v5-c-badge.pf-m-read:has-text("Current realm")');
+    await currentBadge.first().waitFor({ state: 'visible', timeout: 15000 });
     logDebug('[REALM SELECTION] Realm selection completed');
   }
 

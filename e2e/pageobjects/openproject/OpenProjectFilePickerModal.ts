@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { logDebug } from '../../utils/logger';
@@ -28,40 +28,37 @@ export class OpenProjectFilePickerModal extends OpenProjectBasePage {
     const noConnection = this.getLocator('filesPickerNoConnectionError');
     const confirmButton = this.getLocator('filesPickerConfirmButton');
     const cancelButton = this.getLocator('filesPickerCancelButton');
+    let attempt = 0;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await modal.waitFor({ state: 'visible', timeout: 15000 });
+    await expect
+      .poll(
+        async () => {
+          attempt += 1;
+          await modal.waitFor({ state: 'visible', timeout: 15000 });
 
-      if (await noConnection.isVisible({ timeout: 2000 }).catch(() => false)) {
-        logDebug(
-          `[OpenProject] Files picker shows No Nextcloud connection; retrying ` +
-            `(${attempt + 1}/${maxAttempts})`,
-        );
-        if (await cancelButton.isVisible({ timeout: 1000 }).catch(() => false)) {
-          await cancelButton.click();
-        } else {
-          await this.page.keyboard.press('Escape');
-        }
-        await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
-        if (attempt < maxAttempts - 1) {
-          await this.page.waitForTimeout(5000);
-          await this.openFilesPickerWithUpload(fixtureFileName);
-        }
-        continue;
-      }
+          if (await noConnection.isVisible({ timeout: 2000 }).catch(() => false)) {
+            logDebug(
+              `[OpenProject] Files picker shows No Nextcloud connection; retrying ` +
+                `(${attempt}/${maxAttempts})`,
+            );
+            if (await cancelButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+              await cancelButton.click();
+            } else {
+              await this.page.keyboard.press('Escape');
+            }
+            await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
+            if (attempt < maxAttempts) {
+              await this.openFilesPickerWithUpload(fixtureFileName);
+            }
+            return false;
+          }
 
-      await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
-      if (await confirmButton.isEnabled()) {
-        return;
-      }
-
-      await this.page.waitForTimeout(5000);
-    }
-
-    await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
-    if (!(await confirmButton.isEnabled())) {
-      throw new Error('Files picker "Choose location" button did not become enabled.');
-    }
+          await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
+          return confirmButton.isEnabled();
+        },
+        { timeout: maxAttempts * 5000, intervals: [1000, 2000, 5000] },
+      )
+      .toBe(true);
   }
 
   /** Wait for Choose location after a multi-file `setInputFiles` (no re-upload on retry). */
@@ -69,16 +66,9 @@ export class OpenProjectFilePickerModal extends OpenProjectBasePage {
     const modal = this.getLocator('filesPickerModal');
     const confirmButton = this.getLocator('filesPickerConfirmButton');
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await modal.waitFor({ state: 'visible', timeout: 15000 });
-      await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
-      if (await confirmButton.isEnabled()) {
-        return;
-      }
-      await this.page.waitForTimeout(2000);
-    }
-
-    throw new Error('Files picker "Choose location" button did not become enabled.');
+    await modal.waitFor({ state: 'visible', timeout: 15000 });
+    await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(confirmButton).toBeEnabled({ timeout: maxAttempts * 2000 });
   }
 
   /** Confirm location; if a name-collision modal appears, click Replace (2068 / seed path). */
@@ -101,21 +91,21 @@ export class OpenProjectFilePickerModal extends OpenProjectBasePage {
 
     await confirmButton.click();
 
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      if (await collisionModal.isVisible().catch(() => false)) {
-        return;
-      }
-      if (await uploadSuccess.isVisible().catch(() => false)) {
-        throw new Error(
-          'Expected "This file already exists" collision modal, but upload completed without collision.'
-        );
-      }
-      await this.page.waitForTimeout(250);
-    }
+    const outcome = await Promise.race([
+      collisionModal.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => 'collision' as const),
+      uploadSuccess.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => 'success' as const),
+    ]).catch(() => null);
 
+    if (outcome === 'collision') {
+      return;
+    }
+    if (outcome === 'success') {
+      throw new Error(
+        'Expected "This file already exists" collision modal, but upload completed without collision.',
+      );
+    }
     throw new Error(
-      `Timed out after ${timeoutMs}ms waiting for collision modal (upload success toast also absent).`
+      `Timed out after ${timeoutMs}ms waiting for collision modal (upload success toast also absent).`,
     );
   }
 
@@ -151,40 +141,40 @@ export class OpenProjectFilePickerModal extends OpenProjectBasePage {
     const cancelButton = this.getLocator('filesPickerCancelButton');
     const fileList = this.getLocator('filesPickerFileList');
     const loading = this.getLocator('filesPickerLoadingIndicator');
+    let attempt = 0;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await modal.waitFor({ state: 'visible', timeout: 15000 });
+    await expect
+      .poll(
+        async () => {
+          attempt += 1;
+          await modal.waitFor({ state: 'visible', timeout: 15000 });
 
-      if (await noConnection.isVisible({ timeout: 2000 }).catch(() => false)) {
-        logDebug(
-          `[OpenProject] Link picker shows No Nextcloud connection; retrying ` +
-            `(${attempt + 1}/${maxAttempts})`,
-        );
-        if (await cancelButton.isVisible({ timeout: 1000 }).catch(() => false)) {
-          await cancelButton.click();
-        } else {
-          await this.page.keyboard.press('Escape');
-        }
-        await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
-        if (attempt < maxAttempts - 1) {
-          await this.page.waitForTimeout(5000);
-          await this.openLinkExistingFilesPicker();
-        }
-        continue;
-      }
+          if (await noConnection.isVisible({ timeout: 2000 }).catch(() => false)) {
+            logDebug(
+              `[OpenProject] Link picker shows No Nextcloud connection; retrying ` +
+                `(${attempt}/${maxAttempts})`,
+            );
+            if (await cancelButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+              await cancelButton.click();
+            } else {
+              await this.page.keyboard.press('Escape');
+            }
+            await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
+            if (attempt < maxAttempts) {
+              await this.openLinkExistingFilesPicker();
+            }
+            return false;
+          }
 
-      if (await loading.isVisible({ timeout: 500 }).catch(() => false)) {
-        await loading.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => undefined);
-      }
+          if (await loading.isVisible({ timeout: 500 }).catch(() => false)) {
+            await loading.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => undefined);
+          }
 
-      if (await fileList.isVisible({ timeout: 3000 }).catch(() => false)) {
-        return;
-      }
-
-      await this.page.waitForTimeout(2000);
-    }
-
-    await fileList.waitFor({ state: 'visible', timeout: 10000 });
+          return fileList.isVisible({ timeout: 3000 }).catch(() => false);
+        },
+        { timeout: maxAttempts * 5000, intervals: [1000, 2000, 5000] },
+      )
+      .toBe(true);
   }
 
   /** Enter a folder row by clicking its caret (preferred OpenProject picker navigation). */
@@ -236,15 +226,8 @@ export class OpenProjectFilePickerModal extends OpenProjectBasePage {
   async confirmLinkSelection(timeoutMs = 10000): Promise<void> {
     const confirmButton = this.getLocator('filesPickerConfirmButton');
     await confirmButton.waitFor({ state: 'visible', timeout: timeoutMs });
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      if (await confirmButton.isEnabled()) {
-        await confirmButton.click();
-        return;
-      }
-      await this.page.waitForTimeout(250);
-    }
-    throw new Error('Files picker confirm button did not become enabled (select a file first).');
+    await expect(confirmButton).toBeEnabled({ timeout: timeoutMs });
+    await confirmButton.click();
   }
 
   private getCssLocatorValue(locatorKey: string): string {

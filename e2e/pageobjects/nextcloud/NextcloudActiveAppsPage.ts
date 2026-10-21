@@ -1,4 +1,4 @@
-import { Locator, Page } from '@playwright/test';
+import { expect, Locator, Page } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
 import { getErrorMessage } from '../../utils/error-utils';
 import { logDebug, logInfo, logWarn } from '../../utils/logger';
@@ -37,26 +37,14 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
 
   /** NC34+ App store may use #app-content-vue; heading alone can race Vue hydration. */
   private async waitForAppsSettingsShell(timeoutMs = 20000): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const headingVisible = await this.getLocator('activeAppsText')
-        .first()
-        .isVisible()
-        .catch(() => false);
-      const shellVisible = await this.getLocator('appsSettingsContent')
-        .first()
-        .isVisible()
-        .catch(() => false);
-      const searchVisible = await this.getLocator('appsSearchInput')
-        .first()
-        .isVisible()
-        .catch(() => false);
-      if (headingVisible || shellVisible || searchVisible) {
-        return;
-      }
-      await this.page.waitForTimeout(500);
-    }
-    throw new Error('Nextcloud Apps settings shell not visible');
+    const heading = this.getLocator('activeAppsText').first();
+    const shell = this.getLocator('appsSettingsContent').first();
+    const search = this.getLocator('appsSearchInput').first();
+    await Promise.race([
+      heading.waitFor({ state: 'visible', timeout: timeoutMs }),
+      shell.waitFor({ state: 'visible', timeout: timeoutMs }),
+      search.waitFor({ state: 'visible', timeout: timeoutMs }),
+    ]);
   }
 
   async waitForDisabledAppsReady(): Promise<void> {
@@ -116,7 +104,7 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
       return;
     }
     await search.fill(query);
-    await this.page.waitForTimeout(1000);
+    await expect(search).toHaveValue(query, { timeout: 5000 });
   }
 
   async findOpenProjectIntegrationApp(): Promise<void> {
@@ -129,29 +117,25 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
     } catch {
       const appLink = this.getLocator('openProjectIntegrationAppLink');
 
-      let attempts = 0;
-      const maxAttempts = 10;
-
-      while (attempts < maxAttempts) {
-        try {
-          const isVisible = await appLink.isVisible({ timeout: 1000 }).catch(() => false);
-          if (isVisible) {
-            await appLink.scrollIntoViewIfNeeded();
-            await this.page.waitForTimeout(500);
-            return;
-          }
-        } catch {
-          // keep scrolling
-        }
-
-        await this.page.evaluate(() => {
-          window.scrollBy(0, 300);
+      await expect
+        .poll(
+          async () => {
+            const isVisible = await appLink.isVisible().catch(() => false);
+            if (isVisible) {
+              await appLink.scrollIntoViewIfNeeded();
+              return true;
+            }
+            await this.page.evaluate(() => {
+              window.scrollBy(0, 300);
+            });
+            return false;
+          },
+          { timeout: 10000, intervals: [500] },
+        )
+        .toBe(true)
+        .catch(async () => {
+          await appRow.waitFor({ state: 'visible', timeout: 5000 });
         });
-        await this.page.waitForTimeout(500);
-        attempts++;
-      }
-
-      await appRow.waitFor({ state: 'visible', timeout: 5000 });
     }
   }
 
@@ -272,30 +256,31 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
 
     // App Store may close the dialog before files are swapped; poll until Update is gone
     // and the reported version changes (or Disable is back on Active apps).
-    const deadline = Date.now() + 180_000;
-    while (Date.now() < deadline) {
-      await this.navigateTo();
-      await this.waitForReady();
-      await this.findOpenProjectIntegrationApp();
-      const stillUpdate = await this.getLocator('openProjectIntegrationUpdateButton')
-        .isVisible({ timeout: 2000 })
-        .catch(() => false);
-      const versionNow = await this.getOpenProjectIntegrationAppVersion();
-      if (!stillUpdate && versionNow !== versionBefore) {
-        logInfo('[Nextcloud Apps] Update complete; version now', versionNow);
-        return;
-      }
-      logDebug(
-        '[Nextcloud Apps] Waiting for update to finish; version=',
-        versionNow,
-        'updateBtn=',
-        String(stillUpdate),
-      );
-      await this.page.waitForTimeout(5000);
-    }
-    throw new Error(
-      `OpenProject Integration update did not finish (still at ${await this.getOpenProjectIntegrationAppVersion()})`,
-    );
+    await expect
+      .poll(
+        async () => {
+          await this.navigateTo();
+          await this.waitForReady();
+          await this.findOpenProjectIntegrationApp();
+          const stillUpdate = await this.getLocator('openProjectIntegrationUpdateButton')
+            .isVisible({ timeout: 2000 })
+            .catch(() => false);
+          const versionNow = await this.getOpenProjectIntegrationAppVersion();
+          if (!stillUpdate && versionNow !== versionBefore) {
+            logInfo('[Nextcloud Apps] Update complete; version now', versionNow);
+            return true;
+          }
+          logDebug(
+            '[Nextcloud Apps] Waiting for update to finish; version=',
+            versionNow,
+            'updateBtn=',
+            String(stillUpdate),
+          );
+          return false;
+        },
+        { timeout: 180_000, intervals: [5000] },
+      )
+      .toBe(true);
   }
 
   async clickDisableOpenProjectIntegration(): Promise<void> {
@@ -455,21 +440,24 @@ export class NextcloudActiveAppsPage extends NextcloudBasePage {
 
   /** Poll Active apps until Nextcloud serves the Apps UI again (app enable can briefly 502). */
   async waitForAppsUiRecovered(timeoutMs = 240_000): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      try {
-        await this.navigateTo();
-        if (!(await this.isAppsUiUnavailable())) {
-          await this.waitForReady();
-          return;
-        }
-        logWarn('[Nextcloud Apps] Apps UI unavailable; retrying');
-      } catch (error: unknown) {
-        logDebug('[Nextcloud Apps] Recovery poll failed:', getErrorMessage(error));
-      }
-      await this.page.waitForTimeout(8000);
-    }
-    throw new Error('Nextcloud Apps UI did not recover');
+    await expect
+      .poll(
+        async () => {
+          try {
+            await this.navigateTo();
+            if (!(await this.isAppsUiUnavailable())) {
+              await this.waitForReady();
+              return true;
+            }
+            logWarn('[Nextcloud Apps] Apps UI unavailable; retrying');
+          } catch (error: unknown) {
+            logDebug('[Nextcloud Apps] Recovery poll failed:', getErrorMessage(error));
+          }
+          return false;
+        },
+        { timeout: timeoutMs, intervals: [2000, 4000, 8000] },
+      )
+      .toBe(true);
   }
 
   /**

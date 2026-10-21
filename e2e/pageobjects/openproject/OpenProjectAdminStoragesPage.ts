@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { NC_ADMIN_USER, OP_ADMIN_USER } from '../../utils/test-users';
 import { logDebug, logInfo } from '../../utils/logger';
 import { resolveHosts } from '../../utils/env-hosts';
@@ -259,36 +259,48 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
     const before = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
     const started = Date.now();
     let lastReclickAt = started;
+    let settled = false;
 
     await queued.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
 
-    while (Date.now() - started < timeoutMs) {
-      await this.page.waitForTimeout(5000);
-      await this.page.reload({ waitUntil: 'domcontentloaded' });
-      await syncedAt.waitFor({ state: 'visible', timeout: 20000 }).catch(() => undefined);
+    try {
+      await expect
+        .poll(
+          async () => {
+            await this.page.reload({ waitUntil: 'domcontentloaded' });
+            await syncedAt.waitFor({ state: 'visible', timeout: 20000 }).catch(() => undefined);
 
-      const after = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
-      if (after && after !== before) {
-        logInfo('AMPF sync settled (Last sync: %s → %s)', before || '(none)', after);
-        return;
-      }
+            const after = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
+            if (after && after !== before) {
+              logInfo('AMPF sync settled (Last sync: %s → %s)', before || '(none)', after);
+              settled = true;
+              return true;
+            }
 
-      // Job may have been lost / worker lag — re-queue once per ~60s while stalled.
-      if (Date.now() - lastReclickAt >= 60_000) {
-        const syncNow = this.getLocator('storageSyncNowButton').first();
-        if (await syncNow.isVisible().catch(() => false)) {
-          logInfo('AMPF Last sync unchanged; clicking Sync now again');
-          await syncNow.click();
-          await queued.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
-          lastReclickAt = Date.now();
-        }
+            // Job may have been lost / worker lag — re-queue once per ~60s while stalled.
+            if (Date.now() - lastReclickAt >= 60_000) {
+              const syncNow = this.getLocator('storageSyncNowButton').first();
+              if (await syncNow.isVisible().catch(() => false)) {
+                logInfo('AMPF Last sync unchanged; clicking Sync now again');
+                await syncNow.click();
+                await queued.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
+                lastReclickAt = Date.now();
+              }
+            }
+            return false;
+          },
+          { timeout: timeoutMs, intervals: [5000] },
+        )
+        .toBe(true);
+    } catch {
+      if (!settled) {
+        logInfo(
+          'AMPF sync wait timed out after %sms (Last sync still %s); continuing to folder waiter',
+          Date.now() - started,
+          before || '(unknown)',
+        );
       }
     }
-    logInfo(
-      'AMPF sync wait timed out after %sms (Last sync still %s); continuing to folder waiter',
-      timeoutMs,
-      before || '(unknown)',
-    );
   }
 
   async runHealthChecksNow(): Promise<void> {
@@ -320,17 +332,20 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
   private async waitForHealthProbeSettled(previousLastCheck?: string): Promise<void> {
     const lastCheck = this.getLocator('storageHealthLastCheckText').first();
     await lastCheck.waitFor({ state: 'visible', timeout: 120000 });
-    const deadline = Date.now() + 120_000;
-    while (Date.now() < deadline) {
-      const text = (await lastCheck.textContent().catch(() => '')) ?? '';
-      if (!previousLastCheck || text !== previousLastCheck) {
-        // Results finished rendering (timestamp advanced or first probe completed).
-        return;
-      }
-      await this.page.waitForTimeout(1000);
+    try {
+      await expect
+        .poll(
+          async () => {
+            const text = (await lastCheck.textContent().catch(() => '')) ?? '';
+            return !previousLastCheck || text !== previousLastCheck;
+          },
+          { timeout: 120_000 },
+        )
+        .toBe(true);
+    } catch {
+      // Probe may finish without changing the displayed second — accept settled UI.
+      logInfo('Health probe settle: Last check text unchanged; continuing');
     }
-    // Probe may finish without changing the displayed second — accept settled UI.
-    logInfo('Health probe settle: Last check text unchanged; continuing');
   }
 
   async expectHealthReportAvailable(): Promise<void> {

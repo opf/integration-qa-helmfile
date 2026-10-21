@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { logDebug } from '../../utils/logger';
@@ -19,52 +19,46 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
     options: { timeoutMs?: number } = {},
   ): Promise<void> {
     const timeoutMs = options.timeoutMs ?? 60_000;
-    const deadline = Date.now() + timeoutMs;
     const noConnection = this.getLocator('filesTabNoConnectionError').first();
     const uploadInput = this.getLocator('workPackageFilesUploadInput').first();
     const dropBox = this.getLocator('workPackageFilesUploadDropBox').first();
     let reloadCount = 0;
     const maxReloads = 4;
+    let stableHits = 0;
 
-    while (Date.now() < deadline) {
-      const bannerVisible = await noConnection.isVisible().catch(() => false);
-      const uploadAttached = await uploadInput
-        .waitFor({ state: 'attached', timeout: 1500 })
-        .then(() => true)
-        .catch(() => false);
-      const dropBoxVisible = await dropBox.isVisible().catch(() => false);
+    await expect
+      .poll(
+        async () => {
+          const bannerVisible = await noConnection.isVisible().catch(() => false);
+          const uploadAttached = (await uploadInput.count().catch(() => 0)) > 0;
+          const dropBoxVisible = await dropBox.isVisible().catch(() => false);
 
-      if (!bannerVisible && (uploadAttached || dropBoxVisible)) {
-        // Debounce a second poll so a transient READY flash does not race ahead.
-        await this.page.waitForTimeout(500);
-        const stillBanner = await noConnection.isVisible().catch(() => false);
-        const stillUploadAttached = await uploadInput.count().then((n) => n > 0).catch(() => false);
-        const stillDropBox = await dropBox.isVisible().catch(() => false);
-        if (!stillBanner && (stillUploadAttached || stillDropBox)) {
-          logDebug('[OpenProject] Nextcloud Files section is connected');
-          return;
-        }
-      }
+          if (!bannerVisible && (uploadAttached || dropBoxVisible)) {
+            stableHits += 1;
+            // Two consecutive connected polls debounce a transient READY flash.
+            if (stableHits >= 2) {
+              logDebug('[OpenProject] Nextcloud Files section is connected');
+              return true;
+            }
+            return false;
+          }
+          stableHits = 0;
 
-      if (bannerVisible && reloadCount < maxReloads && Date.now() + 2000 < deadline) {
-        reloadCount += 1;
-        logDebug(
-          `[OpenProject] Files tab still shows No Nextcloud connection; soft-reloading (${reloadCount}/${maxReloads})`,
-        );
-        await this.navigateToDemoProjectWorkPackageFiles(workPackageId);
-        if (!this.isOnDemoProjectWorkPackageFilesUrl()) {
-          await this.openWorkPackageFilesTab(15000);
-        }
-        continue;
-      }
-
-      await this.page.waitForTimeout(1000);
-    }
-
-    throw new Error(
-      'API storage healthy but Files tab still shows No Nextcloud connection ' +
-        `(or upload control not ready) after ${timeoutMs}ms.`,
-    );
+          if (bannerVisible && reloadCount < maxReloads) {
+            reloadCount += 1;
+            logDebug(
+              `[OpenProject] Files tab still shows No Nextcloud connection; soft-reloading (${reloadCount}/${maxReloads})`,
+            );
+            await this.navigateToDemoProjectWorkPackageFiles(workPackageId);
+            if (!this.isOnDemoProjectWorkPackageFilesUrl()) {
+              await this.openWorkPackageFilesTab(15000);
+            }
+          }
+          return false;
+        },
+        { timeout: timeoutMs, intervals: [500, 1000] },
+      )
+      .toBe(true);
   }
 
   async openWorkPackageFilesTab(timeout: number = 15000): Promise<void> {
@@ -246,28 +240,17 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
     const uploadBtn = this.getLocator('uploadFilesButton').first();
     const linkBtn = this.getLocator('linkExistingFilesButton').first();
     const dropBox = this.getLocator('workPackageFilesUploadDropBox').first();
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const uploadVisible = await uploadBtn.isVisible({ timeout: 500 }).catch(() => false);
-      const linkVisible = await linkBtn.isVisible({ timeout: 500 }).catch(() => false);
-      const dropVisible = await dropBox.isVisible({ timeout: 500 }).catch(() => false);
-      if (!uploadVisible && !linkVisible && !dropVisible) {
-        const hint = this.getLocator('filesTabNextcloudEmptyHint').first();
-        const info = this.getLocator('filesTabAccessRestrictedNotice').first();
-        if (
-          (await hint.isVisible({ timeout: 1000 }).catch(() => false)) ||
-          (await info.isVisible({ timeout: 1000 }).catch(() => false))
-        ) {
-          return;
-        }
-        // Actions gone is enough when Nextcloud header still rendered.
-        return;
-      }
-      await this.page.waitForTimeout(500);
-    }
-    throw new Error(
-      'Expected Files-tab Nextcloud upload/link controls to be hidden (permission boundary)',
-    );
+    await expect
+      .poll(
+        async () => {
+          const uploadVisible = await uploadBtn.isVisible().catch(() => false);
+          const linkVisible = await linkBtn.isVisible().catch(() => false);
+          const dropVisible = await dropBox.isVisible().catch(() => false);
+          return !uploadVisible && !linkVisible && !dropVisible;
+        },
+        { timeout: timeoutMs },
+      )
+      .toBe(true);
   }
 
   /** Assert Files-tab upload control is not available under access restriction. */

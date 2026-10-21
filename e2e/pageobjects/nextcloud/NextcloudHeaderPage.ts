@@ -21,7 +21,7 @@ export class NextcloudHeaderPage extends NextcloudBasePage {
     const menuBtn = this.getLocator('headerAppsMenuButton').first();
     await menuBtn.waitFor({ state: 'visible', timeout: 10000 });
     await menuBtn.click();
-    await this.page.waitForTimeout(500);
+    await this.getOpenProjectHeaderLink().waitFor({ state: 'visible', timeout: 10000 });
   }
 
   async verifyOpenProjectHeaderVisible(timeoutMs = 15000): Promise<void> {
@@ -56,11 +56,10 @@ export class NextcloudHeaderPage extends NextcloudBasePage {
     );
     await trigger.click();
     await providersReady;
-    await this.getLocator('unifiedSearchInput')
-      .first()
-      .waitFor({ state: 'visible', timeout: 15000 });
-    // Without this settle, typing leaves the modal stuck on "Searching...".
-    await this.page.waitForTimeout(1000);
+    const input = this.getLocator('unifiedSearchInput').first();
+    await input.waitFor({ state: 'visible', timeout: 15000 });
+    // Providers must be wired before typing or the modal sticks on "Searching...".
+    await expect(input).toBeEditable({ timeout: 10000 });
   }
 
   async searchUnified(query: string): Promise<void> {

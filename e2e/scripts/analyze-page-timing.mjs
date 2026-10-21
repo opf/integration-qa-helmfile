@@ -77,7 +77,7 @@ function cutHint(kind, ms, testTitle) {
     hints.push('OAuth consent cannot be fully API-replaced; cache connection and short-circuit when Disconnect already visible.');
   }
   if (ms >= 20_000) {
-    hints.push('Very long dwell — check fixed waitForTimeout / waitForResponse timeouts and whether navigation can start earlier (Promise.all click+wait).');
+    hints.push('Very long dwell — check fixed sleeps / waitForResponse timeouts and whether navigation can start earlier (Promise.all click+wait).');
   }
   if (hints.length === 0) {
     hints.push('Review waits on this page; consider navigating to the next step as soon as the required control is visible.');

@@ -39,7 +39,9 @@ export class NextcloudTalkPage extends NextcloudBasePage {
     await input.waitFor({ state: 'visible', timeout: 20000 });
     await input.click();
     await this.page.keyboard.type('/');
-    await this.page.waitForTimeout(800);
+    await this.getLocator('smartPickerOpenProjectProvider')
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 });
   }
 
   async verifyOpenProjectProviderVisible(): Promise<void> {
