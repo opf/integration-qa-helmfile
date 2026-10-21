@@ -34,6 +34,7 @@ import {
   isNextcloudUserConnectedToOpenProject,
 } from '../../utils/nextcloud-api';
 import {
+  OpenProjectAdminStoragesPage,
   OpenProjectHomePage,
   OpenProjectLoginPage,
   OpenProjectWorkPackageFilesTab,
@@ -42,6 +43,7 @@ import {
   NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
 } from '../../pageobjects/nextcloud';
+import { runAutomaticallyManagedStorageSync } from '../../utils/openproject-oauth-tokens';
 
 export const ALICE_IDENTIFIERS = [
   ALICE_USER.username,
@@ -327,6 +329,33 @@ export async function ensureSecondaryIntegrationUserProvisioned(
   await homePage.waitForReady();
   await page.context().clearCookies();
   return user;
+}
+
+/**
+ * Trigger AMPF managed-folder sync. Prefers kubectl rails job; when unavailable
+ * or cluster exec fails (PullPreview / Docker CI), falls back to
+ * Admin → File storages → Sync now. Leaves no browser session after the UI path.
+ */
+export async function ensureAmpfStorageSynced(page: Page): Promise<void> {
+  try {
+    if (await runAutomaticallyManagedStorageSync()) {
+      return;
+    }
+  } catch (error: unknown) {
+    logWarn(
+      'AMPF rails sync failed (%s); falling back to Admin UI Sync now',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
+  logInfo('Triggering AMPF sync via Admin UI Sync now');
+  const homePage = await loginOpenProjectAsStorageAdmin(page);
+  await homePage.navigateToAdminStoragesSettings();
+  await homePage.waitForAdminStoragesSettingsUrl();
+  const adminStorages = new OpenProjectAdminStoragesPage(page);
+  await adminStorages.openNextcloudStorage();
+  await adminStorages.clickSyncNow();
+  await page.context().clearCookies();
 }
 
 /** Demo project WP used for Files-tab storage OAuth / health probes. */

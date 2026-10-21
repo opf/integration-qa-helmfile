@@ -149,20 +149,30 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
   /**
    * If the OpenProject login form is visible, sign in with the given credentials.
    * Preserves OAuth back_url (does not navigate away from the current authorize redirect).
+   * On sso-external, non-admin users go through Keycloak (local OP password is invalid).
    * Returns true when a login was performed.
    */
   async loginIfPrompted(username: string, password: string, timeoutMs = 8000): Promise<boolean> {
     const usernameInput = this.getLocator('usernameInputById').first();
-    const visible = await usernameInput
-      .waitFor({ state: 'visible', timeout: timeoutMs })
-      .then(() => true)
-      .catch(() => false);
+    const keycloakBtn = this.getLocator('keycloakAuthButton').first();
+    const visible = await Promise.race([
+      usernameInput.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true),
+      keycloakBtn.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true),
+    ]).catch(() => false);
     if (!visible) {
       return false;
     }
-    await this.fillUsername(username);
-    await this.fillPassword(password);
-    await this.clickSignIn();
+
+    const useKeycloak =
+      testConfig.setupMethod !== 'oauth2' && username !== OP_ADMIN_USER.username;
+    if (useKeycloak) {
+      const keycloak = await this.clickKeycloakAuthButton();
+      await keycloak.loginAsUser(username, password);
+    } else {
+      await this.fillUsername(username);
+      await this.fillPassword(password);
+      await this.clickSignIn();
+    }
     // After sign-in we either land on /oauth/authorize or leave /login entirely.
     await this.page
       .waitForURL((url) => !url.pathname.includes('/login') || url.pathname.includes('/oauth/'), {

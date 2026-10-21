@@ -9,9 +9,9 @@ import {
 } from '../../../utils/test-helpers';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
-import { runAutomaticallyManagedStorageSync } from '../../../utils/openproject-oauth-tokens';
 import {
   ampProjectFolder,
+  ensureAmpfStorageSynced,
   ensureSecondaryIntegrationUserProvisioned,
   secondaryIntegrationUser,
 } from '../shared';
@@ -64,7 +64,7 @@ test.describe('AMPF Folder Permission Sync on Member Addition', dualSetupTags, (
         'Await background automatically managed storage sync job execution',
         async () => {
           logInfo('TC-2262', 'Step 3: Running AMPF sync job then waiting for folder visibility');
-          await runAutomaticallyManagedStorageSync();
+          await ensureAmpfStorageSynced(page);
           await waitForAmpfFolderVisibleToUser(bob, {
             projectFolder: ampProjectFolder,
             timeoutMs: 180_000,

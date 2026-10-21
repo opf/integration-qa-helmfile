@@ -12,9 +12,9 @@ import {
 } from '../../../utils/test-helpers';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
-import { runAutomaticallyManagedStorageSync } from '../../../utils/openproject-oauth-tokens';
 import {
   ampProjectFolder,
+  ensureAmpfStorageSynced,
   ensureSecondaryIntegrationUserProvisioned,
   secondaryIntegrationUser,
 } from '../shared';
@@ -45,7 +45,7 @@ test.describe('AMPF Folder Permission Sync on Member Removal', dualSetupTags, ()
         await ensureSecondaryIntegrationUserProvisioned(page);
         await ensureProjectHasNextcloudStorage(DEMO_PROJECT, undefined);
         await ensureUserIsProjectMember(bob.username, DEMO_PROJECT, 'Member');
-        await runAutomaticallyManagedStorageSync();
+        await ensureAmpfStorageSynced(page);
         await waitForAmpfFolderVisibleToUser(bob, {
           projectFolder: ampProjectFolder,
           timeoutMs: 180_000,
@@ -72,7 +72,7 @@ test.describe('AMPF Folder Permission Sync on Member Removal', dualSetupTags, ()
         'Await background automatically managed storage sync job execution',
         async () => {
           logInfo('TC-2270', 'Step 2: Running AMPF sync then waiting for folder hidden');
-          await runAutomaticallyManagedStorageSync();
+          await ensureAmpfStorageSynced(page);
           await waitForAmpfFolderHiddenFromUser(bob, {
             projectFolder: ampProjectFolder,
             timeoutMs: 180_000,
