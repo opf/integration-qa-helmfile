@@ -9,7 +9,7 @@ import {
 } from '../../utils/test-users';
 import { logInfo, logWarn } from '../../utils/logger';
 import { testConfig } from '../../utils/config';
-import { resolveHosts } from '../../utils/env-hosts';
+import { resolveEnvName, resolveHosts } from '../../utils/env-hosts';
 import { hostUrlPattern } from '../../utils/url-helpers';
 import { squashTestCase } from '../../utils/squash-metadata';
 import {
@@ -337,15 +337,23 @@ export async function ensureSecondaryIntegrationUserProvisioned(
  * Admin → File storages → Sync now. Leaves no browser session after the UI path.
  */
 export async function ensureAmpfStorageSynced(page: Page): Promise<void> {
-  try {
-    if (await runAutomaticallyManagedStorageSync()) {
-      return;
+  // Local kubectl against a different cluster (e.g. k3d while targeting PullPreview)
+  // raises "No file storage found" — only try rails when hosts look local/cluster.
+  const opHost = resolveHosts().openproject;
+  const remotePreview = /\.opf\.run|pullpreview/i.test(opHost) || resolveEnvName() === 'pullpreview';
+  if (!remotePreview) {
+    try {
+      if (await runAutomaticallyManagedStorageSync()) {
+        return;
+      }
+    } catch (error: unknown) {
+      logWarn(
+        'AMPF rails sync failed (%s); falling back to Admin UI Sync now',
+        error instanceof Error ? error.message : String(error),
+      );
     }
-  } catch (error: unknown) {
-    logWarn(
-      'AMPF rails sync failed (%s); falling back to Admin UI Sync now',
-      error instanceof Error ? error.message : String(error),
-    );
+  } else {
+    logInfo('Remote/PullPreview host — skipping kubectl AMPF sync; using Admin UI Sync now');
   }
 
   logInfo('Triggering AMPF sync via Admin UI Sync now');
@@ -355,6 +363,7 @@ export async function ensureAmpfStorageSynced(page: Page): Promise<void> {
   const adminStorages = new OpenProjectAdminStoragesPage(page);
   await adminStorages.openNextcloudStorage();
   await adminStorages.clickSyncNow();
+  await adminStorages.waitForAmpfSyncSettled();
   await page.context().clearCookies();
 }
 

@@ -30,6 +30,41 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
       .catch(() => false);
   }
 
+  /** Open the Primer danger dialog for deleting the current storage. */
+  async openDeleteStorageDialog(): Promise<void> {
+    // PageHeader renders a mobile-only duplicate (d-sm-none); locator excludes it.
+    const deleteBtn = this.getLocator('adminStorageDeleteButton').first();
+    await deleteBtn.waitFor({ state: 'visible', timeout: 15000 });
+    await deleteBtn.click({ force: true });
+    const dialog = this.getLocator('adminStorageDestroyDialog').first();
+    await dialog.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  /**
+   * Confirm the open destroy dialog. Primer DangerDialog needs a label click —
+   * checkbox.check({ force: true }) does not flip Stimulus state.
+   */
+  async confirmDeleteStorageDialog(): Promise<void> {
+    const confirmLabel = this.getLocator('adminStorageDestroyConfirmLabel').first();
+    await confirmLabel.waitFor({ state: 'visible', timeout: 10000 });
+    await confirmLabel.click();
+    const checkbox = this.getLocator('adminStorageDestroyConfirmCheckbox').first();
+    await checkbox.waitFor({ state: 'attached', timeout: 5000 });
+    if (!(await checkbox.isChecked().catch(() => false))) {
+      throw new Error('Delete confirmation checkbox did not become checked after label click');
+    }
+
+    const confirm = this.getLocator('adminStorageDestroyConfirmButton').first();
+    await confirm.waitFor({ state: 'visible', timeout: 10000 });
+    await confirm.click();
+
+    await this.waitForAdminStoragesSettingsUrl(30000);
+    await this.getLocator('adminStoragesNextcloudLink')
+      .first()
+      .waitFor({ state: 'hidden', timeout: 30000 })
+      .catch(() => undefined);
+  }
+
   /**
    * Delete the instance Nextcloud storage via Administration → File storages
    * (danger dialog with confirmation checkbox).
@@ -41,28 +76,8 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
     }
 
     await this.openNextcloudStorage();
-
-    // PageHeader renders a mobile-only duplicate (d-sm-none); locator excludes it.
-    const deleteBtn = this.getLocator('adminStorageDeleteButton').first();
-    await deleteBtn.waitFor({ state: 'visible', timeout: 15000 });
-    await deleteBtn.click({ force: true });
-
-    const dialog = this.getLocator('adminStorageDestroyDialog').first();
-    await dialog.waitFor({ state: 'visible', timeout: 15000 });
-
-    const checkbox = this.getLocator('adminStorageDestroyConfirmCheckbox').first();
-    await checkbox.waitFor({ state: 'attached', timeout: 10000 });
-    await checkbox.check({ force: true });
-
-    const confirm = this.getLocator('adminStorageDestroyConfirmButton').first();
-    await confirm.waitFor({ state: 'visible', timeout: 10000 });
-    await confirm.click();
-
-    await this.waitForAdminStoragesSettingsUrl(30000);
-    await this.getLocator('adminStoragesNextcloudLink')
-      .first()
-      .waitFor({ state: 'hidden', timeout: 30000 })
-      .catch(() => undefined);
+    await this.openDeleteStorageDialog();
+    await this.confirmDeleteStorageDialog();
     logInfo('Deleted Nextcloud storage from Administration → File storages');
   }
 
@@ -231,6 +246,48 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
     await sync.waitFor({ state: 'visible', timeout: 15000 });
     await sync.click();
     logInfo('Clicked storage Sync now');
+  }
+
+  /**
+   * After Sync now, turbo swaps Sync now for "Synchronization queued" and does
+   * not poll — reload until Last sync advances (job finished) or Sync now is
+   * back after a settle window. Soft-timeout: folder waiter is the hard gate.
+   */
+  async waitForAmpfSyncSettled(timeoutMs = 180_000): Promise<void> {
+    const queued = this.getLocator('storageSyncQueuedMessage').first();
+    const syncNow = this.getLocator('storageSyncNowButton').first();
+    const syncedAt = this.getLocator('storageHealthSyncedAt').first();
+    const before = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
+    const started = Date.now();
+
+    await queued.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
+
+    while (Date.now() - started < timeoutMs) {
+      await this.page.waitForTimeout(5000);
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+      await syncedAt.waitFor({ state: 'visible', timeout: 20000 }).catch(() => undefined);
+
+      const after = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
+      const stillQueued = await queued.isVisible().catch(() => false);
+      if (after && after !== before && !stillQueued) {
+        logInfo('AMPF sync settled (Last sync: %s → %s)', before || '(none)', after);
+        return;
+      }
+      // Minute-granularity Last sync may not change; Sync now restored = pending cleared.
+      if (
+        !stillQueued &&
+        (await syncNow.isVisible().catch(() => false)) &&
+        Date.now() - started >= 30_000
+      ) {
+        logInfo('AMPF sync settled (Sync now restored after reload)');
+        return;
+      }
+    }
+    logInfo(
+      'AMPF sync wait timed out after %sms (Last sync still %s); continuing to folder waiter',
+      timeoutMs,
+      before || '(unknown)',
+    );
   }
 
   async runHealthChecksNow(): Promise<void> {

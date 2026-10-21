@@ -55,9 +55,7 @@ test.describe('Teardown - Delete Nextcloud File Storage', dualSetupTags, () => {
       await test.step('Click Delete storage action button', async () => {
         logInfo('TC-2260', 'Step 3: Opening Nextcloud storage and clicking Delete');
         await adminStorages.openNextcloudStorage();
-        const deleteBtn = adminStorages.getLocator('adminStorageDeleteButton').first();
-        await deleteBtn.waitFor({ state: 'visible', timeout: 15000 });
-        await deleteBtn.click();
+        await adminStorages.openDeleteStorageDialog();
         await expect(adminStorages.getLocator('adminStorageDestroyDialog').first()).toBeVisible({
           timeout: 15000,
         });
@@ -65,13 +63,7 @@ test.describe('Teardown - Delete Nextcloud File Storage', dualSetupTags, () => {
 
       await test.step('Confirm deletion in the modal dialog', async () => {
         logInfo('TC-2260', 'Step 4: Confirming storage deletion in danger dialog');
-        const checkbox = adminStorages.getLocator('adminStorageDestroyConfirmCheckbox').first();
-        await checkbox.waitFor({ state: 'attached', timeout: 10000 });
-        await checkbox.check({ force: true });
-        const confirm = adminStorages.getLocator('adminStorageDestroyConfirmButton').first();
-        await confirm.waitFor({ state: 'visible', timeout: 10000 });
-        await confirm.click();
-        await homePage.waitForAdminStoragesSettingsUrl(30000);
+        await adminStorages.confirmDeleteStorageDialog();
       });
 
       await test.step(

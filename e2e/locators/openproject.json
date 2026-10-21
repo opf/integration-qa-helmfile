@@ -321,6 +321,10 @@
       "by": "locator",
       "value": "[data-test-selector='op-storages--destroy-confirm-dialog'] input[type='checkbox'], dialog[role='alertdialog'] input[type='checkbox']"
     },
+    "adminStorageDestroyConfirmLabel": {
+      "by": "getByText",
+      "value": "I understand that this deletion cannot be reversed"
+    },
     "adminStorageDestroyConfirmButton": {
       "by": "getByRole",
       "value": {
@@ -524,6 +528,14 @@
         "role": "link",
         "name": "Sync now"
       }
+    },
+    "storageSyncQueuedMessage": {
+      "by": "getByText",
+      "value": "Synchronization queued"
+    },
+    "storageHealthSyncedAt": {
+      "by": "locator",
+      "value": "[data-test-selector='storage-health-checked-at']"
     },
     "replaceNextcloudOAuthButton": {
       "by": "locator",
