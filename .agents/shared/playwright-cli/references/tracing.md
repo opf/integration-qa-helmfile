@@ -6,11 +6,11 @@ Capture detailed execution traces for debugging and analysis. Traces include DOM
 
 This page describes **`playwright-cli tracing-start` / `tracing-stop`**, which writes trace artifacts under the CLI’s working directory (e.g. `.playwright-cli/` and paths like `traces/` as documented below).
 
-When you run **`npx playwright test`** in this repo’s **`e2e/`** project, traces and reports are controlled by `playwright.config.ts`: HTML/JSON/JUnit under `playwright-report/run-*`, and Playwright output under `test-results/` (see `.agents/shared/openproject-e2e.md`, Running Tests). Those are separate from CLI trace folders. Use the same **Trace Viewer** (`npx playwright show-trace`) for `.trace` files from either source when applicable.
+When you run tests via **`./run-tests.sh`** (Docker) or native Playwright in **`e2e/`**, traces and reports are controlled by `playwright.config.ts`: HTML/JSON/JUnit under `playwright-report/run-*`, and Playwright output under `test-results/` (see `.agents/shared/openproject-e2e.md`, Running Tests). Agents should use Docker for verification. Those artifacts are separate from CLI trace folders. Use the same **Trace Viewer** (`npx playwright show-trace` or the HTML report) for `.trace` files from either source when applicable.
 
 ## Test runner trace CLI (Playwright 1.59+)
 
-After a failing **`npx playwright test`** run, analyze traces without opening the HTML report:
+After a failing Docker or native run, analyze traces without opening the HTML report:
 
 ```bash
 npx playwright trace open test-results/<project>/<test>/trace.zip
@@ -20,7 +20,7 @@ npx playwright trace snapshot 9 --name after
 npx playwright trace close
 ```
 
-For step-through debugging during a test run, use **`npx playwright test --debug=cli`** and attach with **`playwright-cli attach <session-id>`** (see `.agents/shared/playwright-cli/SKILL.md`, Debugging tests).
+For optional native step-through debugging, use **`npx playwright test --debug=cli`** and attach with **`playwright-cli attach <session-id>`** (humans only; see `.agents/shared/playwright-cli/SKILL.md`). Agents verify with `./run-tests.sh`.
 
 ## Basic Usage
 

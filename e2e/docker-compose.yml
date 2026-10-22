@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        PLAYWRIGHT_VERSION: ${PLAYWRIGHT_VERSION:-v1.61.1}
+        PLAYWRIGHT_VERSION: ${PLAYWRIGHT_VERSION:-v1.64.1}
     env_file:
       - path: .env.local
         required: false
@@ -45,11 +45,16 @@ services:
       - ALLOW_INSECURE_TLS=${ALLOW_INSECURE_TLS:-}
       - NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-}
       - OPENPROJECT_CA_CERT_PATH=${OPENPROJECT_CA_CERT_PATH:-}
+      - E2E_VIDEO=${E2E_VIDEO:-}
+      - XWIKI_HOST=${XWIKI_HOST:-}
+      - GITLAB_HOST=${GITLAB_HOST:-}
     extra_hosts:
-      # Resolve *.test to Docker host for local Helm
+      # Resolve *.test to Docker host for local Helm / k3d
       - "openproject.test:host-gateway"
       - "nextcloud.test:host-gateway"
       - "keycloak.test:host-gateway"
+      - "xwiki.test:host-gateway"
+      - "gitlab.test:host-gateway"
     volumes:
       - ./tests:/app/tests
       - ./test-results:/app/test-results
@@ -57,5 +62,6 @@ services:
       - ./pageobjects:/app/pageobjects
       - ./locators:/app/locators
       - ./utils:/app/utils
+      - ./fixtures:/app/fixtures
       - ./playwright.config.ts:/app/playwright.config.ts
       - ./global-setup.ts:/app/global-setup.ts

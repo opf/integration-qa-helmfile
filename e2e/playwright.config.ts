@@ -70,21 +70,22 @@ export default defineConfig({
   projects: [
     {
       name: 'keycloak-tests',
-      use: { ...devices['Desktop Chrome'] },
+      // Playwright 1.64 forwards device `screen`; keep pre-1.64 window.screen / media-query behavior.
+      use: { ...devices['Desktop Chrome'], screen: undefined },
       fullyParallel: false,
       workers: 1,
       testMatch: '**/kc-integration.spec.ts',
     },
     {
       name: 'nextcloud-tests',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], screen: undefined },
       fullyParallel: false,
       workers: 1,
       testMatch: '**/nc-integration.spec.ts',
     },
     {
       name: 'op-integration-tests',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], screen: undefined },
       fullyParallel: false,
       workers: 1,
       testMatch: '**/*.spec.ts',
@@ -94,6 +95,7 @@ export default defineConfig({
       name: 'mcp-tests',
       use: {
         ...devices['Desktop Chrome'],
+        screen: undefined,
         // API/protocol checks — no useful UI to record.
         video: 'off',
       },
