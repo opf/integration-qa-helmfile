@@ -156,7 +156,7 @@ jobs:
       - name: PullPreview up
         id: pullpreview_up
         if: success()
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
+        uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
         with:
           provider: hetzner
           label: ${{ steps.resolve.outputs.preview_name }}
@@ -373,7 +373,7 @@ jobs:
 
       - name: Upload mcp-eval reports
         if: always() && steps.tests.outcome != 'skipped'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: mcp-eval-reports-${{ steps.record.outputs.artifact_slug || 'unknown' }}
           path: e2e/mcp-eval/reports/
@@ -418,7 +418,7 @@ jobs:
           always() &&
           steps.policy.outputs.should_teardown == 'true' &&
           needs.deploy.outputs.preview_name != ''
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
+        uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
         with:
           provider: hetzner
           label: ${{ needs.deploy.outputs.preview_name }}

@@ -82,7 +82,6 @@ jobs:
       CI: true
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
     outputs:
@@ -176,7 +175,7 @@ jobs:
       - name: PullPreview up
         id: pullpreview_up
         if: success()
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
+        uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
         with:
           provider: hetzner
           label: ${{ steps.resolve.outputs.preview_name }}
@@ -322,7 +321,6 @@ jobs:
       CI: true
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       PLAYWRIGHT_IMAGE_VERSION: ${{ needs.resolve_playwright.outputs.version }}
@@ -430,7 +428,7 @@ jobs:
 
       - name: Upload Squash TM payload
         if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: squash-results-${{ inputs.preview_label }}
           path: e2e/playwright-report/**/squash-results.json
@@ -499,7 +497,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always() && needs.deploy.outputs.live == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: playwright-report-${{ inputs.preview_label }}
           path: e2e/playwright-report
@@ -508,7 +506,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always() && needs.deploy.outputs.live == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: e2e-test-results-${{ inputs.preview_label }}
           path: e2e/test-results
@@ -532,7 +530,7 @@ jobs:
         if: >-
           always() &&
           needs.deploy.outputs.preview_name != ''
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
+        uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
         with:
           provider: hetzner
           label: ${{ needs.deploy.outputs.preview_name }}
