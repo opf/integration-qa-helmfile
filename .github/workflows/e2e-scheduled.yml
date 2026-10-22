@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # required by e2e-deploy-test (LE rate-limit log scan)
 
 concurrency:
   group: e2e-scheduled
