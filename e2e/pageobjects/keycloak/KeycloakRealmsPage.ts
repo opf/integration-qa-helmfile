@@ -16,48 +16,71 @@ export class KeycloakRealmsPage extends KeycloakBasePage {
     await this.page.getByTestId('view-header').filter({ hasText: 'Manage realms' }).waitFor({ state: 'visible', timeout: 10000 });
   }
 
+  /** True when Admin Console hash is this realm (welcome or nested path). */
+  private isRealmInUrl(realmName: string): boolean {
+    const hash = new URL(this.page.url()).hash; // e.g. #/opnc or #/opnc/clients
+    return new RegExp(`^#/${realmName}(/|$)`).test(hash);
+  }
+
   /**
-   * Check if a realm is currently selected by looking for the "Current realm" badge
-   * Based on HTML structure: <td><div>opnc <span class="pf-v5-c-badge">Current realm</span></div></td>
+   * Whether the realm is the active Admin Console context.
+   * Prefer URL / sidebar currentRealm — clicking a realm leaves Manage realms
+   * for the Welcome page, so the table "Current realm" badge is unreliable.
    */
   async isRealmSelected(realmName: string): Promise<boolean> {
     try {
-      // Look for a table cell (td) that contains the realm name
-      // The structure is: <td><div>realmName <span class="pf-v5-c-badge">Current realm</span></div></td>
-      const realmCell = this.page.locator('td.pf-v5-c-table__td').filter({
-        hasText: realmName,
-      });
-      await realmCell.first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => undefined);
-      const cellCount = await realmCell.count();
-      if (cellCount === 0) {
-        logDebug('[REALM CHECK] Realm "%s" cell not found', realmName);
-        return false;
+      if (this.isRealmInUrl(realmName)) {
+        logDebug('[REALM CHECK] Realm "%s" selected (URL hash)', realmName);
+        return true;
       }
-      
-      // Check if the "Current realm" badge is present in this cell
-      // Look for span with class pf-v5-c-badge containing "Current realm" text
-      const currentRealmBadge = realmCell.locator('span.pf-v5-c-badge.pf-m-read:has-text("Current realm")');
-      const badgeCount = await currentRealmBadge.count();
-      const isSelected = badgeCount > 0;
-      logDebug('[REALM CHECK] Realm "%s" is %s', realmName, isSelected ? 'already selected' : 'not selected');
-      return isSelected;
+
+      const currentRealmLocator = this.getLocator('currentRealm');
+      if (await currentRealmLocator.isVisible().catch(() => false)) {
+        const text = (await currentRealmLocator.textContent())?.trim();
+        if (text === realmName) {
+          logDebug('[REALM CHECK] Realm "%s" selected (sidebar currentRealm)', realmName);
+          return true;
+        }
+      }
+
+      // Optional: still on Manage realms — table badge if present.
+      const realmCell = this.page.locator('td.pf-v5-c-table__td').filter({ hasText: realmName });
+      const tableBadge = realmCell.locator(
+        'span.pf-v5-c-badge.pf-m-read:has-text("Current realm")',
+      );
+      if ((await tableBadge.count()) > 0) {
+        logDebug('[REALM CHECK] Realm "%s" selected (Manage realms table badge)', realmName);
+        return true;
+      }
+
+      logDebug('[REALM CHECK] Realm "%s" is not selected', realmName);
+      return false;
     } catch (error: unknown) {
-      logDebug('[REALM CHECK] Could not determine if realm "%s" is selected, assuming not. Error:', realmName, getErrorMessage(error));
+      logDebug(
+        '[REALM CHECK] Could not determine if realm "%s" is selected, assuming not. Error:',
+        realmName,
+        getErrorMessage(error),
+      );
       return false;
     }
   }
 
   async selectRealm(realmName: string): Promise<void> {
     logDebug('[REALM SELECTION] Selecting realm: %s', realmName);
-    const realmLink = this.page.locator(`a[href='#/${realmName}']`).filter({ hasText: realmName });
+    const realmLink = this.page
+      .locator(`a[href='#/${realmName}']`)
+      .filter({ hasText: realmName });
     await realmLink.waitFor({ state: 'visible', timeout: 10000 });
     logDebug('[REALM SELECTION] Realm link found, clicking...');
     await realmLink.click();
-    const currentBadge = this.page
-      .locator('td.pf-v5-c-table__td')
-      .filter({ hasText: realmName })
-      .locator('span.pf-v5-c-badge.pf-m-read:has-text("Current realm")');
-    await currentBadge.first().waitFor({ state: 'visible', timeout: 15000 });
+    // Console navigates to Welcome to <realm> (#/opnc) — do not wait for Manage realms table.
+    await this.page.waitForURL(
+      (url) => new RegExp(`#/${realmName}(/|$)`).test(url.hash),
+      { timeout: 15000 },
+    );
+    await this.getLocator('currentRealm')
+      .filter({ hasText: new RegExp(`^\\s*${realmName}\\s*$`) })
+      .waitFor({ state: 'visible', timeout: 10000 });
     logDebug('[REALM SELECTION] Realm selection completed');
   }
 
