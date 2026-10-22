@@ -2,25 +2,13 @@ name: PullPreview Cleanup
 run-name: >-
   ${{
     github.event.inputs.mode == 'teardown'
-      && format('PullPreview teardown · {0}', github.event.inputs.target)
-      || format('PullPreview list · {0}', github.event.inputs.target)
+      && 'PullPreview teardown · all'
+      || 'PullPreview list · all'
   }}
 
 on:
   workflow_dispatch:
     inputs:
-      target:
-        description: "What to cleanup"
-        required: true
-        default: e2e
-        type: choice
-        options:
-          - e2e
-          - env
-          - mcpeval
-          - pr
-          - scheduled
-          - all
       mode:
         description: "List or Teardown"
         required: true
@@ -59,7 +47,7 @@ jobs:
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
       PULLPREVIEW_PROVIDER: hetzner
-      IN_TARGET: ${{ github.event.inputs.target }}
+      IN_TARGET: all
       IN_MODE: ${{ github.event.inputs.mode }}
       IN_CONFIRM: ${{ github.event.inputs.confirm_teardown }}
     steps:
@@ -122,35 +110,12 @@ jobs:
 
           label_matches_target() {
             local label="$1"
-            case "${IN_TARGET}" in
-              e2e)
-                [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]]
-                ;;
-              env)
-                # env-* is the PullPreview Environment workflow; setup-* is legacy deploy-only.
-                [[ "${label}" =~ ^(env|setup)-[0-9]+-[0-9]+$ ]]
-                ;;
-              mcpeval)
-                [[ "${label}" =~ ^mcpeval-[0-9]+-[0-9]+$ ]]
-                ;;
-              pr)
-                [[ "${label}" == "pullpreview" ]]
-                ;;
-              scheduled)
-                [[ "${label}" =~ ^sched- ]]
-                ;;
-              all)
-                [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]] \
-                  || [[ "${label}" =~ ^(env|setup)-[0-9]+-[0-9]+$ ]] \
-                  || [[ "${label}" =~ ^mcpeval-[0-9]+-[0-9]+$ ]] \
-                  || [[ "${label}" == "pullpreview" ]] \
-                  || [[ "${label}" =~ ^sched- ]]
-                ;;
-              *)
-                echo "::error::Unknown target: ${IN_TARGET}"
-                return 1
-                ;;
-            esac
+            # Always clean up every known PullPreview label family.
+            [[ "${label}" =~ ^e2e-[0-9]+-[0-9]+$ ]] \
+              || [[ "${label}" =~ ^(env|setup)-[0-9]+-[0-9]+$ ]] \
+              || [[ "${label}" =~ ^mcpeval-[0-9]+-[0-9]+$ ]] \
+              || [[ "${label}" == "pullpreview" ]] \
+              || [[ "${label}" =~ ^sched- ]]
           }
 
           extract_tag_value() {
