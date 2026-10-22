@@ -43,6 +43,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 defaults:
   run:
@@ -237,6 +238,12 @@ jobs:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
           SKIP_XWIKI: "true"
         run: .github/scripts/deploy-preview-summary.sh
+
+      - name: Report Let's Encrypt rate limit
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/report-letsencrypt-rate-limit.sh
 
       - name: Preview endpoint checks
         id: validate_urls

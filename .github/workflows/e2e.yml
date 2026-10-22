@@ -137,6 +137,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   resolve_playwright:
@@ -360,6 +361,12 @@ jobs:
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
           SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
         run: .github/scripts/deploy-preview-summary.sh
+
+      - name: Report Let's Encrypt rate limit
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/report-letsencrypt-rate-limit.sh
 
       - name: Preview endpoint checks
         id: validate_urls

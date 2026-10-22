@@ -21,6 +21,32 @@ is_transient_network_failure() {
   grep -qE 'dial tcp: lookup |Temporary failure in name resolution|TLS handshake timeout|connection reset by peer|i/o timeout' "${1:?log file required}"
 }
 
+# report_letsencrypt_rate_limit_from_text TEXT
+#
+# If TEXT contains a Let's Encrypt ACME rateLimited error, emit a GitHub Actions
+# ::error:: annotation with the formatted reset time. No-op when the shared
+# parser script is missing (e.g. unexpected layout on the preview VM).
+report_letsencrypt_rate_limit_from_text() {
+  local text="${1:-}"
+  [[ -n "${text}" ]] || return 0
+  local script=""
+  local repo_root=""
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd 2>/dev/null || true)"
+  for candidate in \
+    "${repo_root}/.github/scripts/parse-letsencrypt-rate-limit.sh" \
+    "/app/.github/scripts/parse-letsencrypt-rate-limit.sh"; do
+    if [[ -f "${candidate}" ]]; then
+      script="${candidate}"
+      break
+    fi
+  done
+  [[ -n "${script}" ]] || return 0
+  local message=""
+  message="$(printf '%s\n' "${text}" | bash "${script}" 2>/dev/null)" || return 0
+  [[ -n "${message}" ]] || return 0
+  echo "::error title=LetsEncrypt rate limit::${message}"
+}
+
 # collect_diagnostics CONTEXT NAMESPACE [RELEASE]
 #
 # Emits a GitHub Actions ::group:: block with: pod/job/deployment/PVC listing,
@@ -105,7 +131,10 @@ collect_diagnostics() {
   fi
   if [[ -n "${caddy_pod}" ]]; then
     echo "[pullpreview] Caddy pod log tail (${caddy_pod}):"
-    kubectl logs "${caddy_pod}" -n "${namespace}" --tail=200 2>&1 | redact_stream || true
+    local caddy_logs=""
+    caddy_logs="$(kubectl logs "${caddy_pod}" -n "${namespace}" --tail=200 2>&1 | redact_stream || true)"
+    printf '%s\n' "${caddy_logs}"
+    report_letsencrypt_rate_limit_from_text "${caddy_logs}"
   fi
 
   echo "::endgroup::"
