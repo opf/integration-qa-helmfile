@@ -1,7 +1,10 @@
 import { test, expect, oauth2Tags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { OpenProjectAdminStoragesPage, OpenProjectHomePage } from '../../../pageobjects/openproject';
-import { getNextcloudStorageOauthClientCredentials } from '../../../utils/openproject-oauth-tokens';
+import {
+  getNextcloudStorageOauthClientCredentials,
+  isKubectlAvailable,
+} from '../../../utils/openproject-oauth-tokens';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
 import { loginOpenProjectAsStorageAdmin } from '../shared';
@@ -22,6 +25,13 @@ test.describe('OAuth2 Storage Client Credentials Reset', oauth2Tags, () => {
       const adminStorages = new OpenProjectAdminStoragesPage(page);
       let homePage: OpenProjectHomePage;
       let credentials: { clientId: string; clientSecret: string };
+
+      if (!(await isKubectlAvailable())) {
+        test.skip(
+          true,
+          'kubectl unavailable — load storage OAuth credentials requires cluster rails runner',
+        );
+      }
 
       logInfo('TC-2257', 'Setup: admin session + load current NC OAuth credentials');
       try {
