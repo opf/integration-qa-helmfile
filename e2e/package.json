@@ -7,28 +7,17 @@
     "url": "https://github.com/opf/integration-qa-helmfile.git"
   },
   "scripts": {
-    "test": "playwright test",
-    "test:e2e": "playwright test",
-    "test:e2e:report": "playwright test; playwright show-report",
-    "test:e2e:headed": "PWDEBUG=0 playwright test --headed",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug",
-    "test:edge": "E2E_ENV=edge playwright test",
-    "test:stage": "E2E_ENV=stage playwright test",
-    "test:local": "E2E_ENV=local playwright test",
     "test:docker": "./run-tests.sh",
-    "squash:publish": "ts-node scripts/publish-squash-results.ts",
-    "report:show": "playwright show-report --host 0.0.0.0",
-    "playwright:install": "playwright install --with-deps"
+    "squash:publish": "ts-node scripts/publish-squash-results.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "dotenv": "^18.0.5",
-    "undici": "^8.11.2"
+    "dotenv": "^18.0.8",
+    "undici": "^8.12.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
-    "@types/node": "^26.6.4",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
     "ts-node": "^10.9.2"
   },
   "overrides": {

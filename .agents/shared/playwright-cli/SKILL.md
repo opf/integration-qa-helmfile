@@ -282,23 +282,19 @@ playwright-cli close
 
 ## Debugging tests (Playwright 1.59+)
 
-For agentic or interactive debugging of **`npx playwright test`** runs in this repo:
+**Agents:** verify specs with Docker (`e2e/./run-tests.sh --no-open-report …`), not host `npx playwright test`. Use playwright-cli / MCP only for live-page exploration; see `.agents/shared/openproject-e2e.md` Running Tests.
+
+After a Docker failure, traces land under `e2e/test-results/` on the host (bind mount):
 
 ```bash
-# Attach playwright-cli to a running test for step-through debugging
-E2E_ENV=local npx playwright test --debug=cli
-
-# Analyze a failure trace from the CLI (after a test run)
-npx playwright trace open test-results/<path>/trace.zip
-npx playwright trace actions --grep="expect"
+npx playwright show-trace test-results/<path>/trace.zip   # needs a local Playwright install, or open the HTML report
 ```
 
-When exploring with **playwright-cli** only, bind sessions for multi-client attach (Playwright 1.59+):
+Optional **native** step-through (humans; installs browsers on host):
 
 ```bash
+E2E_ENV=local npx playwright test --debug=cli
 playwright-cli attach my-session
-# Or enable dashboard: PLAYWRIGHT_DASHBOARD=1 npx playwright test
-playwright-cli show
 ```
 
 See [references/tracing.md](references/tracing.md) for CLI trace commands vs test-runner traces.

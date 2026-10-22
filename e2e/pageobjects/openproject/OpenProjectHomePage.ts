@@ -108,11 +108,21 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
    * (two-way OAuth can leave the OP→NC token alive).
    */
   async revokeOAuthClientTokensIfPresent(): Promise<number> {
-    await this.page.goto(`${this.baseUrl}/my/access_tokens`);
+    // Client tokens (OP→external, e.g. Nextcloud) live on ?tab=client; default is Provider tokens.
+    await this.page.goto(`${this.baseUrl}/my/access_tokens?tab=client`);
     await this.getLocator('myAccessTokensHeading')
       .first()
       .waitFor({ state: 'visible', timeout: 15000 })
       .catch(() => undefined);
+
+    // Prefer role name — href*=tab=client also matches the sr-only skip-nav link.
+    if (!/tab=client/.test(this.page.url())) {
+      const clientTab = this.getLocator('oauthClientTokensTab').first();
+      if (await clientTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await clientTab.click();
+        await this.page.waitForURL(/tab=client/, { timeout: 5000 }).catch(() => undefined);
+      }
+    }
 
     const closeDialog = this.getLocator('accessTokenDialogCloseButton').first();
     if (await closeDialog.isVisible({ timeout: 2000 }).catch(() => false)) {

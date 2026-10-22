@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# Run Playwright E2E tests in Docker.
+# Run Playwright E2E tests in Docker (browsers + Node deps stay in the image).
 # Usage: ./run-tests.sh [--build] [--no-open-report] [playwright args...]
-# E2E_ENV=edge|stage|local (default: local). Report opens on host after run; use --no-open-report to skip.
+# E2E_ENV=local|pullpreview|edge|stage (default: local).
+# Local Helm: default hosts via extra_hosts (*.test → host-gateway).
+# PullPreview: export E2E_ENV=pullpreview OPENPROJECT_HOST=... (and NC/KC hosts) from the deploy.
+# After package-lock / Dockerfile changes: ./run-tests.sh --build
+# Agents: prefer --no-open-report so the run does not open a browser on the host.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,0 +1,231 @@
+# Vendored from pullpreview/action@65df5209 (poc/pullpreview-helm-multihost / #133)
+# with actions/cache bumped to Node 24 (v6.1.0). Binary is fetched from that SHA
+# at runtime so we keep force_action + proxy_tls_hosts without committing dist/.
+name: "Preview Environments for GitHub"
+description: "Ephemeral preview deployments of your app for every pull request (local pin with Node 24 cache)."
+author: "Cyril Rohr"
+branding:
+  icon: anchor
+  color: purple
+inputs:
+  app_path:
+    description: "The path to your application containing a docker-compose file"
+    default: "."
+    required: false
+  dns:
+    description: "Which DNS suffix to use"
+    default: "my.preview.run"
+  max_domain_length:
+    description: "Maximum length of fully qualified domain name. Note that it cannot be greater than 62 characters due to LetsEncrypt restrictions."
+    default: "62"
+  label:
+    description: "Label to use for triggering preview deployments"
+    default: "pullpreview"
+  force_action:
+    description: "Override github-sync event-derived action selection: up or down"
+    required: false
+    default: ""
+  github_token:
+    description: "The GitHub access token used to perform GitHub API operations (labels, comments, collaborator/keys lookup)."
+    default: "${{ github.token }}"
+  admins:
+    description: "Logins of GitHub users that will have their SSH key installed on the instance, comma-separated"
+    required: false
+    default: "@collaborators/push"
+  ports:
+    description: "Ports to open for external access on the preview server (port 22 is always open), comma-separated"
+    required: false
+    default: "80/tcp,443/tcp"
+  cidrs:
+    description: "The IP address, or range of IP addresses in CIDR notation, that are allowed to connect to the instance"
+    required: false
+    default: "0.0.0.0/0"
+  default_port:
+    description: "The port to use when building the preview URL"
+    required: false
+    default: "80"
+  compose_files:
+    description: "Compose files to use when running docker-compose up, comma-separated"
+    required: false
+    default: "docker-compose.yml"
+  compose_options:
+    description: "Additional options to pass to docker-compose up, comma-separated"
+    required: false
+    default: "--build"
+  deployment_target:
+    description: "Deployment target to use: compose or helm (helm supports Hetzner and Lightsail)"
+    required: false
+    default: "compose"
+  chart:
+    description: "Helm chart reference: local path, repo chart name, or OCI reference (helm target only)"
+    required: false
+    default: ""
+  chart_repository:
+    description: "Helm repository URL used when chart is a repo chart name (helm target only)"
+    required: false
+    default: ""
+  chart_values:
+    description: "Helm values files relative to app_path, comma-separated (helm target only). Plain YAML stays unchanged except for PullPreview placeholders; *.gotmpl files also support local env/template rendering."
+    required: false
+    default: ""
+  chart_set:
+    description: "Additional Helm --set overrides, comma-separated (helm target only)"
+    required: false
+    default: ""
+  license:
+    description: "PullPreview license"
+    required: false
+    default: ""
+  instance_type:
+    description: "Instance type to use"
+    required: false
+    default: "small"
+  region:
+    description: "Provider region (AWS region or Hetzner location), overrides provider defaults"
+    required: false
+    default: ""
+  deployment_variant:
+    description: "Deployment variant, which allows launching multiple deployments per PR (4 chars max)"
+    required: false
+    default: ""
+  image:
+    description: "Instance image (Hetzner only; ignored by AWS)"
+    required: false
+    default: "ubuntu-24.04"
+  provider:
+    description: "Cloud provider to use: lightsail, hetzner"
+    required: false
+    default: "lightsail"
+  registries:
+    description: "Names of private registries to authenticate against for compose deployments. E.g. docker://username:password@ghcr.io"
+    required: false
+    default: ""
+  proxy_tls:
+    description: "Enable automatic HTTPS forwarding with Let's Encrypt (format: service:port, e.g. web:80)"
+    required: false
+    default: ""
+  proxy_tls_hosts:
+    description: "Additional public hostnames served by the Helm Caddy gateway, comma-separated"
+    required: false
+    default: ""
+  pre_script:
+    description: "Path to a local bash script (relative to app_path) executed inline over SSH on the instance before docker compose"
+    required: false
+    default: ""
+  templated_url:
+    description: "Template for the preview URL displayed in PR comments and outputs (use {{ pullpreview_url }} as placeholder, e.g. {{ pullpreview_url }}/custom/path?key=value)"
+    required: false
+    default: ""
+  ttl:
+    description: "Maximum time to live for deployments (e.g. 10h, 5d, infinite)"
+    required: false
+    default: "infinite"
+
+outputs:
+  live:
+    description: "Whether this run produced a live preview deployment"
+    value: "${{ steps.pullpreview.outputs.live }}"
+  url:
+    description: "The URL of the application on the preview server"
+    value: "${{ steps.pullpreview.outputs.url }}"
+  host:
+    description: "The hostname or IP address of the preview server"
+    value: "${{ steps.pullpreview.outputs.host }}"
+  username:
+    description: "The username that can be used to SSH into the preview server"
+    value: "${{ steps.pullpreview.outputs.username }}"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Restore SSH key cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0 (Node 24)
+      with:
+        path: ${{ runner.temp }}/pullpreview-ssh-keys
+        key: pullpreview-ssh-keys-v1-${{ github.repository_id }}-${{ github.run_id }}
+        restore-keys: |
+          pullpreview-ssh-keys-v1-${{ github.repository_id }}-
+    - id: pullpreview
+      shell: bash
+      env:
+        GITHUB_TOKEN: "${{ inputs.github_token }}"
+        PULLPREVIEW_LICENSE: "${{ inputs.license }}"
+        PULLPREVIEW_PROVIDER: "${{ inputs.provider }}"
+        PULLPREVIEW_MAX_DOMAIN_LENGTH: "${{ inputs.max_domain_length }}"
+        PULLPREVIEW_SSH_KEYS_CACHE_DIR: "${{ runner.temp }}/pullpreview-ssh-keys"
+        PULLPREVIEW_GITHUB_JOB_ID: "${{ job.check_run_id }}"
+        # Keep in sync with .github/workflows/pullpreview-cleanup.yml PULLPREVIEW_ACTION_SHA
+        PULLPREVIEW_ACTION_SHA: "65df5209b58f360444525f1167f9e14803521fed"
+      run: |
+        set -euo pipefail
+        mkdir -p "${PULLPREVIEW_SSH_KEYS_CACHE_DIR}"
+
+        os="$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')"
+        arch="$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
+        if [ "${os}" != "linux" ]; then
+          echo "::error::Unsupported RUNNER_OS=${RUNNER_OS}. Only Linux amd64 is supported."
+          exit 1
+        fi
+        case "${arch}" in
+          x64) arch="amd64" ;;
+          amd64) arch="amd64" ;;
+          *)
+            echo "::error::Unsupported RUNNER_ARCH=${RUNNER_ARCH}. Only amd64 is supported."
+            exit 1
+            ;;
+        esac
+
+        dist_dir="${GITHUB_ACTION_PATH}/dist"
+        mkdir -p "${dist_dir}"
+        binary="${dist_dir}/pullpreview-${os}-${arch}"
+        if [ ! -f "${binary}" ]; then
+          curl -fsSL \
+            -o "${binary}" \
+            "https://raw.githubusercontent.com/pullpreview/action/${PULLPREVIEW_ACTION_SHA}/dist/pullpreview-${os}-${arch}"
+        fi
+        chmod +x "${binary}"
+
+        app_path="${{ inputs.app_path }}"
+        # Backward compatibility for Docker-era defaults; composite actions run in $GITHUB_WORKSPACE.
+        if [ -z "${app_path}" ] || [ "${app_path}" = "/github/workspace" ]; then
+          app_path="${GITHUB_WORKSPACE}"
+        fi
+
+        args=(
+          github-sync "${app_path}"
+          --admins "${{ inputs.admins }}"
+          --cidrs "${{ inputs.cidrs }}"
+          --deployment-target "${{ inputs.deployment_target }}"
+          --compose-files "${{ inputs.compose_files }}"
+          --compose-options "${{ inputs.compose_options }}"
+          --chart "${{ inputs.chart }}"
+          --chart-repository "${{ inputs.chart_repository }}"
+          --chart-values "${{ inputs.chart_values }}"
+          --chart-set "${{ inputs.chart_set }}"
+          --dns "${{ inputs.dns }}"
+          --label "${{ inputs.label }}"
+          --ports "${{ inputs.ports }}"
+          --default-port "${{ inputs.default_port }}"
+          --instance-type "${{ inputs.instance_type }}"
+          --region "${{ inputs.region }}"
+          --image "${{ inputs.image }}"
+          --deployment-variant "${{ inputs.deployment_variant }}"
+          --registries "${{ inputs.registries }}"
+          --proxy-tls "${{ inputs.proxy_tls }}"
+          --proxy-tls-hosts "${{ inputs.proxy_tls_hosts }}"
+          --pre-script "${{ inputs.pre_script }}"
+          --ttl "${{ inputs.ttl }}"
+          --templated-url "${{ inputs.templated_url }}"
+        )
+
+        if [ -n "${{ inputs.force_action }}" ]; then
+          args+=(--force-action "${{ inputs.force_action }}")
+        fi
+
+        "${binary}" "${args[@]}"
+
+        if grep -q '^url=' "${GITHUB_OUTPUT}"; then
+          echo "live=true" >> "${GITHUB_OUTPUT}"
+        else
+          echo "live=false" >> "${GITHUB_OUTPUT}"
+        fi

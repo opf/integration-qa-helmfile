@@ -121,6 +121,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   resolve_deploy_inputs:
@@ -173,7 +174,6 @@ jobs:
       CI: true
       HEADLESS: true
       SKIP_SETUP_JOB_CHECK: true
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       HETZNER_CA_KEY: ${{ secrets.HETZNER_CA_KEY }}
     outputs:
@@ -243,7 +243,7 @@ jobs:
       - name: PullPreview up
         id: pullpreview_up
         if: success()
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
+        uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
         with:
           provider: hetzner
           label: ${{ steps.resolve.outputs.preview_name }}
@@ -290,6 +290,12 @@ jobs:
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
           SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
         run: .github/scripts/deploy-preview-summary.sh
+
+      - name: Report Let's Encrypt rate limit
+        if: always() && steps.pullpreview_up.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/report-letsencrypt-rate-limit.sh
 
       - name: Preview endpoint checks
         id: validate_urls
@@ -427,7 +433,7 @@ jobs:
           always() &&
           steps.publish.outputs.preview_name != '' &&
           steps.publish.outputs.live != 'true'
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
+        uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
         with:
           provider: hetzner
           label: ${{ steps.publish.outputs.preview_name }}

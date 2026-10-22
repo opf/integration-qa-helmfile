@@ -15,12 +15,13 @@ This file is the canonical always-on project guidance for AI coding agents. Code
 - Development deployments: `make deploy-dev` or `make deploy-op-standalone`.
 - Teardown: `make teardown`; delete the k3d cluster with `make teardown-all`.
 - OpenProject RSpec inside the cluster: `make run-rspec-test SPEC=spec/path/to_spec.rb`.
-- E2E tests from `e2e/`: `npm install`, `npm run playwright:install`, then `E2E_ENV=local npx playwright test`.
-- Docker E2E run from `e2e/`: `./run-tests.sh`.
+- E2E tests (agents and preferred local path): from `e2e/`, use Docker only — `./run-tests.sh` (see `.agents/shared/openproject-e2e.md` Running Tests). Do **not** `npm install` / `playwright install` / `npx playwright test` on the host for verification.
+- Examples: `E2E_ENV=local ./run-tests.sh --no-open-report --project=op-integration-tests tests/path/to.spec.ts`; PullPreview: set `E2E_ENV=pullpreview` plus `OPENPROJECT_HOST` / `NEXTCLOUD_HOST` / `KEYCLOAK_HOST` (and URLs as needed) then `./run-tests.sh --no-open-report …`. Rebuild image after lockfile changes: `./run-tests.sh --build …`.
 
 ## E2E Conventions
 
 - Before writing, modifying, or reviewing Playwright tests, page objects, locators, or E2E utilities, read `.agents/shared/openproject-e2e.md`.
+- When debugging or developing tests, **run them via `e2e/./run-tests.sh` (Docker)**. Do not install Playwright browsers or `e2e/node_modules` on the agent host for test execution. Interactive locator discovery (playwright-cli / Playwright MCP) may still hit a live UI; verification of committed tests stays Docker.
 - Test specs belong in `e2e/tests/`.
 - Page object UI flows belong in `e2e/pageobjects/`.
 - API helpers and orchestration belong in `e2e/utils/`.

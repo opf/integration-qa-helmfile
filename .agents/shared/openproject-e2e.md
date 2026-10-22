@@ -125,7 +125,7 @@ try {
   - Guard `beforeAll` / `afterAll` with `isSetupMethod(...)` so skipped suites do not run API cleanup hooks.
   - Pure Keycloak-only or Oliver-connect/disconnect-only flows stay single-mode (`oauth2Tags` or `ssoExternalTags`). Shared product flows (enable/marketplace/upgrade, project storages, file linking, NC admin/personal settings, header link, unified search, dashboard widget, Text/Talk smart picker) are dual-mode.
   - Match Playwright to the **currently deployed** stack (`environments/override.yaml` / `SETUP_METHOD`). Do not redeploy just to flip auth mode when the suite under test is dual-mode.
-  - Local example: with `setupMethod: 'oauth2'` in override.yaml, `E2E_ENV=local npx playwright test --project=op-integration-tests` runs `@oauth2` and skips `@sso-external` without exporting `SETUP_METHOD`.
+  - Local example: with `setupMethod: 'oauth2'` in override.yaml, `E2E_ENV=local ./run-tests.sh --no-open-report --project=op-integration-tests` runs `@oauth2` and skips `@sso-external` without exporting `SETUP_METHOD`.
 - `global-setup.ts`:
   - Optionally waits for Kubernetes `setup-job` completion when `SETUP_JOB_CHECK=true` (uses `utils/pod-waiter.ts`).
   - Runs `detectAllVersions()` from `utils/version-detect.ts` to populate version-related env vars (OpenProject, Nextcloud, Keycloak, etc.) if not already set.
@@ -256,36 +256,50 @@ test(
 
 ## Running Tests
 
+### Agents (required)
+
+AI coding agents **must** execute and re-run Playwright verification through Docker so the host does not need `e2e/node_modules` or Playwright browsers:
+
+```bash
+cd e2e
+# Local Helm / k3d (*.test → host via docker-compose extra_hosts)
+E2E_ENV=local ./run-tests.sh --no-open-report --project=op-integration-tests tests/path/to.spec.ts
+
+# PullPreview (hosts from deploy job / .env.local)
+E2E_ENV=pullpreview \
+  OPENPROJECT_HOST=….my.opf.run NEXTCLOUD_HOST=nextcloud.….my.opf.run KEYCLOAK_HOST=keycloak.….my.opf.run \
+  ./run-tests.sh --no-open-report --project=op-integration-tests tests/path/to.spec.ts
+```
+
+- After `package-lock.json` / `Dockerfile` changes: add `--build`.
+- Do **not** install Playwright browsers or run host `npx playwright test` for verification.
+- Interactive locator discovery (playwright-cli / Playwright MCP) may still target a live UI; landing code and Docker verification still follow this guide.
+
+### General
+
 - Tests run in headless mode by default (see `playwright.config.ts`).
-- To run in headed mode, use Playwright’s native CLI flags, e.g.:
-  - `npx playwright test --headed`
 - Default worker configuration:
   - Single worker (`workers: 1`), overridable via `E2E_WORKERS` or `--workers`.
   - Integration projects set `fullyParallel: false` so specs run sequentially (alphabetic path order).
-- Video recording: **on by default** for UI projects (`playwright.config.ts` `use.video.mode`). Disable with `E2E_VIDEO=off`. Videos land under `e2e/test-results/`. No separate video script is required for a recording run.
+- Video recording: **on by default** for UI projects (`playwright.config.ts` `use.video.mode`). Disable with `E2E_VIDEO=off`. Videos land under `e2e/test-results/`.
 - Match Playwright to the deployed auth mode (`SETUP_METHOD` or `environments/override.yaml`):
   - OAuth2 stack: `@oauth2` runs; `@sso-external` skips. Grep: `--grep @oauth2`.
   - SSO-external stack: `@sso-external` runs; `@oauth2` skips. Grep: `--grep @sso-external`.
   - CI scheduled/manual OP-NC runs always pass `--grep @${SETUP_METHOD}` so opposite-mode
     specs are not collected. Squash publish also omits skips whose reason matches
     `Requires SETUP_METHOD` (safety net for ungated local full-suite runs).
-- **Native (Node.js on host):**
-  - Run tests: `npx playwright test`
-  - Run tests headed: `npx playwright test --headed`
-  - Run tests and open report: `npx playwright test && npx playwright show-report`
-  - Subset by path (from `e2e/`): `E2E_ENV=local npx playwright test --project=op-integration-tests tests/opncintegration/04-work-package-integration/07-nc-smart-picker.spec.ts`
-  - Flake check: `npx playwright test --project=op-integration-tests --repeat-each=3 <spec>`
-- **Docker (zero local Node/browser):**
-  - Run all tests: `./run-tests.sh` (default `E2E_ENV=local`)
-  - Target env: `E2E_ENV=edge ./run-tests.sh` or `E2E_ENV=stage ./run-tests.sh`
+- **Docker (only supported local path):**
+  - Run all tests: `./run-tests.sh` (default `E2E_ENV=local`) or `npm run test:docker`
+  - Target env: `E2E_ENV=edge|stage|pullpreview ./run-tests.sh`
   - Pass Playwright args: `./run-tests.sh --grep @smoke`; force rebuild: `./run-tests.sh --build`
-  - Reports and traces are bind-mounted to `playwright-report/` and `test-results/` on the host.
+  - Agents: always pass `--no-open-report`
+  - Reports and traces are bind-mounted to `playwright-report/` and `test-results/` on the host
 
 ## Optional: Playwright CLI
 
 For when to use CLI vs Playwright MCP while authoring tests, see [`.agents/shared/playwright-test-authoring.md`](playwright-test-authoring.md).
 
-The `playwright-cli` tool is for **interactive** exploration against a live site: snapshots, optional tracing or video outside the normal `npx playwright test` run, and discovering selector strategies. Output lines that look like Playwright API calls are **hints** for locator design, not something to paste into this repo’s specs.
+The `playwright-cli` tool is for **interactive** exploration against a live site: snapshots, optional tracing or video outside Docker `./run-tests.sh` verification, and discovering selector strategies. Output lines that look like Playwright API calls are **hints** for locator design, not something to paste into this repo’s specs.
 
 - **Install / run:** use `playwright-cli` if installed globally; otherwise `npx playwright-cli` (see `.agents/shared/playwright-cli/SKILL.md` under "Local installation").
 - **Useful commands (subset):** `open`, `goto`, `snapshot`, `click`, `fill`, `close`; `tracing-start` / `tracing-stop`; `video-start` / `video-stop`; named sessions `-s=name`, `list`, `close-all`.

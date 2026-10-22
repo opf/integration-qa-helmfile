@@ -6,7 +6,10 @@ import {
   OpenProjectWorkPackageFilesTab,
 } from '../../../pageobjects/openproject';
 import { OLIVER_OAUTH_USER } from '../../../utils/test-users';
-import { expireOpenProjectStorageAccessTokens } from '../../../utils/openproject-oauth-tokens';
+import {
+  expireOpenProjectStorageAccessTokens,
+  isKubectlAvailable,
+} from '../../../utils/openproject-oauth-tokens';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
 import {
@@ -29,6 +32,13 @@ test.describe('OAuth Access Token Silent Refresh', oauth2Tags, () => {
       const opLogin = new OpenProjectLoginPage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       let homePage: OpenProjectHomePage;
+
+      if (!(await isKubectlAvailable())) {
+        test.skip(
+          true,
+          'kubectl unavailable — expire access token requires cluster rails runner',
+        );
+      }
 
       logInfo('TC-2258', 'Setup: prepare Oliver + Demo storage');
       try {

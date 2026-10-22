@@ -497,6 +497,13 @@
         "name": "Access tokens"
       }
     },
+    "oauthClientTokensTab": {
+      "by": "getByRole",
+      "value": {
+        "role": "link",
+        "name": "Client tokens"
+      }
+    },
     "oauthClientTokensDeleteButton": {
       "by": "locator",
       "value": "a[href*='remove_oauth_client_token'], [data-test-selector^='oauth-client-token-'][data-test-selector$='-remove']"

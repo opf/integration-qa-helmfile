@@ -6,7 +6,10 @@ import {
   OpenProjectWorkPackageFilesTab,
 } from '../../../pageobjects/openproject';
 import { OLIVER_OAUTH_USER } from '../../../utils/test-users';
-import { deleteOpenProjectStorageOAuthTokens } from '../../../utils/openproject-oauth-tokens';
+import {
+  deleteOpenProjectStorageOAuthTokens,
+  isKubectlAvailable,
+} from '../../../utils/openproject-oauth-tokens';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
 import {
@@ -59,6 +62,12 @@ test.describe('OAuth Re-Authentication on Revoked Token', oauth2Tags, () => {
           let revoked = await homePage.revokeOAuthClientTokensIfPresent();
           if (revoked === 0) {
             // Access-tokens UI can omit rows while DB tokens still authorize Files tab.
+            if (!(await isKubectlAvailable())) {
+              test.skip(
+                true,
+                'kubectl unavailable — UI found no client tokens; delete requires cluster rails runner',
+              );
+            }
             revoked = await deleteOpenProjectStorageOAuthTokens(OLIVER_OAUTH_USER.username);
           }
           expect(revoked).toBeGreaterThan(0);

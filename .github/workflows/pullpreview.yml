@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pull-requests: write
 
 concurrency:
@@ -96,7 +97,7 @@ jobs:
 
       - name: Recreate preview before component change
         if: steps.component_label_change.outputs.changed == 'true'
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
+        uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
         with:
           provider: hetzner
           label: pullpreview
@@ -108,7 +109,7 @@ jobs:
           PULLPREVIEW_LOGGER_LEVEL: ERROR
 
       - id: pullpreview
-        uses: pullpreview/action@65df5209b58f360444525f1167f9e14803521fed # poc/pullpreview-helm-multihost (pullpreview/action#133)
+        uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
         with:
           provider: hetzner
           label: pullpreview
@@ -168,6 +169,12 @@ jobs:
           SKIP_XWIKI: ${{ steps.resolve_setup_method.outputs.skip_xwiki }}
           SKIP_GITLAB: ${{ steps.resolve_setup_method.outputs.skip_gitlab }}
         run: .github/scripts/deploy-preview-summary.sh
+
+      - name: Report Let's Encrypt rate limit
+        if: always() && steps.pullpreview.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/report-letsencrypt-rate-limit.sh
 
       - name: Preview endpoint checks
         uses: ./.github/actions/preview-endpoint-checks
