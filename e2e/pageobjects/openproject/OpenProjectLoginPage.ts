@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
 import { KeycloakLoginPage } from '../keycloak/KeycloakLoginPage';
 import { OpenProjectHomePage } from './OpenProjectHomePage';
@@ -13,6 +13,14 @@ const keycloakHost =
   resolveHostname(testConfig.keycloak.host) ||
   'keycloak.test';
 const keycloakHostPattern = new RegExp(`.*${escapeForRegex(keycloakHost)}.*`);
+
+function openProjectHost(): string {
+  return (
+    resolveHostname(resolveHosts().openproject) ||
+    resolveHostname(testConfig.openproject.host) ||
+    resolveHosts().openproject
+  );
+}
 
 export class OpenProjectLoginPage extends OpenProjectBasePage {
   constructor(page: Page) {
@@ -64,6 +72,11 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
     return new OpenProjectHomePage(this.page);
   }
 
+  /**
+   * Start Keycloak auth from the OP login page.
+   * With an existing Keycloak SSO cookie (e.g. after NC OIDC login), OP may bounce
+   * straight back to the app without settling on the Keycloak host — that is OK.
+   */
   async clickKeycloakAuthButton(): Promise<KeycloakLoginPage> {
     // If we've already been redirected to Keycloak (e.g., auto-SSO), skip looking for the OP button.
     if (keycloakHostPattern.test(this.page.url())) {
@@ -95,10 +108,27 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
       await this.page.goto(keycloakUrl);
     }
 
-    await this.page.waitForURL(keycloakHostPattern, { timeout: 10000 });
-    
+    const opHost = escapeForRegex(openProjectHost());
+    // SSO bounce: Keycloak cookie → back on OP without a Keycloak login form.
+    await Promise.race([
+      this.page.waitForURL(keycloakHostPattern, { timeout: 15000 }),
+      this.page.waitForURL(
+        (url) => {
+          const href = typeof url === 'string' ? url : url.href;
+          return (
+            new RegExp(opHost).test(href) &&
+            !href.includes('/login') &&
+            !href.includes('/auth/keycloak')
+          );
+        },
+        { timeout: 15000 },
+      ),
+    ]);
+
     const keycloakPage = new KeycloakLoginPage(this.page);
-    await keycloakPage.waitForReady().catch(() => {});
+    if (keycloakHostPattern.test(this.page.url())) {
+      await keycloakPage.waitForReady().catch(() => {});
+    }
     return keycloakPage;
   }
 
@@ -128,41 +158,87 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
     const submit = this.getLocator('oauthAuthorizeSubmit').first();
     const opHost =
       resolveHostname(resolveHosts().openproject) || resolveHosts().openproject;
-    const deadline = Date.now() + timeoutMs;
-
-    while (Date.now() < deadline) {
-      // Already redirected away from OpenProject (e.g. prior OAuth grant) — stop polling.
-      if (!this.page.url().includes(opHost)) {
-        return false;
-      }
-      for (const candidate of [authorize, allow, submit]) {
-        if (await candidate.isVisible().catch(() => false)) {
-          await candidate.click();
-          return true;
-        }
-      }
-      await this.page.waitForTimeout(500);
+    if (!this.page.url().includes(opHost)) {
+      return false;
     }
-    return false;
+
+    let found: typeof authorize | null = null;
+    try {
+      await expect
+        .poll(
+          async () => {
+            if (!this.page.url().includes(opHost)) return 'left';
+            for (const candidate of [authorize, allow, submit]) {
+              if (await candidate.isVisible().catch(() => false)) {
+                found = candidate;
+                return 'button';
+              }
+            }
+            return null;
+          },
+          { timeout: timeoutMs },
+        )
+        .toMatch(/^(button|left)$/);
+    } catch {
+      return false;
+    }
+    if (!found || !this.page.url().includes(opHost)) {
+      return false;
+    }
+    await found.click();
+    return true;
   }
 
   /**
    * If the OpenProject login form is visible, sign in with the given credentials.
    * Preserves OAuth back_url (does not navigate away from the current authorize redirect).
-   * Returns true when a login was performed.
+   * On sso-external, non-admin users go through Keycloak (local OP password is invalid).
+   * Returns true when a login was performed (including SSO bounce with an existing KC session).
    */
   async loginIfPrompted(username: string, password: string, timeoutMs = 8000): Promise<boolean> {
+    // Only treat a real login page as a prompt — Activity/WP pages must not force Keycloak.
+    const onLoginUrl = this.page.url().includes('/login');
+    const signIn = this.getLocator('signInText').first();
+    if (!onLoginUrl) {
+      const arrived = await Promise.race([
+        this.page
+          .waitForURL((url) => {
+            const href = typeof url === 'string' ? url : url.href;
+            return href.includes('/login');
+          }, { timeout: timeoutMs })
+          .then(() => true),
+        signIn.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true),
+      ]).catch(() => false);
+      if (!arrived) {
+        return false;
+      }
+    }
+
     const usernameInput = this.getLocator('usernameInputById').first();
-    const visible = await usernameInput
-      .waitFor({ state: 'visible', timeout: timeoutMs })
-      .then(() => true)
-      .catch(() => false);
+    const keycloakBtn = this.getLocator('keycloakAuthButton').first();
+    const visible = await Promise.race([
+      usernameInput.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true),
+      keycloakBtn.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true),
+      signIn.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true),
+    ]).catch(() => false);
     if (!visible) {
       return false;
     }
-    await this.fillUsername(username);
-    await this.fillPassword(password);
-    await this.clickSignIn();
+
+    const useKeycloak =
+      testConfig.setupMethod !== 'oauth2' && username !== OP_ADMIN_USER.username;
+    if (useKeycloak) {
+      await this.clickKeycloakAuthButton();
+      // Existing Keycloak SSO cookie may bounce straight back to OP — no credentials needed.
+      if (keycloakHostPattern.test(this.page.url())) {
+        const keycloak = new KeycloakLoginPage(this.page);
+        await keycloak.loginAsUser(username, password);
+      }
+    } else {
+      await this.fillUsername(username);
+      await this.fillPassword(password);
+      await this.clickSignIn();
+    }
     // After sign-in we either land on /oauth/authorize or leave /login entirely.
     await this.page
       .waitForURL((url) => !url.pathname.includes('/login') || url.pathname.includes('/oauth/'), {

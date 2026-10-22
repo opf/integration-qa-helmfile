@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
 import {
   ALICE_USER,
   BOB_OAUTH_USER,
@@ -9,7 +9,7 @@ import {
 } from '../../utils/test-users';
 import { logInfo, logWarn } from '../../utils/logger';
 import { testConfig } from '../../utils/config';
-import { resolveHosts } from '../../utils/env-hosts';
+import { resolveEnvName, resolveHosts } from '../../utils/env-hosts';
 import { hostUrlPattern } from '../../utils/url-helpers';
 import { squashTestCase } from '../../utils/squash-metadata';
 import {
@@ -34,6 +34,7 @@ import {
   isNextcloudUserConnectedToOpenProject,
 } from '../../utils/nextcloud-api';
 import {
+  OpenProjectAdminStoragesPage,
   OpenProjectHomePage,
   OpenProjectLoginPage,
   OpenProjectWorkPackageFilesTab,
@@ -42,6 +43,7 @@ import {
   NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
 } from '../../pageobjects/nextcloud';
+import { runAutomaticallyManagedStorageSync } from '../../utils/openproject-oauth-tokens';
 
 export const ALICE_IDENTIFIERS = [
   ALICE_USER.username,
@@ -303,6 +305,76 @@ export async function loginOpenProjectAsIntegrationUser(
   return homePage;
 }
 
+/**
+ * Ensure the secondary dual-setup user exists in OpenProject and Nextcloud
+ * before membership API calls. SSO Brian is JIT-created via Keycloak on both
+ * apps (AMPF ACL sync needs the NC identity). Leaves no browser session.
+ */
+export async function ensureSecondaryIntegrationUserProvisioned(
+  page: Page,
+): Promise<TestUser> {
+  const user = secondaryIntegrationUser();
+  if (isOauth2Setup()) {
+    await ensureOpenProjectLocalUser(user);
+    await ensureNextcloudLocalUser(user);
+    return user;
+  }
+
+  const loginPage = new OpenProjectLoginPage(page);
+  const homePage = new OpenProjectHomePage(page);
+  logInfo('Provisioning SSO secondary user %s via Keycloak → OpenProject', user.username);
+  await loginPage.navigateTo();
+  const keycloak = await loginPage.clickKeycloakAuthButton();
+  await keycloak.loginAsUser(user.username, user.password);
+  await homePage.waitForReady();
+  await page.context().clearCookies();
+
+  // NC JIT so AMPF Sync now can grant groupfolder ACL before WebDAV probes.
+  logInfo('Provisioning SSO secondary user %s via Keycloak → Nextcloud', user.username);
+  const ncLogin = new NextcloudLoginPage(page);
+  await ncLogin.login(user.username, user.password, {
+    redirectPath: '/index.php/apps/files/files',
+  });
+  await page.context().clearCookies();
+  return user;
+}
+
+/**
+ * Trigger AMPF managed-folder sync. Prefers kubectl rails job; when unavailable
+ * or cluster exec fails (PullPreview / Docker CI), falls back to
+ * Admin → File storages → Sync now. Leaves no browser session after the UI path.
+ */
+export async function ensureAmpfStorageSynced(page: Page): Promise<void> {
+  // Local kubectl against a different cluster (e.g. k3d while targeting PullPreview)
+  // raises "No file storage found" — only try rails when hosts look local/cluster.
+  const opHost = resolveHosts().openproject;
+  const remotePreview = /\.opf\.run|pullpreview/i.test(opHost) || resolveEnvName() === 'pullpreview';
+  if (!remotePreview) {
+    try {
+      if (await runAutomaticallyManagedStorageSync()) {
+        return;
+      }
+    } catch (error: unknown) {
+      logWarn(
+        'AMPF rails sync failed (%s); falling back to Admin UI Sync now',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  } else {
+    logInfo('Remote/PullPreview host — skipping kubectl AMPF sync; using Admin UI Sync now');
+  }
+
+  logInfo('Triggering AMPF sync via Admin UI Sync now');
+  const homePage = await loginOpenProjectAsStorageAdmin(page);
+  await homePage.navigateToAdminStoragesSettings();
+  await homePage.waitForAdminStoragesSettingsUrl();
+  const adminStorages = new OpenProjectAdminStoragesPage(page);
+  await adminStorages.openNextcloudStorage();
+  await adminStorages.clickSyncNow();
+  await adminStorages.waitForAmpfSyncSettled();
+  await page.context().clearCookies();
+}
+
 /** Demo project WP used for Files-tab storage OAuth / health probes. */
 export const DEMO_WORK_PACKAGE_ID = 2;
 
@@ -475,26 +547,39 @@ export async function ensureFilesTabNextcloudConnected(
 
   const loginBtn = filesTab.getNextcloudLoginButtonLocator();
   const linkExisting = filesTab.getLocator('linkExistingFilesButton').first();
+  const noConnection = filesTab.getLocator('filesTabNoConnectionError').first();
 
   // Files Nextcloud section loads async after the URL is ready — poll either outcome.
+  // After NC app toggle, UI can briefly show "No Nextcloud connection" with neither control.
   let state: 'login' | 'connected' | null = null;
-  const deadline = Date.now() + 45_000;
-  while (Date.now() < deadline) {
-    if (await linkExisting.isVisible().catch(() => false)) {
-      state = 'connected';
-      break;
-    }
-    if (await loginBtn.isVisible().catch(() => false)) {
-      state = 'login';
-      break;
-    }
-    await page.waitForTimeout(500);
-  }
-  if (!state) {
-    throw new Error(
-      'Files tab Nextcloud section neither showed login nor link-existing controls within 45s',
-    );
-  }
+  let reloads = 0;
+  await expect
+    .poll(
+      async () => {
+        if (await linkExisting.isVisible().catch(() => false)) {
+          state = 'connected';
+          return true;
+        }
+        if (await loginBtn.isVisible().catch(() => false)) {
+          state = 'login';
+          return true;
+        }
+        if (reloads < 3 && (await noConnection.isVisible().catch(() => false))) {
+          reloads += 1;
+          logWarn(
+            'Files tab shows No Nextcloud connection; soft-reloading (%s/3)',
+            reloads,
+          );
+          await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
+          if (!filesTab.isOnDemoProjectWorkPackageFilesUrl()) {
+            await filesTab.openWorkPackageFilesTab(20000);
+          }
+        }
+        return false;
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true);
 
   if (state === 'login') {
     logInfo('Files tab shows Nextcloud login; completing storage OAuth as %s', user.username);

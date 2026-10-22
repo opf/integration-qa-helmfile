@@ -1,4 +1,4 @@
-import type { Page, Response } from '@playwright/test';
+import { expect, type Page, type Response } from '@playwright/test';
 import { OpenProjectBasePage } from './OpenProjectBasePage';
 import { logDebug, logWarn } from '../../utils/logger';
 
@@ -127,17 +127,22 @@ export class OpenProjectHomePage extends OpenProjectBasePage {
       void dialog.accept();
     });
     for (let i = 0; i < 8; i++) {
-      const deleteBtn = this.getLocator('oauthClientTokensDeleteButton').first();
+      const deleteBtns = this.getLocator('oauthClientTokensDeleteButton');
+      const deleteBtn = deleteBtns.first();
       if (!(await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false))) {
         break;
       }
+      const beforeCount = await deleteBtns.count();
       await deleteBtn.click();
       const confirm = this.page.getByRole('button', { name: /Delete|Revoke|OK|Yes|Remove/i }).last();
       if (await confirm.isVisible({ timeout: 2000 }).catch(() => false)) {
         await confirm.click();
       }
       revoked += 1;
-      await this.page.waitForTimeout(800);
+      await expect
+        .poll(async () => deleteBtns.count(), { timeout: 5000 })
+        .toBeLessThan(beforeCount)
+        .catch(() => undefined);
     }
     this.page.removeAllListeners('dialog');
     if (revoked > 0) {

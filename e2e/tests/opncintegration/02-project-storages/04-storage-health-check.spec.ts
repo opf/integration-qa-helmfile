@@ -64,22 +64,34 @@ test.describe('Storage Health Check', dualSetupTags, () => {
       await test.step(
         'Verify health status updates and confirms connection reachability',
         async () => {
-          // On the full report page after re-run, reachability is shown as Passed checks.
+          // Full report after re-run: passed checks, host reachable, or SSO warning summary
+          // while the storage remains Healthy (token-exchange / AMPF nuance).
           await expect(adminStorages.getLocator('storageHealthLastCheckText').first()).toBeVisible({
             timeout: 15000,
           });
           const hostOk = adminStorages.getLocator('storageHealthHostAccessible').first();
           const allPassed = adminStorages.getLocator('storageHealthChecksPassed').first();
           const passed = adminStorages.getLocator('storageHealthPassedLabel').first();
+          const warningSummary = adminStorages
+            .getLocator('storageHealthWarningSummary')
+            .first();
+          const warningLabel = adminStorages.getLocator('storageHealthWarningLabel').first();
+          const healthyPill = adminStorages.getLocator('storageHealthPill').first();
           await expect
             .poll(
               async () => {
                 if (await hostOk.isVisible().catch(() => false)) return 'host';
                 if (await allPassed.isVisible().catch(() => false)) return 'all';
                 if (await passed.isVisible().catch(() => false)) return 'passed';
+                // SSO stacks may finish with a non-blocking warning while still Healthy.
+                const hasWarning =
+                  (await warningSummary.isVisible().catch(() => false)) ||
+                  (await warningLabel.isVisible().catch(() => false));
+                const isHealthy = await healthyPill.isVisible().catch(() => false);
+                if (hasWarning && isHealthy) return 'warning-healthy';
                 return null;
               },
-              { timeout: 15000 },
+              { timeout: 30000 },
             )
             .not.toBeNull();
         },

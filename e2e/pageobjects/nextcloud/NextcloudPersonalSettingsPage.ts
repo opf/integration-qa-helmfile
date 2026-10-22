@@ -92,10 +92,21 @@ export class NextcloudPersonalSettingsPage extends NextcloudBasePage {
     } else {
       await checkbox.setChecked(targetState ?? !isChecked, { force: true });
     }
-    // saveOptions() is async on the Vue watcher — wait before reload/navigation.
+    // saveOptions() is async on the Vue watcher — wait for toast or save OCS before nav.
     const toast = this.page.getByText(/OpenProject options saved/i).first();
-    await toast.waitFor({ state: 'visible', timeout: 10000 }).catch(() => undefined);
-    await this.page.waitForTimeout(500);
+    const saveResponse = this.page
+      .waitForResponse(
+        (res) =>
+          /\/ocs\/v2\.php\/apps\/integration_openproject\//i.test(res.url()) &&
+          res.request().method() !== 'GET' &&
+          res.ok(),
+        { timeout: 10000 },
+      )
+      .catch(() => undefined);
+    await Promise.race([
+      toast.waitFor({ state: 'visible', timeout: 10000 }),
+      saveResponse,
+    ]).catch(() => undefined);
   }
 
   async toggleNavigationLink(targetState?: boolean): Promise<void> {

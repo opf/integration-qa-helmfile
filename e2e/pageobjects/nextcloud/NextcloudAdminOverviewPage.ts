@@ -14,9 +14,9 @@ export class NextcloudAdminOverviewPage extends NextcloudBasePage {
   async clickOpenIDConnect(): Promise<NextcloudOpenIDConnectPage> {
     await this.getLocator('openIdConnectLink').waitFor({ state: 'visible', timeout: 10000 });
     await this.getLocator('openIdConnectLink').click();
-    await this.page.waitForURL(/.*\/settings\/admin\/user_oidc.*/, { timeout: 10000 });
-    await this.page.waitForTimeout(1000);
-    return new NextcloudOpenIDConnectPage(this.page);
+    const oidcPage = new NextcloudOpenIDConnectPage(this.page);
+    await oidcPage.waitForReady();
+    return oidcPage;
   }
 }
 

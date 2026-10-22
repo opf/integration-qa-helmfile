@@ -5,18 +5,18 @@ import {
   OpenProjectLoginPage,
   OpenProjectWorkPackageFilesTab,
 } from '../../../pageobjects/openproject';
-import { ensureNextcloudLocalUser } from '../../../utils/nextcloud-api';
+import { ensureUserIsProjectMember } from '../../../utils/openproject-api';
 import {
-  ensureOpenProjectLocalUser,
-  ensureUserIsProjectMember,
-} from '../../../utils/openproject-api';
-import { revokeAmpfAccessByStrippingFilePermissions } from '../../../utils/openproject-oauth-tokens';
+  isKubectlAvailable,
+  revokeAmpfAccessByStrippingFilePermissions,
+} from '../../../utils/openproject-oauth-tokens';
 import { ensureProjectHasNextcloudStorage } from '../../../utils/test-helpers';
 import { getErrorMessage } from '../../../utils/error-utils';
 import { logInfo, logError } from '../../../utils/logger';
 import {
   DEMO_WORK_PACKAGE_ID,
   ensureFilesTabNextcloudConnected,
+  ensureSecondaryIntegrationUserProvisioned,
   isOauth2Setup,
   secondaryIntegrationUser,
 } from '../shared';
@@ -50,16 +50,20 @@ test.describe('Permission Boundary Enforcement in Files Tab', dualSetupTags, () 
         await homePage.waitForReady();
       }
 
+      if (!(await isKubectlAvailable())) {
+        test.skip(
+          true,
+          'kubectl unavailable — AMPF permission strip requires cluster rails runner',
+        );
+      }
+
       logInfo(
         'TC-2266',
         'Setup: %s as OP member with Files OAuth, then strip file perms + AMPF sync',
         user.username,
       );
       try {
-        if (isOauth2Setup()) {
-          await ensureOpenProjectLocalUser(user);
-          await ensureNextcloudLocalUser(user);
-        }
+        await ensureSecondaryIntegrationUserProvisioned(page);
         await ensureProjectHasNextcloudStorage(DEMO_PROJECT, undefined);
         await ensureUserIsProjectMember(user.username, DEMO_PROJECT, 'Member');
         await loginAsRestrictedUser();

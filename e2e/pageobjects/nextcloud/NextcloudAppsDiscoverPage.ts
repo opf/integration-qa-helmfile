@@ -15,9 +15,9 @@ export class NextcloudAppsDiscoverPage extends NextcloudBasePage {
   async clickActiveApps(): Promise<NextcloudActiveAppsPage> {
     await this.getLocator('activeAppsLink').waitFor({ state: 'visible', timeout: 10000 });
     await this.getLocator('activeAppsLink').click();
-    await this.page.waitForURL(/.*\/settings\/apps\/enabled.*/, { timeout: 10000 });
-    await this.page.waitForTimeout(1000);
-    return new NextcloudActiveAppsPage(this.page);
+    const activeAppsPage = new NextcloudActiveAppsPage(this.page);
+    await activeAppsPage.waitForReady();
+    return activeAppsPage;
   }
 }
 

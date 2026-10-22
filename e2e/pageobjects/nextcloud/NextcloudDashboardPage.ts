@@ -46,7 +46,9 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
 
   async clickProfileIcon(): Promise<void> {
     await this.getLocator('profileIcon').click();
-    await this.page.waitForTimeout(500);
+    await this.getLocator('administrationSettingsLink')
+      .first()
+      .waitFor({ state: 'visible', timeout: 10000 });
   }
 
   async clickAdministrationSettings(): Promise<NextcloudAdminOverviewPage> {
@@ -58,9 +60,9 @@ export class NextcloudDashboardPage extends NextcloudBasePage {
   async clickAppsMenu(): Promise<NextcloudAppsDiscoverPage> {
     await this.getLocator('appsMenu').waitFor({ state: 'visible', timeout: 10000 });
     await this.getLocator('appsMenu').click();
-    await this.page.waitForURL(/.*\/settings\/apps.*/, { timeout: 10000 });
-    await this.page.waitForTimeout(1000);
-    return new NextcloudAppsDiscoverPage(this.page);
+    const discoverPage = new NextcloudAppsDiscoverPage(this.page);
+    await discoverPage.waitForReady();
+    return discoverPage;
   }
 
   async navigateToIntegrationApp(): Promise<NextcloudIntegrationAppPage> {

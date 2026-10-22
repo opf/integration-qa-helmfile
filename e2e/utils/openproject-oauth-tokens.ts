@@ -7,10 +7,42 @@ const execFileAsync = promisify(execFile);
 
 const DEFAULT_NAMESPACE = process.env.KUBERNETES_NAMESPACE || 'opnc-integration';
 
+let kubectlAvailableCache: boolean | undefined;
+
+/** True when the kubectl binary is on PATH (cluster access may still fail later). */
+export async function isKubectlAvailable(): Promise<boolean> {
+  if (kubectlAvailableCache !== undefined) {
+    return kubectlAvailableCache;
+  }
+  try {
+    await execFileAsync('kubectl', ['version', '--client', '--output=yaml'], {
+      timeout: 10_000,
+    });
+    kubectlAvailableCache = true;
+  } catch {
+    kubectlAvailableCache = false;
+  }
+  return kubectlAvailableCache;
+}
+
+function isKubectlMissingError(error: unknown): boolean {
+  const err = error as { code?: string; message?: string };
+  return (
+    err?.code === 'ENOENT' ||
+    /spawn kubectl ENOENT/i.test(err?.message ?? '') ||
+    /kubectl.*not found/i.test(err?.message ?? '')
+  );
+}
+
 async function railsRunner(
   ruby: string,
   options: { namespace?: string } = {},
 ): Promise<string> {
+  if (!(await isKubectlAvailable())) {
+    const missing = new Error('spawn kubectl ENOENT') as Error & { code: string };
+    missing.code = 'ENOENT';
+    throw missing;
+  }
   const namespace = options.namespace ?? DEFAULT_NAMESPACE;
   const { stdout, stderr } = await execFileAsync(
     'kubectl',
@@ -126,7 +158,13 @@ export async function deleteOpenProjectStorageOAuthTokens(
 /** Run AMPF managed-folder sync to completion for the first/named storage. */
 export async function runAutomaticallyManagedStorageSync(
   options: { namespace?: string; storageName?: string } = {},
-): Promise<void> {
+): Promise<boolean> {
+  if (!(await isKubectlAvailable())) {
+    logWarn(
+      'kubectl unavailable — skipping AutomaticallyManagedStorageSyncJob; relying on waiter',
+    );
+    return false;
+  }
   const name = (options.storageName ?? 'nextcloud').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const ruby = [
     `s = Storages::Storage.find_by(name: '${name}') || Storages::Storage.first`,
@@ -141,20 +179,34 @@ export async function runAutomaticallyManagedStorageSync(
       throw new Error(`Sync job finished without ok marker: ${stdout.slice(0, 300)}`);
     }
     logInfo('AutomaticallyManagedStorageSyncJob completed for storage');
+    return true;
   } catch (error: unknown) {
+    if (isKubectlMissingError(error)) {
+      logWarn(
+        'kubectl unavailable — skipping AutomaticallyManagedStorageSyncJob; relying on waiter',
+      );
+      return false;
+    }
     throw new Error(
       `Failed to run AutomaticallyManagedStorageSyncJob: ${getErrorMessage(error)}`,
     );
   }
 }
 
+export type CleanupUncontaineredFileLinksResult = 'ran' | 'skipped';
+
 /**
  * Purge file links whose container (work package) was deleted.
  * Uses kubectl + rails runner (requires cluster access; not available inside Docker E2E).
+ * Returns `skipped` when kubectl is missing so callers can fall back to API cleanup.
  */
 export async function runCleanupUncontaineredFileLinksJob(
   options: { namespace?: string } = {},
-): Promise<void> {
+): Promise<CleanupUncontaineredFileLinksResult> {
+  if (!(await isKubectlAvailable())) {
+    logWarn('kubectl unavailable — skipping CleanupUncontaineredFileLinksJob');
+    return 'skipped';
+  }
   const ruby = [
     `Storages::CleanupUncontaineredFileLinksJob.perform_now`,
     `puts 'ok'`,
@@ -166,7 +218,12 @@ export async function runCleanupUncontaineredFileLinksJob(
       throw new Error(`Cleanup job finished without ok marker: ${stdout.slice(0, 300)}`);
     }
     logInfo('CleanupUncontaineredFileLinksJob completed');
+    return 'ran';
   } catch (error: unknown) {
+    if (isKubectlMissingError(error)) {
+      logWarn('kubectl unavailable — skipping CleanupUncontaineredFileLinksJob');
+      return 'skipped';
+    }
     throw new Error(
       `Failed to run CleanupUncontaineredFileLinksJob: ${getErrorMessage(error)}`,
     );
@@ -185,6 +242,11 @@ export async function revokeAmpfAccessByStrippingFilePermissions(
   projectIdentifier: string,
   options: { namespace?: string; storageName?: string } = {},
 ): Promise<void> {
+  if (!(await isKubectlAvailable())) {
+    throw new Error(
+      `Failed to revoke AMPF access for '${userLogin}' on '${projectIdentifier}': kubectl unavailable (requires cluster exec)`,
+    );
+  }
   const login = userLogin.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const project = projectIdentifier.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const roleName = E2E_NO_FILES_ROLE.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
