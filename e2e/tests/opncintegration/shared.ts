@@ -495,6 +495,11 @@ export async function grantNextcloudOAuthFromFilesTab(
   logInfo('Nextcloud OAuth interstitial Log in clicked: %s', interstitial);
   const loggedIn = await ncLogin.loginIfPrompted(user.username, user.password, 15000);
   logInfo('Nextcloud login form submitted: %s', loggedIn);
+  // Fresh NC users show first-run wizard over the OAuth consent screen.
+  if (loggedIn) {
+    const dismissed = await ncLogin.dismissPostLoginOverlaysIfPresent(7000);
+    logInfo('Nextcloud post-login overlays dismissed: %s', dismissed);
+  }
   const granted = await ncLogin.grantAccessIfPrompted(20000);
   logInfo('Nextcloud Grant access clicked: %s', granted);
 
@@ -519,6 +524,17 @@ export async function grantNextcloudOAuthFromFilesTab(
   await filesTab.navigateToDemoProjectWorkPackageFiles(workPackageId);
   if (!filesTab.isOnDemoProjectWorkPackageFilesUrl()) {
     await filesTab.openWorkPackageFilesTab(20000);
+  }
+
+  // OAuth helpers used to return silently while Files still showed "Nextcloud login".
+  const loginStillVisible = await filesTab
+    .getNextcloudLoginButtonLocator()
+    .isVisible()
+    .catch(() => false);
+  if (loginStillVisible) {
+    throw new Error(
+      'Files tab still shows Nextcloud login after storage OAuth; Grant/Authorize likely did not complete',
+    );
   }
 }
 
