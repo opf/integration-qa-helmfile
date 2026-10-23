@@ -232,6 +232,14 @@ export class NextcloudLoginPage extends NextcloudBasePage {
   }
 
   /**
+   * Soft-dismiss NC first-run wizard after a prompted login (e.g. storage OAuth).
+   * Fresh users otherwise block the Grant access consent screen.
+   */
+  async dismissPostLoginOverlaysIfPresent(appearanceTimeoutMs = 5000): Promise<boolean> {
+    return this.dismissFirstRunWizardIfPresent(appearanceTimeoutMs);
+  }
+
+  /**
    * On the Nextcloud OAuth consent screen (storage login), click Grant access / Authorize / Allow.
    * No-op when already past the consent screen.
    */
