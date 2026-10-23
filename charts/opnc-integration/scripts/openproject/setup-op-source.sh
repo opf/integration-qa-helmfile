@@ -28,6 +28,10 @@ for pkg in $BUILD_DEPS; do
 done
 
 if [[ -n "$PKG_TO_INSTALL" ]]; then
+    if [[ "$(id -u)" -ne 0 ]]; then
+        echo "[ERROR] Need root to install build deps ($PKG_TO_INSTALL); op-buildsource-job must set securityContext runAsUser: 0."
+        exit 1
+    fi
     echo "[INFO] Installing build dependencies: $PKG_TO_INSTALL"
     apt update >/dev/null
     apt install -y --no-install-recommends \

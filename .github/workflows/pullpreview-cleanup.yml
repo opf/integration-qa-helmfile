@@ -103,8 +103,8 @@ jobs:
           matched_file="${RUNNER_TEMP}/pullpreview-matched.tsv"
           : > "${matched_file}"
 
-          if ! "${PP_BINARY}" list "${GITHUB_REPOSITORY}" > "${list_file}" 2>/dev/null; then
-            echo "::error::pullpreview list failed. See logs above."
+          if ! "${PP_BINARY}" list "${GITHUB_REPOSITORY}" > "${list_file}"; then
+            echo "::error::pullpreview list failed. See stderr above."
             exit 1
           fi
 
