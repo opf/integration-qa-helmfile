@@ -103,8 +103,19 @@ jobs:
           matched_file="${RUNNER_TEMP}/pullpreview-matched.tsv"
           : > "${matched_file}"
 
-          if ! "${PP_BINARY}" list "${GITHUB_REPOSITORY}" > "${list_file}"; then
-            echo "::error::pullpreview list failed. See stderr above."
+          # CLI logs/errors often go to stdout; keep them visible on failure.
+          set +e
+          "${PP_BINARY}" list "${GITHUB_REPOSITORY}" > "${list_file}" 2>"${list_file}.err"
+          list_status=$?
+          set -e
+          if [[ "${list_status}" -ne 0 ]]; then
+            echo "::error::pullpreview list failed (exit ${list_status})."
+            echo "::group::pullpreview list stdout"
+            cat "${list_file}" || true
+            echo "::endgroup::"
+            echo "::group::pullpreview list stderr"
+            cat "${list_file}.err" || true
+            echo "::endgroup::"
             exit 1
           fi
 
