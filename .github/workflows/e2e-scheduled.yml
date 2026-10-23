@@ -1,5 +1,13 @@
 name: E2E Scheduled
-run-name: "E2E Scheduled · OP dev + NC 34 (SSO + OAuth2 parallel)"
+# PullPreview github-sync no-ops on `schedule` (clears danglers, exits without a VM).
+# Cron only redispatches as workflow_dispatch so deploy actually runs; keep one descriptive
+# run-name on the real work.
+run-name: >-
+  ${{
+    github.event_name == 'schedule'
+      && 'E2E Scheduled · redispatch'
+      || 'E2E Scheduled · OP dev + NC 34 (SSO + OAuth2 parallel)'
+  }}
 
 on:
   schedule:
@@ -15,8 +23,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  redispatch:
+    name: "Redispatch as workflow_dispatch"
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch scheduled target
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run e2e-scheduled.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "${GITHUB_REF_NAME}"
+
   cleanup_stale:
     name: "Teardown stale scheduled previews"
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -54,12 +81,14 @@ jobs:
 
   # SSO and OAuth2 run in parallel on separate Hetzner previews (2x peak cost, ~half wall-clock).
   # Suites are isolated by preview_label, DNS hosts, and --grep @setup_method.
+  # Gated to workflow_dispatch: schedule is redispatch-only (see job above).
   dev_nc34:
     name: "OP dev + NC 34 (sso-external)"
     needs: [cleanup_stale]
     if: >-
       always() &&
-      needs.cleanup_stale.result == 'success'
+      needs.cleanup_stale.result == 'success' &&
+      github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/e2e-deploy-test.yml
     secrets: inherit
     with:
@@ -76,7 +105,8 @@ jobs:
     needs: [cleanup_stale]
     if: >-
       always() &&
-      needs.cleanup_stale.result == 'success'
+      needs.cleanup_stale.result == 'success' &&
+      github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/e2e-deploy-test.yml
     secrets: inherit
     with:
