@@ -47,6 +47,14 @@ buildsource_job_failed() {
   [[ "${job_failed}" == "True" ]]
 }
 
+buildsource_job_oomkilled() {
+  local reasons
+  reasons="$(kubectl get pods -n "${namespace}" -l job-name=op-buildsource-job \
+    -o jsonpath='{range .items[*]}{.status.containerStatuses[*].lastState.terminated.reason}{"\n"}{.status.containerStatuses[*].state.terminated.reason}{"\n"}{end}' \
+    2>/dev/null || true)"
+  [[ "${reasons}" == *OOMKilled* ]]
+}
+
 watch_buildsource_job() {
   local sync_pid="$1"
   local poll_interval=15
@@ -60,7 +68,11 @@ watch_buildsource_job() {
     fi
 
     if buildsource_job_failed; then
-      echo "::error::[pullpreview helmfile] op-buildsource-job failed; aborting Helmfile sync."
+      if buildsource_job_oomkilled; then
+        echo "::error::[pullpreview helmfile] op-buildsource-job was OOMKilled (node memory pressure during OpenProject source build); aborting Helmfile sync."
+      else
+        echo "::error::[pullpreview helmfile] op-buildsource-job failed; aborting Helmfile sync."
+      fi
       echo "[pullpreview helmfile] op-buildsource-job log tail:"
       kubectl logs -n "${namespace}" -l job-name=op-buildsource-job \
         --all-containers=true --tail=120 2>&1 || true
@@ -132,7 +144,11 @@ run_helmfile_dag_sync() {
   fi
 
   if [[ "${sync_status}" -eq 0 ]] && kubectl get job op-buildsource-job -n "${namespace}" >/dev/null 2>&1 && buildsource_job_failed; then
-    echo "::error::[pullpreview helmfile] op-buildsource-job failed after Helmfile sync completed."
+    if buildsource_job_oomkilled; then
+      echo "::error::[pullpreview helmfile] op-buildsource-job was OOMKilled after Helmfile sync completed (node memory pressure during OpenProject source build)."
+    else
+      echo "::error::[pullpreview helmfile] op-buildsource-job failed after Helmfile sync completed."
+    fi
     sync_status=1
   fi
 

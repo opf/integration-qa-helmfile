@@ -82,6 +82,15 @@ collect_diagnostics() {
     | tail -n 100 | redact_stream || true
 
   if kubectl get job op-buildsource-job -n "${namespace}" >/dev/null 2>&1; then
+    local buildsource_reasons=""
+    buildsource_reasons="$(kubectl get pods -n "${namespace}" -l job-name=op-buildsource-job \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.containerStatuses[*].lastState.terminated.reason}{"\t"}{.status.containerStatuses[*].state.terminated.reason}{"\n"}{end}' \
+      2>/dev/null || true)"
+    if [[ "${buildsource_reasons}" == *OOMKilled* ]]; then
+      echo "::error::[pullpreview] op-buildsource-job was OOMKilled (node memory pressure during OpenProject source build)."
+      echo "[pullpreview] op-buildsource-job pod termination reasons:"
+      printf '%s\n' "${buildsource_reasons}" | redact_stream || true
+    fi
     echo "[pullpreview] op-buildsource-job log tail:"
     kubectl logs -n "${namespace}" -l job-name=op-buildsource-job \
       --all-containers=true --tail=160 2>&1 | redact_stream || true

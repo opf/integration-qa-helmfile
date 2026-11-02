@@ -30,6 +30,12 @@ spec:
             - name: OP_USE_LOCAL_SOURCE
               value: 'true'
             {{ end }}
+          # Angular production build uses --max_old_space_size=4096; reserve headroom for npm/ruby.
+          resources:
+            requests:
+              memory: 5Gi
+            limits:
+              memory: 7Gi
           volumeMounts:
             - name: empty-app-dir
               mountPath: /app
