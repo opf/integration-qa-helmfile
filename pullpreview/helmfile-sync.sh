@@ -98,21 +98,25 @@ dump_openproject_seeder_logs() {
   local reason="${2:-seeder failure}"
   echo "::error::[pullpreview helmfile] ${reason}"
   if [[ -n "${seeder_job}" ]]; then
-    echo "[pullpreview helmfile] ${seeder_job} log tail:"
+    # Full logs: --tail=200 truncates the real exception under a flood of
+    # pending-migration names that end with "Database seed failed with status 1".
+    echo "[pullpreview helmfile] ${seeder_job} logs:"
     kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
-      --all-containers=true --tail=200 2>&1 || true
-    echo "[pullpreview helmfile] ${seeder_job} previous log tail:"
+      --all-containers=true 2>&1 || true
+    echo "[pullpreview helmfile] ${seeder_job} previous logs:"
     kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
-      --all-containers=true --previous --tail=200 2>&1 || true
+      --all-containers=true --previous 2>&1 || true
     echo "[pullpreview helmfile] ${seeder_job} describe:"
     kubectl describe job "${seeder_job}" -n "${namespace}" 2>&1 || true
+    echo "[pullpreview helmfile] ${seeder_job} pods describe:"
+    kubectl describe pods -n "${namespace}" -l "job-name=${seeder_job}" 2>&1 || true
   fi
-  echo "[pullpreview helmfile] openproject/process=seeder log tail:"
+  echo "[pullpreview helmfile] openproject/process=seeder logs:"
   kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
-    -c seeder --tail=200 2>&1 || true
-  echo "[pullpreview helmfile] openproject/process=seeder previous log tail:"
+    -c seeder 2>&1 || true
+  echo "[pullpreview helmfile] openproject/process=seeder previous logs:"
   kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
-    -c seeder --previous --tail=200 2>&1 || true
+    -c seeder --previous 2>&1 || true
 }
 
 # Seeder pods are deleted on BackoffLimitExceeded (restartPolicy OnFailure); dump

@@ -118,12 +118,15 @@ collect_diagnostics() {
       [[ -n "${seeder_job}" ]] || continue
       echo "[pullpreview] ${seeder_job} describe:"
       kubectl describe job "${seeder_job}" -n "${namespace}" 2>&1 | redact_stream || true
-      echo "[pullpreview] ${seeder_job} log tail:"
+      echo "[pullpreview] ${seeder_job} pods describe:"
+      kubectl describe pods -n "${namespace}" -l "job-name=${seeder_job}" 2>&1 | redact_stream || true
+      # Full logs (no --tail): seed failures bury the exception under pending-migration noise.
+      echo "[pullpreview] ${seeder_job} logs:"
       kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
-        --all-containers=true --tail=200 2>&1 | redact_stream || true
-      echo "[pullpreview] ${seeder_job} previous log tail:"
+        --all-containers=true 2>&1 | redact_stream || true
+      echo "[pullpreview] ${seeder_job} previous logs:"
       kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
-        --all-containers=true --previous --tail=200 2>&1 | redact_stream || true
+        --all-containers=true --previous 2>&1 | redact_stream || true
     done <<< "${seeder_jobs}"
   fi
 
