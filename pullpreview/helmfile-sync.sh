@@ -101,12 +101,18 @@ dump_openproject_seeder_logs() {
     echo "[pullpreview helmfile] ${seeder_job} log tail:"
     kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
       --all-containers=true --tail=200 2>&1 || true
+    echo "[pullpreview helmfile] ${seeder_job} previous log tail:"
+    kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
+      --all-containers=true --previous --tail=200 2>&1 || true
     echo "[pullpreview helmfile] ${seeder_job} describe:"
     kubectl describe job "${seeder_job}" -n "${namespace}" 2>&1 || true
   fi
   echo "[pullpreview helmfile] openproject/process=seeder log tail:"
   kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
-    --all-containers=true --tail=200 2>&1 || true
+    -c seeder --tail=200 2>&1 || true
+  echo "[pullpreview helmfile] openproject/process=seeder previous log tail:"
+  kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
+    -c seeder --previous --tail=200 2>&1 || true
 }
 
 # Seeder pods are deleted on BackoffLimitExceeded (restartPolicy OnFailure); dump
