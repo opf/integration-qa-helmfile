@@ -50,10 +50,9 @@ report_letsencrypt_rate_limit_from_text() {
 # collect_diagnostics CONTEXT NAMESPACE [RELEASE]
 #
 # Emits a GitHub Actions ::group:: block with: pod/job/deployment/PVC listing,
-# recent events, op-buildsource-job log tail, setup-job log tail + describe,
-# Nextcloud log tail, XWiki log tail, and GitLab webservice dependencies log
-# tail.  All output is piped through redact_stream to avoid leaking secrets in
-# CI logs.
+# recent events, op-buildsource-job / openproject-seeder / wait-for-db log tails,
+# setup-job log tail + describe, Nextcloud / XWiki / GitLab / Caddy log tails.
+# All output is piped through redact_stream to avoid leaking secrets in CI logs.
 #
 # CONTEXT  - free-text label shown in the group header
 # NAMESPACE - Kubernetes namespace to inspect
@@ -102,6 +101,46 @@ collect_diagnostics() {
       --all-containers=true --tail=200 2>&1 | redact_stream || true
     kubectl describe job setup-job -n "${namespace}" 2>&1 | redact_stream || true
   fi
+
+  # OpenProject chart names the job openproject-seeder-<revision>; pods may already
+  # be deleted after BackoffLimitExceeded, so describe the Job even when logs are empty.
+  local seeder_jobs=""
+  seeder_jobs="$(kubectl get jobs -n "${namespace}" \
+    -l app.kubernetes.io/component=seeder \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
+  if [[ -z "${seeder_jobs}" ]]; then
+    seeder_jobs="$(kubectl get jobs -n "${namespace}" -o name 2>/dev/null \
+      | sed -n 's#^job.batch/##p' \
+      | grep -E 'seeder' || true)"
+  fi
+  if [[ -n "${seeder_jobs}" ]]; then
+    while IFS= read -r seeder_job; do
+      [[ -n "${seeder_job}" ]] || continue
+      echo "[pullpreview] ${seeder_job} describe:"
+      kubectl describe job "${seeder_job}" -n "${namespace}" 2>&1 | redact_stream || true
+      echo "[pullpreview] ${seeder_job} log tail:"
+      kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
+        --all-containers=true --tail=200 2>&1 | redact_stream || true
+      echo "[pullpreview] ${seeder_job} previous log tail:"
+      kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
+        --all-containers=true --previous --tail=200 2>&1 | redact_stream || true
+    done <<< "${seeder_jobs}"
+  fi
+
+  # web / worker / cron initContainers wait on seeder; dump when CrashLoopBackOff.
+  local op_pod=""
+  for op_pod in $(kubectl get pods -n "${namespace}" \
+    -l 'openproject/process' \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
+    [[ -n "${op_pod}" ]] || continue
+    if kubectl get pod "${op_pod}" -n "${namespace}" \
+      -o jsonpath='{.spec.initContainers[*].name}' 2>/dev/null | grep -qw wait-for-db; then
+      echo "[pullpreview] ${op_pod} wait-for-db init log tail:"
+      kubectl logs "${op_pod}" -n "${namespace}" -c wait-for-db --tail=80 2>&1 | redact_stream || true
+      echo "[pullpreview] ${op_pod} wait-for-db init previous log tail:"
+      kubectl logs "${op_pod}" -n "${namespace}" -c wait-for-db --previous --tail=80 2>&1 | redact_stream || true
+    fi
+  done
 
   local nc_pod=""
   nc_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=nextcloud" \

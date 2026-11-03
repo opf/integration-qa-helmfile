@@ -20,7 +20,8 @@ if [[ "$OP_USE_LOCAL_SOURCE" == "true" ]]; then
 fi
 
 PKG_TO_INSTALL=""
-BUILD_DEPS="gcc make openssl"
+# openproject:*-slim has no git; clone path needs it. gcc/make come via build-essential.
+BUILD_DEPS="gcc make openssl git"
 for pkg in $BUILD_DEPS; do
     if ! which "$pkg" >/dev/null 2>&1; then
         PKG_TO_INSTALL="$PKG_TO_INSTALL $pkg"
@@ -35,6 +36,7 @@ if [[ -n "$PKG_TO_INSTALL" ]]; then
     echo "[INFO] Installing build dependencies: $PKG_TO_INSTALL"
     apt update >/dev/null
     apt install -y --no-install-recommends \
+        git \
         ruby-dev \
         build-essential \
         libyaml-dev \
@@ -47,10 +49,15 @@ echo "[INFO] Building OpenProject from source..."
 mkdir -p "$APP_PATH" && cd "$APP_PATH"
 
 if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]] && [[ -z $(find "$APP_PATH" -mindepth 1 -print -quit) ]]; then
+    if ! command -v git >/dev/null 2>&1; then
+        echo "[ERROR] git is required to clone OpenProject source but is not installed."
+        exit 1
+    fi
     echo "[INFO] Verifying branch '${OP_GIT_SOURCE_BRANCH}' exists in opf/openproject..."
     OP_REPO_URL="https://github.com/opf/openproject"
     if ! git ls-remote --exit-code --heads "${OP_REPO_URL}" "refs/heads/${OP_GIT_SOURCE_BRANCH}" >/dev/null 2>&1; then
-        near_misses=$(git ls-remote --heads "${OP_REPO_URL}" "*${OP_GIT_SOURCE_BRANCH}*" 2>/dev/null | awk '{print $2}' | sed 's|refs/heads/||' | head -5 | tr '\n' ' ')
+        # || true: under set -e / pipefail a missing branch must still print [ERROR], not abort silently.
+        near_misses=$(git ls-remote --heads "${OP_REPO_URL}" "*${OP_GIT_SOURCE_BRANCH}*" 2>/dev/null | awk '{print $2}' | sed 's|refs/heads/||' | head -5 | tr '\n' ' ') || true
         if [[ -n "${near_misses}" ]]; then
             echo "[ERROR] Branch '${OP_GIT_SOURCE_BRANCH}' not found in opf/openproject. Did you mean: ${near_misses}?"
         else
