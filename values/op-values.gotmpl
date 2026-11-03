@@ -64,9 +64,10 @@ appInit:
 seederJob:
   resources:
     limits:
-      memory: '1Gi'
+      # Migrations + seed OOMs under 1Gi on PullPreview; match web headroom.
+      memory: '4Gi'
     requests:
-      memory: '512Mi'
+      memory: '1Gi'
 extraVolumes:
   - name: entrypoint
     configMap:
