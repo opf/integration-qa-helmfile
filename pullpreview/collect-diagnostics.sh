@@ -120,13 +120,24 @@ collect_diagnostics() {
       kubectl describe job "${seeder_job}" -n "${namespace}" 2>&1 | redact_stream || true
       echo "[pullpreview] ${seeder_job} pods describe:"
       kubectl describe pods -n "${namespace}" -l "job-name=${seeder_job}" 2>&1 | redact_stream || true
-      # Full logs (no --tail): seed failures bury the exception under pending-migration noise.
-      echo "[pullpreview] ${seeder_job} logs:"
-      kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
-        --all-containers=true 2>&1 | redact_stream || true
-      echo "[pullpreview] ${seeder_job} previous logs:"
-      kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
-        --all-containers=true --previous 2>&1 | redact_stream || true
+      # -c seeder only: --all-containers --previous fails on check-db-ready with no previous.
+      local seeder_log=""
+      echo "[pullpreview] ${seeder_job} seeder container logs:"
+      seeder_log="$(kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
+        -c seeder 2>&1 || true)"
+      printf '%s\n' "${seeder_log}" | redact_stream || true
+      echo "[pullpreview] ${seeder_job} seeder container log error extract:"
+      printf '%s\n' "${seeder_log}" \
+        | grep -nE 'rake aborted|Error|Exception|Caused by|seed failed|Initializing|Executing database' \
+        | redact_stream || true
+      echo "[pullpreview] ${seeder_job} seeder container previous logs:"
+      seeder_log="$(kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
+        -c seeder --previous 2>&1 || true)"
+      printf '%s\n' "${seeder_log}" | redact_stream || true
+      echo "[pullpreview] ${seeder_job} seeder container previous log error extract:"
+      printf '%s\n' "${seeder_log}" \
+        | grep -nE 'rake aborted|Error|Exception|Caused by|seed failed|Initializing|Executing database' \
+        | redact_stream || true
     done <<< "${seeder_jobs}"
   fi
 
