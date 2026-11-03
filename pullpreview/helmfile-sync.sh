@@ -93,6 +93,63 @@ watch_buildsource_job() {
   return 0
 }
 
+dump_openproject_seeder_logs() {
+  local seeder_job="${1:-}"
+  local reason="${2:-seeder failure}"
+  echo "::error::[pullpreview helmfile] ${reason}"
+  if [[ -n "${seeder_job}" ]]; then
+    echo "[pullpreview helmfile] ${seeder_job} log tail:"
+    kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
+      --all-containers=true --tail=200 2>&1 || true
+    echo "[pullpreview helmfile] ${seeder_job} describe:"
+    kubectl describe job "${seeder_job}" -n "${namespace}" 2>&1 || true
+  fi
+  echo "[pullpreview helmfile] openproject/process=seeder log tail:"
+  kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
+    --all-containers=true --tail=200 2>&1 || true
+}
+
+# Seeder pods are deleted on BackoffLimitExceeded (restartPolicy OnFailure); dump
+# logs on first container failure and again when the Job fails.
+watch_openproject_seeder_job() {
+  local sync_pid="$1"
+  local poll_interval=15
+  local dumped=0
+
+  sleep "${poll_interval}"
+
+  while kill -0 "${sync_pid}" 2>/dev/null; do
+    local seeder_job=""
+    seeder_job="$(kubectl get jobs -n "${namespace}" \
+      -l app.kubernetes.io/component=seeder \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+    if [[ -z "${seeder_job}" ]]; then
+      sleep "${poll_interval}"
+      continue
+    fi
+
+    local term_reasons=""
+    term_reasons="$(kubectl get pods -n "${namespace}" -l "job-name=${seeder_job}" \
+      -o jsonpath='{range .items[*]}{.status.containerStatuses[?(@.name=="seeder")].lastState.terminated.reason}{"\n"}{.status.containerStatuses[?(@.name=="seeder")].state.terminated.reason}{"\n"}{end}' \
+      2>/dev/null || true)"
+    local job_failed=""
+    job_failed="$(kubectl get job "${seeder_job}" -n "${namespace}" \
+      -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)"
+
+    if [[ "${dumped}" -eq 0 ]]; then
+      if [[ "${term_reasons}" == *Error* || "${term_reasons}" == *OOMKilled* || "${job_failed}" == "True" ]]; then
+        dumped=1
+        dump_openproject_seeder_logs "${seeder_job}" \
+          "${seeder_job} failed (${term_reasons:-BackoffLimitExceeded}); dumping logs before pods are GC'd."
+      fi
+    fi
+
+    sleep "${poll_interval}"
+  done
+
+  return 0
+}
+
 destroy_partial_deploy() {
   echo "[pullpreview helmfile] Destroying partial deploy after failure."
   "${helmfile_common[@]}" destroy --skip-deps || true
@@ -124,6 +181,8 @@ run_helmfile_dag_sync() {
   local sync_pid=$!
   watch_buildsource_job "${sync_pid}" &
   local watcher_pid=$!
+  watch_openproject_seeder_job "${sync_pid}" &
+  local seeder_watcher_pid=$!
 
   wait "${sync_pid}"
   local sync_status=$?
@@ -133,6 +192,10 @@ run_helmfile_dag_sync() {
   fi
   wait "${watcher_pid}"
   local watcher_status=$?
+  if kill -0 "${seeder_watcher_pid}" 2>/dev/null; then
+    kill "${seeder_watcher_pid}" 2>/dev/null || true
+  fi
+  wait "${seeder_watcher_pid}" 2>/dev/null || true
   set -e
 
   if [[ "${watcher_status}" -eq 143 || "${watcher_status}" -eq 137 ]]; then

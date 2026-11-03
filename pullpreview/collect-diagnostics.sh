@@ -136,9 +136,9 @@ collect_diagnostics() {
     if kubectl get pod "${op_pod}" -n "${namespace}" \
       -o jsonpath='{.spec.initContainers[*].name}' 2>/dev/null | grep -qw wait-for-db; then
       echo "[pullpreview] ${op_pod} wait-for-db init log tail:"
-      kubectl logs "${op_pod}" -n "${namespace}" -c wait-for-db --tail=80 2>&1 | redact_stream || true
+      kubectl logs "${op_pod}" -n "${namespace}" -c wait-for-db --tail=200 2>&1 | redact_stream || true
       echo "[pullpreview] ${op_pod} wait-for-db init previous log tail:"
-      kubectl logs "${op_pod}" -n "${namespace}" -c wait-for-db --previous --tail=80 2>&1 | redact_stream || true
+      kubectl logs "${op_pod}" -n "${namespace}" -c wait-for-db --previous --tail=200 2>&1 | redact_stream || true
     fi
   done
 
