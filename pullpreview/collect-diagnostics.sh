@@ -121,10 +121,11 @@ collect_diagnostics() {
       echo "[pullpreview] ${seeder_job} pods describe:"
       kubectl describe pods -n "${namespace}" -l "job-name=${seeder_job}" 2>&1 | redact_stream || true
       # -c seeder only: --all-containers --previous fails on check-db-ready with no previous.
+      # -l defaults to --tail=10; force full logs so the seed exception is not truncated.
       local seeder_log=""
       echo "[pullpreview] ${seeder_job} seeder container logs:"
       seeder_log="$(kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
-        -c seeder 2>&1 || true)"
+        -c seeder --tail=-1 2>&1 || true)"
       printf '%s\n' "${seeder_log}" | redact_stream || true
       echo "[pullpreview] ${seeder_job} seeder container log error extract:"
       printf '%s\n' "${seeder_log}" \
@@ -132,7 +133,7 @@ collect_diagnostics() {
         | redact_stream || true
       echo "[pullpreview] ${seeder_job} seeder container previous logs:"
       seeder_log="$(kubectl logs -n "${namespace}" -l "job-name=${seeder_job}" \
-        -c seeder --previous 2>&1 || true)"
+        -c seeder --previous --tail=-1 2>&1 || true)"
       printf '%s\n' "${seeder_log}" | redact_stream || true
       echo "[pullpreview] ${seeder_job} seeder container previous log error extract:"
       printf '%s\n' "${seeder_log}" \

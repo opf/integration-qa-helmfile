@@ -106,9 +106,10 @@ dump_openproject_seeder_logs() {
     echo "[pullpreview helmfile] ${seeder_job} pods describe:"
     kubectl describe pods -n "${namespace}" -l "job-name=${seeder_job}" 2>&1 || true
   fi
+  # -l defaults to --tail=10; force full logs so the seed exception is not truncated.
   echo "[pullpreview helmfile] seeder container logs:"
   seeder_log="$(kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
-    -c seeder 2>&1 || true)"
+    -c seeder --tail=-1 2>&1 || true)"
   printf '%s\n' "${seeder_log}"
   echo "[pullpreview helmfile] seeder container log error extract:"
   printf '%s\n' "${seeder_log}" \
@@ -116,7 +117,7 @@ dump_openproject_seeder_logs() {
     || true
   echo "[pullpreview helmfile] seeder container previous logs:"
   seeder_log="$(kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
-    -c seeder --previous 2>&1 || true)"
+    -c seeder --previous --tail=-1 2>&1 || true)"
   printf '%s\n' "${seeder_log}"
   echo "[pullpreview helmfile] seeder container previous log error extract:"
   printf '%s\n' "${seeder_log}" \
