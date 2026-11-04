@@ -932,7 +932,8 @@ function getPublisherConfig(skipMissingAuth: boolean): PublisherConfig | undefin
     iterationId ? undefined : 'SQUASH_TM_ITERATION_ID',
   ].filter((name): name is string => Boolean(name));
 
-  if (!apiToken && skipMissingAuth) {
+  // CI sets SKIP_MISSING_AUTH so ad-hoc runs without iteration/token stay green.
+  if (missing.length > 0 && skipMissingAuth) {
     logWarn(`[Squash TM] Missing ${missing.join(', ')}. Skipping publish.`);
     return undefined;
   }

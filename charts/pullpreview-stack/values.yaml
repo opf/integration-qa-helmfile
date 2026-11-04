@@ -141,6 +141,10 @@ openproject:
       requests:
         memory: 512Mi
 
+  extraEnvVars:
+    - name: WAIT_FOR_DB_TIMEOUT_SECONDS
+      value: "900"
+
   extraVolumes:
     - name: entrypoint
       configMap:
@@ -151,6 +155,12 @@ openproject:
     - name: entrypoint
       mountPath: /app/docker/prod/entrypoint.sh
       subPath: entrypoint.sh
+    - name: entrypoint
+      mountPath: /app/docker/prod/migrate
+      subPath: migrate
+    - name: entrypoint
+      mountPath: /app/docker/prod/wait-for-db
+      subPath: wait-for-db
 
   postgresql:
     fullnameOverride: op-postgresql

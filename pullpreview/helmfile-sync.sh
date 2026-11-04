@@ -47,6 +47,14 @@ buildsource_job_failed() {
   [[ "${job_failed}" == "True" ]]
 }
 
+buildsource_job_oomkilled() {
+  local reasons
+  reasons="$(kubectl get pods -n "${namespace}" -l job-name=op-buildsource-job \
+    -o jsonpath='{range .items[*]}{.status.containerStatuses[*].lastState.terminated.reason}{"\n"}{.status.containerStatuses[*].state.terminated.reason}{"\n"}{end}' \
+    2>/dev/null || true)"
+  [[ "${reasons}" == *OOMKilled* ]]
+}
+
 watch_buildsource_job() {
   local sync_pid="$1"
   local poll_interval=15
@@ -60,7 +68,11 @@ watch_buildsource_job() {
     fi
 
     if buildsource_job_failed; then
-      echo "::error::[pullpreview helmfile] op-buildsource-job failed; aborting Helmfile sync."
+      if buildsource_job_oomkilled; then
+        echo "::error::[pullpreview helmfile] op-buildsource-job was OOMKilled (node memory pressure during OpenProject source build); aborting Helmfile sync."
+      else
+        echo "::error::[pullpreview helmfile] op-buildsource-job failed; aborting Helmfile sync."
+      fi
       echo "[pullpreview helmfile] op-buildsource-job log tail:"
       kubectl logs -n "${namespace}" -l job-name=op-buildsource-job \
         --all-containers=true --tail=120 2>&1 || true
@@ -73,6 +85,79 @@ watch_buildsource_job() {
       -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)"
     if [[ "${job_complete}" == "True" ]]; then
       return 0
+    fi
+
+    sleep "${poll_interval}"
+  done
+
+  return 0
+}
+
+# Prefer -c seeder only: --all-containers --previous fails when check-db-ready
+# has no previous termination and hides the real seed exception.
+dump_openproject_seeder_logs() {
+  local seeder_job="${1:-}"
+  local reason="${2:-seeder failure}"
+  local seeder_log=""
+  echo "::error::[pullpreview helmfile] ${reason}"
+  if [[ -n "${seeder_job}" ]]; then
+    echo "[pullpreview helmfile] ${seeder_job} describe:"
+    kubectl describe job "${seeder_job}" -n "${namespace}" 2>&1 || true
+    echo "[pullpreview helmfile] ${seeder_job} pods describe:"
+    kubectl describe pods -n "${namespace}" -l "job-name=${seeder_job}" 2>&1 || true
+  fi
+  # -l defaults to --tail=10; force full logs so the seed exception is not truncated.
+  echo "[pullpreview helmfile] seeder container logs:"
+  seeder_log="$(kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
+    -c seeder --tail=-1 2>&1 || true)"
+  printf '%s\n' "${seeder_log}"
+  echo "[pullpreview helmfile] seeder container log error extract:"
+  printf '%s\n' "${seeder_log}" \
+    | grep -nE 'rake aborted|Error|Exception|Caused by|seed failed|Initializing|Executing database' \
+    || true
+  echo "[pullpreview helmfile] seeder container previous logs:"
+  seeder_log="$(kubectl logs -n "${namespace}" -l "openproject/process=seeder" \
+    -c seeder --previous --tail=-1 2>&1 || true)"
+  printf '%s\n' "${seeder_log}"
+  echo "[pullpreview helmfile] seeder container previous log error extract:"
+  printf '%s\n' "${seeder_log}" \
+    | grep -nE 'rake aborted|Error|Exception|Caused by|seed failed|Initializing|Executing database' \
+    || true
+}
+
+# Seeder pods are deleted on BackoffLimitExceeded (restartPolicy OnFailure); dump
+# logs on first container failure and again when the Job fails.
+watch_openproject_seeder_job() {
+  local sync_pid="$1"
+  local poll_interval=15
+  local dumped=0
+
+  sleep "${poll_interval}"
+
+  while kill -0 "${sync_pid}" 2>/dev/null; do
+    local seeder_job=""
+    seeder_job="$(kubectl get jobs -n "${namespace}" \
+      -l app.kubernetes.io/component=seeder \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+    if [[ -z "${seeder_job}" ]]; then
+      sleep "${poll_interval}"
+      continue
+    fi
+
+    local term_reasons=""
+    term_reasons="$(kubectl get pods -n "${namespace}" -l "job-name=${seeder_job}" \
+      -o jsonpath='{range .items[*]}{.status.containerStatuses[?(@.name=="seeder")].lastState.terminated.reason}{"\n"}{.status.containerStatuses[?(@.name=="seeder")].state.terminated.reason}{"\n"}{end}' \
+      2>/dev/null || true)"
+    local job_failed=""
+    job_failed="$(kubectl get job "${seeder_job}" -n "${namespace}" \
+      -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)"
+
+    if [[ "${dumped}" -eq 0 ]]; then
+      if [[ "${term_reasons}" == *Error* || "${term_reasons}" == *OOMKilled* || "${job_failed}" == "True" ]]; then
+        dumped=1
+        dump_openproject_seeder_logs "${seeder_job}" \
+          "${seeder_job} failed (${term_reasons:-BackoffLimitExceeded}); dumping logs before pods are GC'd."
+      fi
     fi
 
     sleep "${poll_interval}"
@@ -112,6 +197,8 @@ run_helmfile_dag_sync() {
   local sync_pid=$!
   watch_buildsource_job "${sync_pid}" &
   local watcher_pid=$!
+  watch_openproject_seeder_job "${sync_pid}" &
+  local seeder_watcher_pid=$!
 
   wait "${sync_pid}"
   local sync_status=$?
@@ -121,6 +208,10 @@ run_helmfile_dag_sync() {
   fi
   wait "${watcher_pid}"
   local watcher_status=$?
+  if kill -0 "${seeder_watcher_pid}" 2>/dev/null; then
+    kill "${seeder_watcher_pid}" 2>/dev/null || true
+  fi
+  wait "${seeder_watcher_pid}" 2>/dev/null || true
   set -e
 
   if [[ "${watcher_status}" -eq 143 || "${watcher_status}" -eq 137 ]]; then
@@ -132,7 +223,11 @@ run_helmfile_dag_sync() {
   fi
 
   if [[ "${sync_status}" -eq 0 ]] && kubectl get job op-buildsource-job -n "${namespace}" >/dev/null 2>&1 && buildsource_job_failed; then
-    echo "::error::[pullpreview helmfile] op-buildsource-job failed after Helmfile sync completed."
+    if buildsource_job_oomkilled; then
+      echo "::error::[pullpreview helmfile] op-buildsource-job was OOMKilled after Helmfile sync completed (node memory pressure during OpenProject source build)."
+    else
+      echo "::error::[pullpreview helmfile] op-buildsource-job failed after Helmfile sync completed."
+    fi
     sync_status=1
   fi
 
@@ -142,6 +237,15 @@ run_helmfile_dag_sync() {
 }
 
 echo "[pullpreview helmfile] DAG deploy starting (namespace=${namespace}, host=${PULLPREVIEW_PUBLIC_DNS}, concurrency=${helmfile_concurrency})"
+
+# PullPreview reuses k3s nodes. A prior Traefik/Gateway install can leave
+# ValidatingAdmissionPolicy safe-upgrades.gateway.networking.k8s.io, which
+# rejects Traefik ~39's bundled Gateway CRDs (< v1.5.0). We only use Ingress.
+if kubectl get validatingadmissionpolicy safe-upgrades.gateway.networking.k8s.io >/dev/null 2>&1; then
+  echo "[pullpreview helmfile] Removing leftover Gateway API safe-upgrades ValidatingAdmissionPolicy (blocks Traefik CRD install)."
+  kubectl delete validatingadmissionpolicybinding safe-upgrades.gateway.networking.k8s.io --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete validatingadmissionpolicy safe-upgrades.gateway.networking.k8s.io --ignore-not-found >/dev/null 2>&1 || true
+fi
 
 set +e
 run_helmfile_dag_sync

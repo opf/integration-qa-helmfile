@@ -1,6 +1,7 @@
 import { Page, expect } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
 import { NextcloudFilesPage } from './NextcloudFilesPage';
+import { resolveHosts } from '../../utils/env-hosts';
 import { logInfo } from '../../utils/logger';
 import { escapeForRegex } from '../../utils/url-helpers';
 
@@ -175,29 +176,22 @@ export class NextcloudTextPage extends NextcloudBasePage {
       throw new Error(`Smart picker result visible but WP id not parseable from "${optionText}"`);
     }
 
-    // Playwright clicks do not fire vue-select option:selected in this NC build.
-    // After proving the result row is shown, submit the same link getWorkPackageLink() emits.
-    const ncHost = new URL(this.page.url()).hostname;
-    const opHost = `${new URL(this.page.url()).protocol}//${ncHost.replace(/^nextcloud\./, 'openproject.')}`;
-    await this.page.evaluate(
-      ({ id, opHost: host }) => {
-        const picker = document.querySelector('#work-package-smart-picker');
-        let el: HTMLElement | null = picker as HTMLElement | null;
-        while (el && !(el as unknown as { __vue__?: unknown }).__vue__) {
-          el = el.parentElement;
-        }
-        const vue = el && (el as unknown as { __vue__?: { onSubmit?: (link: string) => void } }).__vue__;
-        if (!vue?.onSubmit) {
-          throw new Error('Smart picker host Vue onSubmit not found');
-        }
-        vue.onSubmit(`${host.replace(/\/+$/, '')}/wp/${id}`);
-      },
-      { id: wpId, opHost },
-    );
+    // Playwright clicks do not fire vue-select @option:selected on NC 35.
+    // WorkPackagePickerElement.onSubmit dispatches CustomEvent('submit', { detail: link })
+    // on #work-package-smart-picker — same path SearchInput uses after a real select.
+    const host = resolveHosts().openproject.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const link = `https://${host}/wp/${wpId}`;
+    await this.page.evaluate((wpLink) => {
+      const root = document.querySelector('#work-package-smart-picker');
+      if (!root) {
+        throw new Error('Smart picker root #work-package-smart-picker not found');
+      }
+      root.dispatchEvent(new CustomEvent('submit', { detail: wpLink, bubbles: true }));
+    }, link);
+
     await this.getLocator('smartPickerModal')
       .first()
-      .waitFor({ state: 'hidden', timeout: 10000 })
-      .catch(() => undefined);
+      .waitFor({ state: 'hidden', timeout: 15000 });
   }
 
   async searchAndSelectWorkPackage(query: string): Promise<void> {

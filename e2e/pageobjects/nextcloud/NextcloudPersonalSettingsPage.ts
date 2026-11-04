@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
 import { getErrorMessage } from '../../utils/error-utils';
 import { logInfo, logWarn } from '../../utils/logger';
@@ -85,6 +85,20 @@ export class NextcloudPersonalSettingsPage extends NextcloudBasePage {
     if (targetState !== undefined && targetState === isChecked) {
       return;
     }
+    const toast = this.page.getByText(/OpenProject options saved/i).first();
+    // Hide a prior toast so the next save's toast is a fresh signal (dual-toggle race).
+    if (await toast.isVisible({ timeout: 500 }).catch(() => false)) {
+      await toast.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => undefined);
+    }
+    const saveResponse = this.page
+      .waitForResponse(
+        (res) =>
+          /\/ocs\/v2\.php\/apps\/integration_openproject\//i.test(res.url()) &&
+          res.request().method() !== 'GET' &&
+          res.ok(),
+        { timeout: 15000 },
+      )
+      .catch(() => undefined);
     const label = this.getLocator(labelKey).first();
     if (await label.isVisible({ timeout: 3000 }).catch(() => false)) {
       await label.scrollIntoViewIfNeeded();
@@ -92,21 +106,19 @@ export class NextcloudPersonalSettingsPage extends NextcloudBasePage {
     } else {
       await checkbox.setChecked(targetState ?? !isChecked, { force: true });
     }
-    // saveOptions() is async on the Vue watcher — wait for toast or save OCS before nav.
-    const toast = this.page.getByText(/OpenProject options saved/i).first();
-    const saveResponse = this.page
-      .waitForResponse(
-        (res) =>
-          /\/ocs\/v2\.php\/apps\/integration_openproject\//i.test(res.url()) &&
-          res.request().method() !== 'GET' &&
-          res.ok(),
-        { timeout: 10000 },
-      )
-      .catch(() => undefined);
+    // saveOptions() is async on the Vue watcher — wait for toast and/or save OCS.
     await Promise.race([
-      toast.waitFor({ state: 'visible', timeout: 10000 }),
+      toast.waitFor({ state: 'visible', timeout: 15000 }),
       saveResponse,
     ]).catch(() => undefined);
+    await saveResponse;
+    // Let in-flight dual saves settle before the next toggle or reload.
+    await toast.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => undefined);
+    if (targetState !== undefined) {
+      await expect
+        .poll(async () => checkbox.isChecked(), { timeout: 10000 })
+        .toBe(targetState);
+    }
   }
 
   async toggleNavigationLink(targetState?: boolean): Promise<void> {

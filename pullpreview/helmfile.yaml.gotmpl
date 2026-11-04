@@ -22,6 +22,9 @@ namespace: {{ requiredEnv "PULLPREVIEW_NAMESPACE" }}
 
 helmDefaults:
   wait: true
+  # Plain --wait does not wait for Jobs; without this, gitlab/xwiki start while
+  # op-buildsource-job is still compiling Angular and OOMs the 16GB preview node.
+  waitForJobs: true
   atomic: true
   createNamespace: true
 
@@ -35,7 +38,12 @@ releases:
 
   - name: opnc-integration
     chart: ../charts/opnc-integration
+    # Clone + bundle + production ng build regularly exceeds 10m when gitSourceBranch is set.
+    {{- if or (ne (.Values.openproject.gitSourceBranch | default "") "") (ne (.Values.openproject.localSourcePath | default "") "") }}
+    timeout: 2400
+    {{- else }}
     timeout: 600
+    {{- end }}
     values:
       - ../values/integration.gotmpl
       - ../values/op-env.gotmpl
