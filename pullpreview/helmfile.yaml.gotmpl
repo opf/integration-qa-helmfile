@@ -33,6 +33,10 @@ releases:
     chart: traefik/traefik
     version: ~39.0.5
     timeout: 600
+    # PullPreview hosts reuse k3s nodes; a leftover Gateway API
+    # ValidatingAdmissionPolicy rejects Traefik's bundled CRDs (< v1.5.0).
+    # We only use IngressClass (gateway.enabled=false) — skip CRD install.
+    skipCRDs: true
     values:
       - ../values/traefik-pullpreview.gotmpl
 
