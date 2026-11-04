@@ -238,6 +238,15 @@ run_helmfile_dag_sync() {
 
 echo "[pullpreview helmfile] DAG deploy starting (namespace=${namespace}, host=${PULLPREVIEW_PUBLIC_DNS}, concurrency=${helmfile_concurrency})"
 
+# PullPreview reuses k3s nodes. A prior Traefik/Gateway install can leave
+# ValidatingAdmissionPolicy safe-upgrades.gateway.networking.k8s.io, which
+# rejects Traefik ~39's bundled Gateway CRDs (< v1.5.0). We only use Ingress.
+if kubectl get validatingadmissionpolicy safe-upgrades.gateway.networking.k8s.io >/dev/null 2>&1; then
+  echo "[pullpreview helmfile] Removing leftover Gateway API safe-upgrades ValidatingAdmissionPolicy (blocks Traefik CRD install)."
+  kubectl delete validatingadmissionpolicybinding safe-upgrades.gateway.networking.k8s.io --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete validatingadmissionpolicy safe-upgrades.gateway.networking.k8s.io --ignore-not-found >/dev/null 2>&1 || true
+fi
+
 set +e
 run_helmfile_dag_sync
 sync_rc=$?
