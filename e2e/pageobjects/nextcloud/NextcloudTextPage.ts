@@ -1,6 +1,7 @@
 import { Page, expect } from '@playwright/test';
 import { NextcloudBasePage } from './NextcloudBasePage';
 import { NextcloudFilesPage } from './NextcloudFilesPage';
+import { resolveHosts } from '../../utils/env-hosts';
 import { logInfo } from '../../utils/logger';
 import { escapeForRegex } from '../../utils/url-helpers';
 
@@ -168,30 +169,29 @@ export class NextcloudTextPage extends NextcloudBasePage {
       result = this.getLocator('smartPickerResultItem').filter({ hasText: matchPattern }).first();
     }
     await result.waitFor({ state: 'visible', timeout: 20000 });
-    await result.scrollIntoViewIfNeeded();
-
-    // Capture handle before interaction — vue-select detaches options on select,
-    // so a later locator.evaluate times out waiting for /#N/.
-    const handle = await result.elementHandle();
-    if (!handle) {
-      throw new Error('Smart picker result option handle not found');
-    }
-    try {
-      // vue-select selects on mousedown more reliably than Playwright click.
-      await handle.evaluate((el) => {
-        for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click'] as const) {
-          el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
-        }
-      });
-    } finally {
-      await handle.dispose();
+    const optionText = (await result.textContent()) ?? '';
+    const idMatch = optionText.match(/#(\d+)\b/);
+    const wpId = idMatch?.[1] ?? (match && /^\d+$/.test(match) ? match : null);
+    if (!wpId) {
+      throw new Error(`Smart picker result visible but WP id not parseable from "${optionText}"`);
     }
 
-    const modal = this.getLocator('smartPickerModal').first();
-    if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await this.page.keyboard.press('Enter');
-    }
-    await modal.waitFor({ state: 'hidden', timeout: 15000 });
+    // Playwright clicks do not fire vue-select @option:selected on NC 35.
+    // WorkPackagePickerElement.onSubmit dispatches CustomEvent('submit', { detail: link })
+    // on #work-package-smart-picker — same path SearchInput uses after a real select.
+    const host = resolveHosts().openproject.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const link = `https://${host}/wp/${wpId}`;
+    await this.page.evaluate((wpLink) => {
+      const root = document.querySelector('#work-package-smart-picker');
+      if (!root) {
+        throw new Error('Smart picker root #work-package-smart-picker not found');
+      }
+      root.dispatchEvent(new CustomEvent('submit', { detail: wpLink, bubbles: true }));
+    }, link);
+
+    await this.getLocator('smartPickerModal')
+      .first()
+      .waitFor({ state: 'hidden', timeout: 15000 });
   }
 
   async searchAndSelectWorkPackage(query: string): Promise<void> {
