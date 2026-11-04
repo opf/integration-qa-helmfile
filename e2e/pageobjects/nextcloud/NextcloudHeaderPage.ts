@@ -44,22 +44,24 @@ export class NextcloudHeaderPage extends NextcloudBasePage {
   }
 
   async openUnifiedSearch(): Promise<void> {
+    // NC 35+: header search is an inline combobox (no separate __button). Older NC kept the button.
     const trigger = this.getLocator('unifiedSearchTrigger').first();
     await trigger.waitFor({ state: 'visible', timeout: 15000 });
-    // NC only fires provider searches after /search/providers has returned and Vue wired them.
-    const providersReady = this.page.waitForResponse(
-      (res) =>
-        res.url().includes('/ocs/v2.php/search/providers') &&
-        !res.url().includes('/search/providers/') &&
-        res.ok(),
-      { timeout: 15000 },
-    );
+    // Providers may load on focus (older NC) or only after the first keystroke (NC 35).
+    const providersReady = this.page
+      .waitForResponse(
+        (res) =>
+          res.url().includes('/ocs/v2.php/search/providers') &&
+          !res.url().includes('/search/providers/') &&
+          res.ok(),
+        { timeout: 5000 },
+      )
+      .catch(() => undefined);
     await trigger.click();
-    await providersReady;
     const input = this.getLocator('unifiedSearchInput').first();
     await input.waitFor({ state: 'visible', timeout: 15000 });
-    // Providers must be wired before typing or the modal sticks on "Searching...".
     await expect(input).toBeEditable({ timeout: 10000 });
+    await providersReady;
   }
 
   async searchUnified(query: string): Promise<void> {

@@ -533,19 +533,19 @@
     },
     "unifiedSearchTrigger": {
       "by": "locator",
-      "value": "button.unified-search-input__button, .unified-search-input__button"
+      "value": "input.unified-search-input__input[role='combobox'], [role='combobox'][aria-label*='Apps, files'], button.unified-search-input__button, .unified-search-input__button"
     },
     "unifiedSearchInput": {
       "by": "locator",
-      "value": "[data-cy-unified-search-input], .unified-search-modal input.input-field__input, .unified-search-modal-root input.input-field__input"
+      "value": "input.unified-search-input__input, [data-cy-unified-search-input], .unified-search-modal input.input-field__input, .unified-search-modal-root input.input-field__input"
     },
     "unifiedSearchOpenProjectGroup": {
       "by": "locator",
-      "value": ".unified-search-modal .result:has(h4.result-title:has-text('OpenProject')), .unified-search-modal h4.result-title:has-text('OpenProject')"
+      "value": ".unified-search-modal .result:has(.result-title--more:has-text('OpenProject')), .unified-search-modal .result-title--more:has-text('OpenProject'), .unified-search-modal .result:has(h4.result-title:has-text('OpenProject')), .unified-search-modal h4.result-title:has-text('OpenProject')"
     },
     "unifiedSearchResultItem": {
       "by": "locator",
-      "value": ".unified-search-modal .result:has(h4.result-title:has-text('OpenProject')) a.list-item__anchor, .unified-search-modal a.list-item__anchor[href*='openproject']"
+      "value": ".unified-search-modal .result:has(.result-title--more:has-text('OpenProject')) a.list-item__anchor, .unified-search-modal .result:has(h4.result-title:has-text('OpenProject')) a.list-item__anchor, .unified-search-modal a.list-item__anchor[href*='openproject'], .unified-search-modal a.list-item__anchor[href*='/work_packages/']"
     },
     "dashboardOpenProjectWidget": {
       "by": "locator",

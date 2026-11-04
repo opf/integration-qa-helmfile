@@ -168,36 +168,24 @@ export class NextcloudTextPage extends NextcloudBasePage {
       result = this.getLocator('smartPickerResultItem').filter({ hasText: matchPattern }).first();
     }
     await result.waitFor({ state: 'visible', timeout: 20000 });
-    const optionText = (await result.textContent()) ?? '';
-    const idMatch = optionText.match(/#(\d+)\b/);
-    const wpId = idMatch?.[1] ?? (match && /^\d+$/.test(match) ? match : null);
-    if (!wpId) {
-      throw new Error(`Smart picker result visible but WP id not parseable from "${optionText}"`);
-    }
 
-    // Playwright clicks do not fire vue-select option:selected in this NC build.
-    // After proving the result row is shown, submit the same link getWorkPackageLink() emits.
-    const ncHost = new URL(this.page.url()).hostname;
-    const opHost = `${new URL(this.page.url()).protocol}//${ncHost.replace(/^nextcloud\./, 'openproject.')}`;
-    await this.page.evaluate(
-      ({ id, opHost: host }) => {
-        const picker = document.querySelector('#work-package-smart-picker');
-        let el: HTMLElement | null = picker as HTMLElement | null;
-        while (el && !(el as unknown as { __vue__?: unknown }).__vue__) {
-          el = el.parentElement;
+    // Prefer DOM selection over Vue2 __vue__.onSubmit (gone on NC 35 / Vue 3).
+    // vue-select sometimes ignores a plain click; fall back to keyboard confirm.
+    await result.scrollIntoViewIfNeeded();
+    await result.click({ force: true });
+    const modal = this.getLocator('smartPickerModal').first();
+    if (await modal.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await result.focus().catch(() => undefined);
+      await this.page.keyboard.press('Enter');
+    }
+    if (await modal.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await result.evaluate((el) => {
+        for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click'] as const) {
+          el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
         }
-        const vue = el && (el as unknown as { __vue__?: { onSubmit?: (link: string) => void } }).__vue__;
-        if (!vue?.onSubmit) {
-          throw new Error('Smart picker host Vue onSubmit not found');
-        }
-        vue.onSubmit(`${host.replace(/\/+$/, '')}/wp/${id}`);
-      },
-      { id: wpId, opHost },
-    );
-    await this.getLocator('smartPickerModal')
-      .first()
-      .waitFor({ state: 'hidden', timeout: 10000 })
-      .catch(() => undefined);
+      });
+    }
+    await modal.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => undefined);
   }
 
   async searchAndSelectWorkPackage(query: string): Promise<void> {
