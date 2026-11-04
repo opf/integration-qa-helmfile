@@ -1,0 +1,42 @@
+#!/bin/bash
+# Override of /app/docker/prod/wait-for-db.
+# Upstream boots Rails (rails runner), which creates ar_internal_metadata and
+# races the seeder's db:schema:load. Poll with psql only until seed has run.
+set -euo pipefail
+
+DB_URL=$(echo "${DATABASE_URL}" | cut -d? -f1)
+timeout="${WAIT_FOR_DB_TIMEOUT_SECONDS:-900}"
+deadline=$((SECONDS + timeout))
+prev=-1
+stable=0
+
+echo "waiting for database schema via psql (timeout=${timeout}s)"
+while (( SECONDS < deadline )); do
+  count="$(psql -qtAX "$DB_URL" -c "SELECT COUNT(*)::text FROM schema_migrations" 2>/dev/null || true)"
+  count="${count:-0}"
+  if [[ "$count" =~ ^[0-9]+$ ]] && (( count > 0 )); then
+    if (( count == prev )); then
+      stable=$((stable + 1))
+    else
+      stable=0
+    fi
+    prev=$count
+    if (( stable >= 2 )); then
+      if psql -qtAX -v ON_ERROR_STOP=1 "$DB_URL" -c "SELECT 1 FROM settings LIMIT 1" >/dev/null 2>&1; then
+        echo "db ready (${count} migrations, settings present)"
+        exit 0
+      fi
+      echo "migrations stable at ${count}; waiting for seed (settings)"
+    else
+      echo "migrations present: ${count} (waiting for stability)"
+    fi
+  else
+    prev=-1
+    stable=0
+    echo "schema_migrations not ready yet"
+  fi
+  sleep 4
+done
+
+echo "timed out waiting for database schema after ${timeout}s"
+exit 1

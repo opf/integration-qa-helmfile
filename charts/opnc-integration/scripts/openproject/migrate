@@ -1,0 +1,25 @@
+#!/bin/bash -e
+# Override of /app/docker/prod/migrate.
+# Helm starts seeder + web/worker together; wait-for-db's rails runner can create
+# ar_internal_metadata before schema:load, so structure.sql fails with
+# "relation already exists". Wipe public schema when uninitialized, then load.
+
+DB_URL=$(echo "$DATABASE_URL" | cut -d? -f1)
+
+SCHEMA_LOADED=$(psql -qtAX -v ON_ERROR_STOP=1 "$DB_URL" -c \
+  "SELECT to_regclass('schema_migrations') IS NOT NULL")
+MIG_COUNT=0
+if [[ "$SCHEMA_LOADED" = "t" ]]; then
+  MIG_COUNT=$(psql -qtAX -v ON_ERROR_STOP=1 "$DB_URL" -c \
+    "SELECT COUNT(*)::text FROM schema_migrations")
+fi
+
+if [[ "$SCHEMA_LOADED" = "f" ]] || [[ "${MIG_COUNT}" -eq 0 ]]; then
+  echo "Initializing database"
+  psql -v ON_ERROR_STOP=1 "$DB_URL" -c \
+    "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO CURRENT_USER; GRANT ALL ON SCHEMA public TO public;"
+  DISABLE_DATABASE_ENVIRONMENT_CHECK=1 bundle exec rake db:schema:load
+else
+  echo "Executing database migrations..."
+  bundle exec rake db:migrate
+fi

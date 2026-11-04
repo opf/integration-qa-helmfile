@@ -7,6 +7,10 @@ metadata:
 data:
   entrypoint.sh: |
 {{ .Files.Get "scripts/openproject/entrypoint.sh" | indent 4 }}
+  migrate: |
+{{ .Files.Get "scripts/openproject/migrate" | indent 4 }}
+  wait-for-db: |
+{{ .Files.Get "scripts/openproject/wait-for-db" | indent 4 }}
 
 {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
 ---
