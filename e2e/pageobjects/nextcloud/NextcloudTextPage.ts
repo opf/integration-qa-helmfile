@@ -168,24 +168,30 @@ export class NextcloudTextPage extends NextcloudBasePage {
       result = this.getLocator('smartPickerResultItem').filter({ hasText: matchPattern }).first();
     }
     await result.waitFor({ state: 'visible', timeout: 20000 });
-
-    // Prefer DOM selection over Vue2 __vue__.onSubmit (gone on NC 35 / Vue 3).
-    // vue-select sometimes ignores a plain click; fall back to keyboard confirm.
     await result.scrollIntoViewIfNeeded();
-    await result.click({ force: true });
-    const modal = this.getLocator('smartPickerModal').first();
-    if (await modal.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await result.focus().catch(() => undefined);
-      await this.page.keyboard.press('Enter');
+
+    // Capture handle before interaction — vue-select detaches options on select,
+    // so a later locator.evaluate times out waiting for /#N/.
+    const handle = await result.elementHandle();
+    if (!handle) {
+      throw new Error('Smart picker result option handle not found');
     }
-    if (await modal.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await result.evaluate((el) => {
+    try {
+      // vue-select selects on mousedown more reliably than Playwright click.
+      await handle.evaluate((el) => {
         for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click'] as const) {
           el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
         }
       });
+    } finally {
+      await handle.dispose();
     }
-    await modal.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => undefined);
+
+    const modal = this.getLocator('smartPickerModal').first();
+    if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await this.page.keyboard.press('Enter');
+    }
+    await modal.waitFor({ state: 'hidden', timeout: 15000 });
   }
 
   async searchAndSelectWorkPackage(query: string): Promise<void> {

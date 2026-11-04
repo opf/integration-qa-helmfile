@@ -541,11 +541,11 @@
     },
     "unifiedSearchOpenProjectGroup": {
       "by": "locator",
-      "value": ".unified-search-modal .result:has(.result-title--more:has-text('OpenProject')), .unified-search-modal .result-title--more:has-text('OpenProject'), .unified-search-modal .result:has(h4.result-title:has-text('OpenProject')), .unified-search-modal h4.result-title:has-text('OpenProject')"
+      "value": "button:has-text('More from OpenProject'), [role='listbox'][aria-label*='OpenProject'], .result-title--more:has-text('OpenProject'), h4.result-title:has-text('OpenProject'), [class*='unified-search-modal'] .result:has-text('OpenProject')"
     },
     "unifiedSearchResultItem": {
       "by": "locator",
-      "value": ".unified-search-modal .result:has(.result-title--more:has-text('OpenProject')) a.list-item__anchor, .unified-search-modal .result:has(h4.result-title:has-text('OpenProject')) a.list-item__anchor, .unified-search-modal a.list-item__anchor[href*='openproject'], .unified-search-modal a.list-item__anchor[href*='/work_packages/']"
+      "value": "[role='listbox'][aria-label*='OpenProject'] a.list-item__anchor, [role='listbox'][aria-label*='OpenProject'] [role='option'] a, [class*='unified-search-modal'] .result:has(.result-title--more:has-text('OpenProject')) a.list-item__anchor, [class*='unified-search-modal'] .result:has(h4.result-title:has-text('OpenProject')) a.list-item__anchor, a.list-item__anchor[href*='/work_packages/'], a.list-item__anchor[href*='/wp/']"
     },
     "dashboardOpenProjectWidget": {
       "by": "locator",
@@ -668,7 +668,7 @@
     },
     "smartPickerResultItem": {
       "by": "locator",
-      "value": "#work-package-smart-picker .vs__dropdown-option, .work-package-picker .vs__dropdown-option, #searchBar .vs__dropdown-option"
+      "value": "[role='dialog']:has-text('OpenProject work package picker') [role='option'], #work-package-smart-picker .vs__dropdown-option, .work-package-picker .vs__dropdown-option, #searchBar .vs__dropdown-option, .modal-container [role='option']"
     },
     "smartPickerReferenceCard": {
       "by": "locator",
