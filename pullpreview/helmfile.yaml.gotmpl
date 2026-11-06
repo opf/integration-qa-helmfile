@@ -55,7 +55,13 @@ releases:
 
   - name: openproject
     chart: ../charts/openproject
+    # When building from source, helm --wait holds until pods are Ready (entrypoint waits
+    # on build-completed), so this must cover clone + ng build + seeder.
+    {{- if or (ne (.Values.openproject.gitSourceBranch | default "") "") (ne (.Values.openproject.localSourcePath | default "") "") }}
+    timeout: 2400
+    {{- else }}
     timeout: 1200
+    {{- end }}
     values:
       - ../values/op-values.gotmpl
       - ../values/op-env.gotmpl
@@ -70,7 +76,13 @@ releases:
     values:
       - ../values/kc-values.gotmpl
     needs:
+      # After openproject when building OP from source: keep Keycloak off the 16GB node
+      # until the Angular build finishes (openproject stays NotReady until build-completed).
+      {{- if or (ne (.Values.openproject.gitSourceBranch | default "") "") (ne (.Values.openproject.localSourcePath | default "") "") }}
+      - openproject
+      {{- else }}
       - opnc-integration
+      {{- end }}
 
   - name: nextcloud-pvc
     chart: ../charts/opnc-nextcloud-pvc
@@ -91,7 +103,11 @@ releases:
     values:
       - ../values/nc-values.gotmpl
     needs:
+      {{- if or (ne (.Values.openproject.gitSourceBranch | default "") "") (ne (.Values.openproject.localSourcePath | default "") "") }}
+      - openproject
+      {{- else }}
       - opnc-integration
+      {{- end }}
       {{- if .Values.keycloak.enabled }}
       - keycloak
       {{- end }}
