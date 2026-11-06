@@ -44,6 +44,27 @@ if [[ -n "$PKG_TO_INSTALL" ]]; then
         pkg-config >/dev/null
 fi
 
+# openproject:*-slim has no Node; bin/setup_dev runs npm ci for the Angular frontend.
+if ! command -v npm >/dev/null 2>&1; then
+    if [[ "$(id -u)" -ne 0 ]]; then
+        echo "[ERROR] Need root to install Node.js/npm; op-buildsource-job must set securityContext runAsUser: 0."
+        exit 1
+    fi
+    # Node 22 matches charts/opnc-integration assets-deployment (node:22).
+    NODE_VERSION="${OP_BUILD_NODE_VERSION:-22.16.0}"
+    echo "[INFO] Installing Node.js ${NODE_VERSION} (npm required for frontend build)..."
+    if ! command -v curl >/dev/null 2>&1; then
+        apt update >/dev/null
+        apt install -y --no-install-recommends ca-certificates curl >/dev/null
+    fi
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz" \
+        | tar -xz -C /usr/local --strip-components=1
+    command -v npm >/dev/null 2>&1 || {
+        echo "[ERROR] npm still missing after Node.js install."
+        exit 1
+    }
+fi
+
 echo "[INFO] Building OpenProject from source..."
 
 mkdir -p "$APP_PATH" && cd "$APP_PATH"
