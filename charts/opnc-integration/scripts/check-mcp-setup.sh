@@ -84,4 +84,24 @@ grep -q 'name: setup-integration' "$RENDER" && fail "standalone must omit setup-
 grep -q 'name: setup-complete' "$RENDER" || fail "standalone must render setup-complete main container"
 pass "standalone keeps mcp-setup, skips integration"
 
+helm template mcp-check-source "$CHART" \
+  --set openproject.standalone=false \
+  --set setupJob.enabled=true \
+  --set setupJob.defer=false \
+  --set mcp.enabled=true \
+  --set mcp.oauthToken=bob_ai_mcp_test_token_1234567890 \
+  --set environment.DATABASE_URL=postgres://op:op@db/op \
+  --set environment.DATABASE_HOST=db \
+  --set xwiki.enabled=false \
+  --set openproject.gitSourceBranch=poc/test-management \
+  --set openproject.customSourceMountPath=/home/app/openproject \
+  >"$RENDER"
+grep -qE 'workingDir: "?/home/app/openproject"?' "$RENDER" ||
+  fail "git source mcp-setup must set workingDir to customSourceMountPath"
+grep -A20 'name: mcp-setup' "$RENDER" | grep -q 'entrypoint-slim.sh' ||
+  fail "git source mcp-setup must run via entrypoint-slim.sh"
+grep -A40 'name: mcp-setup' "$RENDER" | grep -q 'name: empty-app-dir' ||
+  fail "git source mcp-setup must mount emptyDir over /app"
+pass "git source mcp-setup uses source workingDir + entrypoint"
+
 echo "[PASS] MCP Bob_AI setup check"

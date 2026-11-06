@@ -107,6 +107,12 @@ collect_diagnostics() {
     echo "[pullpreview] setup-job log tail:"
     kubectl logs -n "${namespace}" -l job-name=setup-job \
       --all-containers=true --tail=200 2>&1 | redact_stream || true
+    # Init containers can fail before the main container starts; -c is explicit.
+    for setup_init in mcp-setup xwiki-oauth-setup; do
+      echo "[pullpreview] setup-job ${setup_init} init log tail:"
+      kubectl logs -n "${namespace}" -l job-name=setup-job -c "${setup_init}" \
+        --tail=200 2>&1 | redact_stream || true
+    done
     kubectl describe job setup-job -n "${namespace}" 2>&1 | redact_stream || true
   fi
 

@@ -34,12 +34,24 @@ spec:
         - name: mcp-setup
           image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
           imagePullPolicy: IfNotPresent
+          {{- if $opFromSource }}
+          # emptyDir hides image /app (WORKDIR); run from the built source like seeder/web.
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          command:
+            - /app/docker/prod/entrypoint-slim.sh
+            - bundle
+            - exec
+            - rails
+            - runner
+            - /scripts/setup-mcp.rb
+          {{- else }}
           command:
             - bundle
             - exec
             - rails
             - runner
             - /scripts/setup-mcp.rb
+          {{- end }}
           env:
             - name: RAILS_ENV
               value: "production"
@@ -82,12 +94,23 @@ spec:
         - name: xwiki-oauth-setup
           image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
           imagePullPolicy: IfNotPresent
+          {{- if $opFromSource }}
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          command:
+            - /app/docker/prod/entrypoint-slim.sh
+            - bundle
+            - exec
+            - rails
+            - runner
+            - /scripts/setup-xwiki-oauth.rb
+          {{- else }}
           command:
             - bundle
             - exec
             - rails
             - runner
             - /scripts/setup-xwiki-oauth.rb
+          {{- end }}
           env:
             - name: XWIKI_OAUTH_CLIENT_ID
               value: {{ index .Values.openproject.xwiki "clientId" | default "xwiki-client-id" | quote }}
