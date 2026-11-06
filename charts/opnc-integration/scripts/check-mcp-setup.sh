@@ -102,8 +102,10 @@ grep -A20 'name: mcp-setup' "$RENDER" | grep -q 'entrypoint-slim.sh' ||
   fail "git source mcp-setup must run via entrypoint-slim.sh"
 grep -A25 'name: mcp-setup' "$RENDER" | grep -q 'bin/rails' ||
   fail "git source mcp-setup must use bin/rails (not bundle exec rails)"
-grep -A40 'name: mcp-setup' "$RENDER" | grep -q 'name: empty-app-dir' ||
+grep -A60 'name: mcp-setup' "$RENDER" | grep -q 'name: BUNDLE_PATH' ||
+  fail "git source mcp-setup must set BUNDLE_PATH to the source vendor/bundle"
+grep -A60 'name: mcp-setup' "$RENDER" | grep -q 'name: empty-app-dir' ||
   fail "git source mcp-setup must mount emptyDir over /app"
-pass "git source mcp-setup uses source workingDir + bin/rails"
+pass "git source mcp-setup uses source workingDir + bin/rails + BUNDLE_PATH"
 
 echo "[PASS] MCP Bob_AI setup check"

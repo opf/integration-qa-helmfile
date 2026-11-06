@@ -66,6 +66,13 @@ spec:
             # Match seeder/web: run rails from the built source so migrations match the DB.
             - name: APP_PATH
               value: {{ .Values.openproject.customSourceMountPath | quote }}
+            # Image defaults BUNDLE_* to /app; emptyDir hides that path — use the source tree.
+            - name: BUNDLE_APP_CONFIG
+              value: "./.bundle"
+            - name: BUNDLE_PATH
+              value: {{ printf "%s/vendor/bundle" .Values.openproject.customSourceMountPath | quote }}
+            - name: BUNDLE_WITHOUT
+              value: ""
             {{- if .Values.openproject.gitSourceBranch }}
             - name: OP_GIT_SOURCE_BRANCH
               value: {{ .Values.openproject.gitSourceBranch | quote }}
@@ -127,6 +134,12 @@ spec:
             {{- if $opFromSource }}
             - name: APP_PATH
               value: {{ .Values.openproject.customSourceMountPath | quote }}
+            - name: BUNDLE_APP_CONFIG
+              value: "./.bundle"
+            - name: BUNDLE_PATH
+              value: {{ printf "%s/vendor/bundle" .Values.openproject.customSourceMountPath | quote }}
+            - name: BUNDLE_WITHOUT
+              value: ""
             {{- if .Values.openproject.gitSourceBranch }}
             - name: OP_GIT_SOURCE_BRANCH
               value: {{ .Values.openproject.gitSourceBranch | quote }}
