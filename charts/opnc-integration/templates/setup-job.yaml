@@ -36,12 +36,11 @@ spec:
           imagePullPolicy: IfNotPresent
           {{- if $opFromSource }}
           # emptyDir hides image /app (WORKDIR); run from the built source like seeder/web.
+          # Source builds expose rails via bin/rails (bundle exec rails has no rails executable).
           workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
           command:
             - /app/docker/prod/entrypoint-slim.sh
-            - bundle
-            - exec
-            - rails
+            - bin/rails
             - runner
             - /scripts/setup-mcp.rb
           {{- else }}
@@ -98,9 +97,7 @@ spec:
           workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
           command:
             - /app/docker/prod/entrypoint-slim.sh
-            - bundle
-            - exec
-            - rails
+            - bin/rails
             - runner
             - /scripts/setup-xwiki-oauth.rb
           {{- else }}

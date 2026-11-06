@@ -100,8 +100,10 @@ grep -qE 'workingDir: "?/home/app/openproject"?' "$RENDER" ||
   fail "git source mcp-setup must set workingDir to customSourceMountPath"
 grep -A20 'name: mcp-setup' "$RENDER" | grep -q 'entrypoint-slim.sh' ||
   fail "git source mcp-setup must run via entrypoint-slim.sh"
+grep -A25 'name: mcp-setup' "$RENDER" | grep -q 'bin/rails' ||
+  fail "git source mcp-setup must use bin/rails (not bundle exec rails)"
 grep -A40 'name: mcp-setup' "$RENDER" | grep -q 'name: empty-app-dir' ||
   fail "git source mcp-setup must mount emptyDir over /app"
-pass "git source mcp-setup uses source workingDir + entrypoint"
+pass "git source mcp-setup uses source workingDir + bin/rails"
 
 echo "[PASS] MCP Bob_AI setup check"
