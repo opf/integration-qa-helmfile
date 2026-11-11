@@ -119,13 +119,15 @@ export class NextcloudLoginPage extends NextcloudBasePage {
         },
         { timeout: 30000, waitUntil: 'domcontentloaded' },
       );
-      await this.dismissFirstRunWizardIfPresent(3000).catch(() => false);
+      // Wizard can lag after OIDC redirect into Files; give it a bit longer than 3s.
+      await this.dismissFirstRunWizardIfPresent(8000).catch(() => false);
       return new NextcloudDashboardPage(this.page);
     }
 
     const dashboard = new NextcloudDashboardPage(this.page);
     await dashboard.waitForReady();
     await dashboard.closeWelcomeMessage();
+    await this.dismissFirstRunWizardIfPresent(5000).catch(() => false);
     return dashboard;
   }
 

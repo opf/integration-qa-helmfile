@@ -166,7 +166,10 @@ export class NextcloudFilesPage extends NextcloudBasePage {
     const row = this.getFileRow(fileName);
     await row.waitFor({ state: 'visible', timeout: 15000 });
 
-    // NC 34: row Actions menu → OpenProject (or Details) opens the right sidebar.
+    // Fresh OIDC users can still show #firstrunwizard over the files list.
+    await this.dismissFirstRunWizardIfPresent(3000);
+
+    // NC 34/35: row Actions menu → OpenProject (or Details) opens the right sidebar.
     const actionsBtn = row.getByRole('button', { name: 'Actions', exact: true }).first();
     await actionsBtn.waitFor({ state: 'visible', timeout: 10000 });
     await actionsBtn.click();

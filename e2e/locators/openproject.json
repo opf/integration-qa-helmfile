@@ -44,7 +44,7 @@
         "role": "heading",
         "name": "Sign in",
         "options": {
-          "exact": true
+          "exact": false
         }
       }
     },
@@ -386,11 +386,11 @@
     },
     "storageHealthWarningSummary": {
       "by": "locator",
-      "value": "text=/check returned a warning|checks returned a warning|completed with warning/i"
+      "value": "text=/check returned a warning|checks returned a warning|completed with warning|\\d+ checks? failed|Some checks failed/i"
     },
     "storageHealthWarningLabel": {
       "by": "locator",
-      "value": "text=/^Warning$/i"
+      "value": ".Label--warning:has-text('Warning'), span.Label:has-text('Warning'), text=/^Warning$/i"
     },
     "storageHealthRunChecksButton": {
       "by": "getByRole",

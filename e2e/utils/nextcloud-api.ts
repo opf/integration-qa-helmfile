@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { ADMIN_USER, NC_ADMIN_USER } from './test-users';
 import { getErrorMessage } from './error-utils';
 import { resolveEnvName, resolveHosts } from './env-hosts';
@@ -74,64 +75,145 @@ async function getKeycloakAdminToken(kcHost: string): Promise<string> {
   return data.access_token;
 }
 
-async function ensureDirectAccessGrants(
+interface KeycloakProtocolMapper {
+  id?: string;
+  name?: string;
+  protocol?: string;
+  protocolMapper?: string;
+  config?: Record<string, string>;
+}
+
+async function getNextcloudKeycloakClientId(
   kcHost: string,
-  kcAdminToken: string
-): Promise<void> {
+  kcAdminToken: string,
+): Promise<string> {
   const clientsResponse = await tlsFetch(
     `https://${kcHost}/admin/realms/${KC_REALM}/clients?clientId=${encodeURIComponent(KC_NC_CLIENT_ID)}`,
     {
-      headers: { authorization: `Bearer ${kcAdminToken}` }
-    }
+      headers: { authorization: `Bearer ${kcAdminToken}` },
+    },
   );
   if (!clientsResponse.ok) {
     throw new Error(
-      `Keycloak list clients failed: HTTP ${clientsResponse.status} ${clientsResponse.statusText}`
+      `Keycloak list clients failed: HTTP ${clientsResponse.status} ${clientsResponse.statusText}`,
     );
   }
   const clients = (await clientsResponse.json()) as KeycloakClient[];
   const ncClient = clients.find((c) => c.clientId === KC_NC_CLIENT_ID);
   if (!ncClient?.id) {
     throw new Error(
-      `Keycloak client '${KC_NC_CLIENT_ID}' not found in realm '${KC_REALM}'`
+      `Keycloak client '${KC_NC_CLIENT_ID}' not found in realm '${KC_REALM}'`,
     );
   }
-  if (ncClient.directAccessGrantsEnabled === true) {
-    return;
-  }
+  return ncClient.id;
+}
+
+async function ensureDirectAccessGrants(
+  kcHost: string,
+  kcAdminToken: string,
+  clientUuid: string,
+): Promise<void> {
   const fullResponse = await tlsFetch(
-    `https://${kcHost}/admin/realms/${KC_REALM}/clients/${ncClient.id}`,
+    `https://${kcHost}/admin/realms/${KC_REALM}/clients/${clientUuid}`,
     {
-      headers: { authorization: `Bearer ${kcAdminToken}` }
-    }
+      headers: { authorization: `Bearer ${kcAdminToken}` },
+    },
   );
   if (!fullResponse.ok) {
     throw new Error(
-      `Keycloak get client failed: HTTP ${fullResponse.status} ${fullResponse.statusText}`
+      `Keycloak get client failed: HTTP ${fullResponse.status} ${fullResponse.statusText}`,
     );
   }
-  const fullClient = (await fullResponse.json()) as Record<string, unknown>;
+  const fullClient = (await fullResponse.json()) as Record<string, unknown> & {
+    directAccessGrantsEnabled?: boolean;
+  };
+  if (fullClient.directAccessGrantsEnabled === true) {
+    return;
+  }
   fullClient.directAccessGrantsEnabled = true;
   const putResponse = await tlsFetch(
-    `https://${kcHost}/admin/realms/${KC_REALM}/clients/${ncClient.id}`,
+    `https://${kcHost}/admin/realms/${KC_REALM}/clients/${clientUuid}`,
     {
       method: 'PUT',
       headers: {
         authorization: `Bearer ${kcAdminToken}`,
-        'content-type': 'application/json'
+        'content-type': 'application/json',
       },
-      body: JSON.stringify(fullClient)
-    }
+      body: JSON.stringify(fullClient),
+    },
   );
   if (!putResponse.ok) {
     const text = await putResponse.text();
     logWarn(
-      `Failed to enable direct access grants on Keycloak client: HTTP ${putResponse.status} - ${text}`
+      `Failed to enable direct access grants on Keycloak client: HTTP ${putResponse.status} - ${text}`,
     );
     throw new Error(
-      `Failed to enable direct access grants: HTTP ${putResponse.status}`
+      `Failed to enable direct access grants: HTTP ${putResponse.status}`,
     );
   }
+}
+
+/**
+ * NC user_oidc SelfEncodedValidator requires access-token `aud` to include the
+ * NC client id. Keycloak ROPC tokens often only set `azp` — add an audience mapper.
+ */
+async function ensureNextcloudAudienceMapper(
+  kcHost: string,
+  kcAdminToken: string,
+  clientUuid: string,
+): Promise<void> {
+  const listResponse = await tlsFetch(
+    `https://${kcHost}/admin/realms/${KC_REALM}/clients/${clientUuid}/protocol-mappers/models`,
+    {
+      headers: { authorization: `Bearer ${kcAdminToken}` },
+    },
+  );
+  if (!listResponse.ok) {
+    throw new Error(
+      `Keycloak list protocol mappers failed: HTTP ${listResponse.status} ${listResponse.statusText}`,
+    );
+  }
+  const mappers = (await listResponse.json()) as KeycloakProtocolMapper[];
+  const existing = mappers.find(
+    (m) =>
+      m.protocolMapper === 'oidc-audience-mapper' &&
+      (m.config?.['included.client.audience'] === KC_NC_CLIENT_ID ||
+        m.name === 'audience-nextcloud'),
+  );
+  if (existing) {
+    logInfo('Keycloak nextcloud client already has audience mapper');
+    return;
+  }
+
+  const createResponse = await tlsFetch(
+    `https://${kcHost}/admin/realms/${KC_REALM}/clients/${clientUuid}/protocol-mappers/models`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${kcAdminToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'audience-nextcloud',
+        protocol: 'openid-connect',
+        protocolMapper: 'oidc-audience-mapper',
+        consentRequired: false,
+        config: {
+          'included.client.audience': KC_NC_CLIENT_ID,
+          'id.token.claim': 'false',
+          'access.token.claim': 'true',
+          'introspection.token.claim': 'true',
+        },
+      }),
+    },
+  );
+  if (!createResponse.ok && createResponse.status !== 409) {
+    const text = await createResponse.text();
+    throw new Error(
+      `Failed to create Keycloak audience mapper: HTTP ${createResponse.status} - ${text}`,
+    );
+  }
+  logInfo('Added Keycloak audience mapper for nextcloud access tokens');
 }
 
 async function getKeycloakTokenForUser(
@@ -148,7 +230,8 @@ async function getKeycloakTokenForUser(
         client_id: KC_NC_CLIENT_ID,
         client_secret: KC_NC_CLIENT_SECRET,
         username: user.username,
-        password: user.password
+        password: user.password,
+        scope: 'openid profile email',
       }).toString()
     }
   );
@@ -254,17 +337,215 @@ function buildWebDavUrl(ncHost: string, userId: string, filePath: string): strin
   return `https://${ncHost}/remote.php/dav/files/${encodeURIComponent(userId)}/${encodedPath}`;
 }
 
+/**
+ * user_oidc uniqueUid: sha256("{providerId}_0_{keycloakSub}").
+ * Used when OCS search cannot match (email/displayname unset on hashed accounts).
+ */
+async function resolveNextcloudUserIdViaKeycloakSub(
+  user: TestUser,
+  admin: TestUser = NC_ADMIN_USER,
+): Promise<string | undefined> {
+  const hosts = resolveHosts(resolveEnvName());
+  const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
+  const auth = `Basic ${buildNextcloudBasicAuth(admin)}`;
+
+  try {
+    const kcAdminToken = await getKeycloakAdminToken(hosts.keycloak);
+    const usersResponse = await tlsFetch(
+      `https://${hosts.keycloak}/admin/realms/${KC_REALM}/users?username=${encodeURIComponent(user.username)}&exact=true`,
+      { headers: { authorization: `Bearer ${kcAdminToken}` } },
+    );
+    if (!usersResponse.ok) {
+      return undefined;
+    }
+    const kcUsers = (await usersResponse.json()) as Array<{ id?: string }>;
+    const sub = kcUsers[0]?.id;
+    if (!sub) {
+      return undefined;
+    }
+
+    // Provider id is usually 1; probe a few ids in case of re-create.
+    for (const providerId of [1, 2, 3]) {
+      const hashed = createHash('sha256').update(`${providerId}_0_${sub}`).digest('hex');
+      const response = await tlsFetch(
+        `https://${ncHost}/ocs/v1.php/cloud/users/${encodeURIComponent(hashed)}?format=json`,
+        {
+          headers: {
+            authorization: auth,
+            'OCS-APIRequest': 'true',
+            accept: 'application/json',
+          },
+        },
+      );
+      if (!response.ok) {
+        continue;
+      }
+      const data = (await response.json()) as { ocs?: { meta?: { statuscode?: number } } };
+      if (data.ocs?.meta?.statuscode === 100) {
+        return hashed;
+      }
+    }
+  } catch (error: unknown) {
+    logWarn(
+      'Keycloak-sub NC userid resolve failed for %s: %s',
+      user.username,
+      getErrorMessage(error),
+    );
+  }
+  return undefined;
+}
+
+/**
+ * Resolve a Nextcloud userid via admin OCS (OIDC/JIT users are often hashed ids).
+ * Prefers Keycloak sub → uniqueUid hash; falls back to email/displayname search.
+ */
+async function resolveNextcloudUserIdViaAdmin(
+  user: TestUser,
+  admin: TestUser = NC_ADMIN_USER,
+): Promise<string> {
+  const viaSub = await resolveNextcloudUserIdViaKeycloakSub(user, admin);
+  if (viaSub) {
+    return viaSub;
+  }
+
+  const hosts = resolveHosts(resolveEnvName());
+  const ncHost = resolveHostname(hosts.nextcloud) || hosts.nextcloud;
+  const auth = `Basic ${buildNextcloudBasicAuth(admin)}`;
+  const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+
+  const searchTerms = [
+    user.email,
+    user.username,
+    user.firstName,
+    user.lastName,
+    displayName,
+  ].filter((v): v is string => typeof v === 'string' && v.length > 0);
+
+  const candidateIds = new Set<string>();
+  for (const term of searchTerms) {
+    const searchResponse = await tlsFetch(
+      `https://${ncHost}/ocs/v1.php/cloud/users?search=${encodeURIComponent(term)}&format=json`,
+      {
+        headers: {
+          authorization: auth,
+          'OCS-APIRequest': 'true',
+          accept: 'application/json',
+        },
+      },
+    );
+    if (!searchResponse.ok) {
+      continue;
+    }
+    try {
+      const data = (await searchResponse.json()) as {
+        ocs?: { data?: { users?: string[] } | string[] };
+      };
+      const raw = data.ocs?.data;
+      const users = Array.isArray(raw) ? raw : raw?.users ?? [];
+      for (const id of users) {
+        candidateIds.add(id);
+      }
+    } catch (error: unknown) {
+      logWarn(
+        'Nextcloud admin user search for %s was not JSON: %s',
+        term,
+        getErrorMessage(error),
+      );
+    }
+  }
+
+  for (const candidate of candidateIds) {
+    const response = await tlsFetch(
+      `https://${ncHost}/ocs/v1.php/cloud/users/${encodeURIComponent(candidate)}?format=json`,
+      {
+        headers: {
+          authorization: auth,
+          'OCS-APIRequest': 'true',
+          accept: 'application/json',
+        },
+      },
+    );
+    if (!response.ok) {
+      continue;
+    }
+    try {
+      const data = (await response.json()) as {
+        ocs?: {
+          meta?: { statuscode?: number };
+          data?: {
+            id?: string;
+            email?: string | null;
+            displayname?: string;
+            'display-name'?: string;
+          };
+        };
+      };
+      if (data.ocs?.meta?.statuscode !== undefined && data.ocs.meta.statuscode !== 100) {
+        continue;
+      }
+      const detail = data.ocs?.data;
+      const id = detail?.id ? String(detail.id) : candidate;
+      const email = detail?.email ?? undefined;
+      const name = detail?.displayname || detail?.['display-name'] || '';
+      if (
+        id === user.username ||
+        (user.email && email === user.email) ||
+        (displayName && name === displayName)
+      ) {
+        return id;
+      }
+    } catch (error: unknown) {
+      logWarn(
+        'Nextcloud admin user detail for %s was not JSON: %s',
+        candidate,
+        getErrorMessage(error),
+      );
+    }
+  }
+
+  throw new Error(
+    `Could not resolve Nextcloud userid for '${user.username}' via admin OCS`,
+  );
+}
+
 async function withWebDavAuth(
   user: TestUser
 ): Promise<{ ncHost: string; userId: string; authorization: string }> {
   const hosts = resolveHosts(resolveEnvName());
-  // oauth2 local users authenticate with Nextcloud basic auth; SSO uses Keycloak ROPC.
-  const authorization =
-    testConfig.setupMethod === 'oauth2'
-      ? `Basic ${buildNextcloudBasicAuth(user)}`
-      : `Bearer ${await getKeycloakTokenForUser(hosts.keycloak, user)}`;
-  const userId = await resolveNextcloudUserId(hosts.nextcloud, authorization, user.username);
-  return { ncHost: hosts.nextcloud, userId, authorization };
+  const ncHost = hosts.nextcloud;
+
+  if (testConfig.setupMethod === 'oauth2') {
+    const authorization = `Basic ${buildNextcloudBasicAuth(user)}`;
+    const userId = await resolveNextcloudUserId(ncHost, authorization, user.username);
+    return { ncHost, userId, authorization };
+  }
+
+  // SSO: Keycloak ROPC Bearer (requires audience mapper + direct access grants from global-setup).
+  const authorization = `Bearer ${await getKeycloakTokenForUser(hosts.keycloak, user)}`;
+  const host = resolveHostname(ncHost) || ncHost;
+  const probe = await tlsFetch(`https://${host}/ocs/v1.php/cloud/user?format=json`, {
+    headers: {
+      authorization,
+      'OCS-APIRequest': 'true',
+      accept: 'application/json',
+    },
+  });
+  if (probe.ok) {
+    const data = (await probe.json()) as NextcloudUserResponse;
+    const userId = extractNextcloudUserId(data) || user.username;
+    return { ncHost, userId, authorization };
+  }
+
+  // First-login skeleton lock can make /cloud/user fail briefly; still prefer hashed id for ACL.
+  const text = await probe.text();
+  logWarn(
+    'Nextcloud Bearer /cloud/user failed for %s (HTTP %s): %s; resolving userid via admin',
+    user.username,
+    probe.status,
+    text.slice(0, 200),
+  );
+  const userId = await resolveNextcloudUserIdViaAdmin(user);
+  return { ncHost, userId, authorization };
 }
 
 async function fileExists(
@@ -930,7 +1211,9 @@ export async function ensureKeycloakDirectAccessForNextcloud(): Promise<void> {
   const hosts = resolveHosts(resolveEnvName());
   const kcHost = hosts.keycloak;
   const adminToken = await getKeycloakAdminToken(kcHost);
-  await ensureDirectAccessGrants(kcHost, adminToken);
+  const clientUuid = await getNextcloudKeycloakClientId(kcHost, adminToken);
+  await ensureDirectAccessGrants(kcHost, adminToken, clientUuid);
+  await ensureNextcloudAudienceMapper(kcHost, adminToken, clientUuid);
 }
 
 /**
