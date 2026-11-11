@@ -22,8 +22,8 @@ namespace: {{ requiredEnv "PULLPREVIEW_NAMESPACE" }}
 
 helmDefaults:
   wait: true
-  # Plain --wait does not wait for Jobs; without this, gitlab/xwiki start while
-  # op-buildsource-job is still compiling Angular and OOMs the 16GB preview node.
+  # Wait for Jobs (seeder, setup-job). opnc-integration overrides this when building
+  # OpenProject from source — see that release.
   waitForJobs: true
   atomic: true
   createNamespace: true
@@ -41,6 +41,9 @@ releases:
     # Clone + bundle + production ng build regularly exceeds 10m when gitSourceBranch is set.
     {{- if or (ne (.Values.openproject.gitSourceBranch | default "") "") (ne (.Values.openproject.localSourcePath | default "") "") }}
     timeout: 2400
+    # op-buildsource-job waits for op-postgresql (openproject release). Waiting for the
+    # Job here deadlocks: postgres never starts. GitLab/XWiki stay gated via needs: openproject.
+    waitForJobs: false
     {{- else }}
     timeout: 600
     {{- end }}
@@ -52,7 +55,13 @@ releases:
 
   - name: openproject
     chart: ../charts/openproject
+    # When building from source, helm --wait holds until pods are Ready (entrypoint waits
+    # on build-completed), so this must cover clone + ng build + seeder.
+    {{- if or (ne (.Values.openproject.gitSourceBranch | default "") "") (ne (.Values.openproject.localSourcePath | default "") "") }}
+    timeout: 2400
+    {{- else }}
     timeout: 1200
+    {{- end }}
     values:
       - ../values/op-values.gotmpl
       - ../values/op-env.gotmpl
@@ -67,7 +76,13 @@ releases:
     values:
       - ../values/kc-values.gotmpl
     needs:
+      # After openproject when building OP from source: keep Keycloak off the 16GB node
+      # until the Angular build finishes (openproject stays NotReady until build-completed).
+      {{- if or (ne (.Values.openproject.gitSourceBranch | default "") "") (ne (.Values.openproject.localSourcePath | default "") "") }}
+      - openproject
+      {{- else }}
       - opnc-integration
+      {{- end }}
 
   - name: nextcloud-pvc
     chart: ../charts/opnc-nextcloud-pvc
@@ -88,7 +103,11 @@ releases:
     values:
       - ../values/nc-values.gotmpl
     needs:
+      {{- if or (ne (.Values.openproject.gitSourceBranch | default "") "") (ne (.Values.openproject.localSourcePath | default "") "") }}
+      - openproject
+      {{- else }}
       - opnc-integration
+      {{- end }}
       {{- if .Values.keycloak.enabled }}
       - keycloak
       {{- end }}
@@ -118,11 +137,14 @@ releases:
     timeout: 2700
     installed: {{ .Values.xwiki.enabled }}
     needs:
+      # After openproject (not only opnc-integration): with a git source branch,
+      # opnc-integration does not wait for op-buildsource-job, so needing openproject
+      # keeps XWiki off the 16GB node until the Angular build finishes and OP is Ready.
       # opnc-setup-job is intentionally omitted: the XWiki entrypoint only stores the OP
       # connection config in XWiki (no OP API call at deploy time). The OAuth client that
       # setup-job registers in OP is needed only when users authenticate, which happens
       # after the full deploy completes.
-      - opnc-integration
+      - openproject
     values:
       - ../values/xwiki-values.gotmpl
     strategicMergePatches:
@@ -135,4 +157,5 @@ releases:
     values:
       - ../values/gitlab-values.gotmpl
     needs:
-      - opnc-integration
+      # Same as xwiki: hold until OpenProject is Ready so the source build is done first.
+      - openproject

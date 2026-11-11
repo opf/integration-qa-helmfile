@@ -85,9 +85,17 @@ collect_diagnostics() {
     buildsource_reasons="$(kubectl get pods -n "${namespace}" -l job-name=op-buildsource-job \
       -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.containerStatuses[*].lastState.terminated.reason}{"\t"}{.status.containerStatuses[*].state.terminated.reason}{"\n"}{end}' \
       2>/dev/null || true)"
-    if [[ "${buildsource_reasons}" == *OOMKilled* ]]; then
+    # Only treat OOM as the failure cause when the Job itself failed (a prior
+    # OOMKilled attempt that later Completed is noise after a successful build).
+    local buildsource_failed=""
+    buildsource_failed="$(kubectl get job op-buildsource-job -n "${namespace}" \
+      -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)"
+    if [[ "${buildsource_failed}" == "True" && "${buildsource_reasons}" == *OOMKilled* ]]; then
       echo "::error::[pullpreview] op-buildsource-job was OOMKilled (node memory pressure during OpenProject source build)."
       echo "[pullpreview] op-buildsource-job pod termination reasons:"
+      printf '%s\n' "${buildsource_reasons}" | redact_stream || true
+    elif [[ "${buildsource_reasons}" == *OOMKilled* ]]; then
+      echo "[pullpreview] op-buildsource-job had an OOMKilled attempt but the Job completed; pod termination reasons:"
       printf '%s\n' "${buildsource_reasons}" | redact_stream || true
     fi
     echo "[pullpreview] op-buildsource-job log tail:"
@@ -99,6 +107,12 @@ collect_diagnostics() {
     echo "[pullpreview] setup-job log tail:"
     kubectl logs -n "${namespace}" -l job-name=setup-job \
       --all-containers=true --tail=200 2>&1 | redact_stream || true
+    # Init containers can fail before the main container starts; -c is explicit.
+    for setup_init in mcp-setup xwiki-oauth-setup; do
+      echo "[pullpreview] setup-job ${setup_init} init log tail:"
+      kubectl logs -n "${namespace}" -l job-name=setup-job -c "${setup_init}" \
+        --tail=200 2>&1 | redact_stream || true
+    done
     kubectl describe job setup-job -n "${namespace}" 2>&1 | redact_stream || true
   fi
 

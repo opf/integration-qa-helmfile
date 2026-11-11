@@ -2,6 +2,99 @@
 
 set -eo pipefail
 
+# Returns 0 when setup should talk to Nextcloud/OpenProject over in-cluster HTTP
+# (k3d / PullPreview wait URLs) instead of public HTTPS (Caddy/LE).
+should_use_incluster_api() {
+    [[ "${1:-}" == http://* ]]
+}
+
+# Pin a public hostname to a Service ClusterIP so http://$public_host keeps the
+# correct Host header for Nextcloud trusted_domains without going through TLS.
+bind_public_host_to_service() {
+    local public_host="$1"
+    local service_dns="$2"
+    local ip
+    ip="$(getent ahostsv4 "$service_dns" | awk '{print $1; exit}')"
+    if [[ -z "$ip" ]]; then
+        echo "[ERROR] Could not resolve service '$service_dns' for host bind of '$public_host'." >&2
+        return 1
+    fi
+    if grep -qE "[[:space:]]${public_host}$" /etc/hosts 2>/dev/null; then
+        return 0
+    fi
+    echo "$ip $public_host" >> /etc/hosts
+}
+
+# OpenProject chart sets https:true, so plain http://openproject:8080 returns 400
+# unless the request looks like it already passed a TLS terminator. Prefixed curl
+# adds Host + X-Forwarded-Proto for OP service URLs only (NC uses /etc/hosts).
+install_incluster_curl_wrapper() {
+    [[ "${USE_INCLUSTER_API:-false}" == "true" ]] || return 0
+
+    local wrap_dir="/tmp/opnc-curl-wrap"
+    local real_curl
+    real_curl="$(command -v curl)"
+    mkdir -p "$wrap_dir"
+    cat >"${wrap_dir}/curl" <<EOF
+#!/bin/bash
+extra=()
+for a in "\$@"; do
+  case "\$a" in
+    http://openproject:8080*|http://openproject/*|http://openproject)
+      extra=(-H "Host: ${OPENPROJECT_HOST}" -H "X-Forwarded-Proto: https" -H "X-Forwarded-Host: ${OPENPROJECT_HOST}")
+      break
+      ;;
+  esac
+done
+exec "${real_curl}" "\${extra[@]}" "\$@"
+EOF
+    chmod +x "${wrap_dir}/curl"
+    export PATH="${wrap_dir}:${PATH}"
+    echo "[INFO] Installed curl wrapper for in-cluster OpenProject (X-Forwarded-Proto: https)."
+}
+
+# When waits are already in-cluster HTTP, route API calls the same way so setup
+# does not depend on public Caddy/LE TLS. Identity URLs stay in NC_PUBLIC/OP_PUBLIC.
+#
+# Nextcloud: bind the public hostname to the Service IP so http://$NEXTCLOUD_HOST
+# keeps Host correct for trusted_domains. OpenProject: Service DNS + curl wrapper
+# (https:true rejects bare http without forwarded proto).
+use_incluster_api_hosts() {
+    should_use_incluster_api "${NEXTCLOUD_WAIT_URL:-}" || return 0
+
+    NC_PUBLIC="$NC_HOST"
+    OP_PUBLIC="$OP_HOST"
+    bind_public_host_to_service "$NEXTCLOUD_HOST" nextcloud
+    export NC_HOST="http://$NEXTCLOUD_HOST"
+    export OP_HOST="http://openproject:8080"
+    USE_INCLUSTER_API=true
+    install_incluster_curl_wrapper
+    echo "[INFO] Using in-cluster API hosts (NC_HOST=$NC_HOST OP_HOST=$OP_HOST); identity URLs remain $NC_PUBLIC / $OP_PUBLIC."
+}
+
+# Upstream setup scripts use NC_HOST/OP_HOST (or NEXTCLOUD_HOST/OPENPROJECT_HOST)
+# for both API curls and stored identity. Rewrite identity JSON to public HTTPS.
+patch_integration_script_public_identity() {
+    local script="$1"
+    [[ "${USE_INCLUSTER_API:-false}" == "true" ]] || return 0
+
+    # .bak suffix keeps sed -i portable across GNU (cluster) and BSD (local test).
+    sed -i.bak \
+        -e "s|\"redirectUri\": \"\$OP_HOST/\*\"|\"redirectUri\": \"${OP_PUBLIC}/*\"|" \
+        -e "s|\"href\": \"\${NC_HOST}\"|\"href\": \"${NC_PUBLIC}\"|" \
+        -e "s|\"openproject_instance_url\": \"\$OP_HOST\"|\"openproject_instance_url\": \"${OP_PUBLIC}\"|" \
+        -e "s|\"href\":\"\${NEXTCLOUD_HOST}\"|\"href\":\"${NC_PUBLIC}\"|" \
+        -e "s|\"openproject_instance_url\":\"\${OPENPROJECT_HOST}\"|\"openproject_instance_url\":\"${OP_PUBLIC}\"|" \
+        "$script"
+    rm -f "${script}.bak"
+    echo "[INFO] Patched ${script} identity URLs to public HTTPS."
+}
+
+# Sourced by setup-integration-incluster.test.sh — skip main when not executed.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 0
+fi
+
 echo "###################################"
 echo "# Setup integration app           #"
 echo "###################################"
@@ -31,6 +124,7 @@ export OP_HOST="https://$OPENPROJECT_HOST"
 export OP_ADMIN_USERNAME='admin'
 export OP_ADMIN_PASSWORD='admin'
 export OP_STORAGE_NAME='nextcloud'
+USE_INCLUSTER_API=false
 
 # waits 5 minutes for the server to be ready
 wait_for_server() {
@@ -142,17 +236,30 @@ if [[ "${CHECK_EXTERNAL_ENDPOINTS:-false}" == "true" && "$OP_HOST" != "$OPENPROJ
     wait_for_server "$OP_HOST"
 fi
 
+# After readiness (and optional public checks), switch API traffic in-cluster so
+# OCS/setup curls do not need a working Let's Encrypt cert on the public hosts.
+use_incluster_api_hosts
+
 if [[ "$INTEGRATION_APP_SETUP_METHOD" == "oauth2" ]]; then
     download_integration_script integration_setup.sh
+    patch_integration_script_public_identity integration_setup.sh
 
-    OPENPROJECT_HOST="https://$OPENPROJECT_HOST" \
-    NEXTCLOUD_HOST="https://$NEXTCLOUD_HOST" \
-    OPENPROJECT_STORAGE_NAME='nextcloud' \
-    bash integration_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
+    if [[ "${USE_INCLUSTER_API}" == "true" ]]; then
+        OPENPROJECT_HOST="$OP_HOST" \
+        NEXTCLOUD_HOST="$NC_HOST" \
+        OPENPROJECT_STORAGE_NAME='nextcloud' \
+        bash integration_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
+    else
+        OPENPROJECT_HOST="https://$OPENPROJECT_HOST" \
+        NEXTCLOUD_HOST="https://$NEXTCLOUD_HOST" \
+        OPENPROJECT_STORAGE_NAME='nextcloud' \
+        bash integration_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
+    fi
 
 elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-nextcloud" ]]; then
     download_integration_script integration_oidc_setup.sh
     patch_integration_oidc_setup_script
+    patch_integration_script_public_identity integration_oidc_setup.sh
 
     NC_INTEGRATION_PROVIDER_TYPE=nextcloud_hub \
     NC_INTEGRATION_OP_CLIENT_ID=$OIDC_OPENPROJECT_CLIENT_ID \
@@ -167,6 +274,7 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
 
     download_integration_script integration_oidc_setup.sh
     patch_integration_oidc_setup_script
+    patch_integration_script_public_identity integration_oidc_setup.sh
 
     NC_INTEGRATION_PROVIDER_TYPE=external \
     NC_INTEGRATION_PROVIDER_NAME=$OIDC_KEYCLOAK_PROVIDER_NAME \

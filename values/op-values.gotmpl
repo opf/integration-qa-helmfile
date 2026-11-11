@@ -112,6 +112,10 @@ extraVolumeMounts:
     subPath: ca.crt
   {{- end }}
   {{ if or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
+  # emptyDir at /app hides image ENTRYPOINT entrypoint-slim.sh; serve our script there too.
+  - name: entrypoint
+    mountPath: /app/docker/prod/entrypoint-slim.sh
+    subPath: entrypoint.sh
   - name: op-source-data
     mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
   - name: empty-app-dir

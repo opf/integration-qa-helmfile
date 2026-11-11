@@ -28,17 +28,33 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      {{- $opFromSource := or .Values.openproject.gitSourceBranch .Values.openproject.localSourcePath }}
       initContainers:
       {{- if $mcp.enabled }}
         - name: mcp-setup
           image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
           imagePullPolicy: IfNotPresent
+          {{- if $opFromSource }}
+          # emptyDir hides image /app (WORKDIR); run from the built source like seeder/web.
+          # Source builds expose rails via bin/rails (bundle exec rails has no rails executable).
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          # Same uid as seeder/web: the entrypoint's root branch execs gosu, which the image no longer ships.
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          command:
+            - /app/docker/prod/entrypoint-slim.sh
+            - bin/rails
+            - runner
+            - /scripts/setup-mcp.rb
+          {{- else }}
           command:
             - bundle
             - exec
             - rails
             - runner
             - /scripts/setup-mcp.rb
+          {{- end }}
           env:
             - name: RAILS_ENV
               value: "production"
@@ -50,21 +66,63 @@ spec:
               value: "true"
             - name: MCP_OAUTH_TOKEN
               value: {{ ($mcp.oauthToken | default "bob_ai_mcp_test_token_1234567890") | quote }}
+            {{- if $opFromSource }}
+            # Match seeder/web: run rails from the built source so migrations match the DB.
+            - name: APP_PATH
+              value: {{ .Values.openproject.customSourceMountPath | quote }}
+            # Image defaults BUNDLE_* to /app; emptyDir hides that path — use the source tree.
+            - name: BUNDLE_APP_CONFIG
+              value: "./.bundle"
+            - name: BUNDLE_PATH
+              value: {{ printf "%s/vendor/bundle" .Values.openproject.customSourceMountPath | quote }}
+            - name: BUNDLE_WITHOUT
+              value: ""
+            {{- if .Values.openproject.gitSourceBranch }}
+            - name: OP_GIT_SOURCE_BRANCH
+              value: {{ .Values.openproject.gitSourceBranch | quote }}
+            {{- end }}
+            {{- if .Values.openproject.localSourcePath }}
+            - name: OP_USE_LOCAL_SOURCE
+              value: "true"
+            {{- end }}
+            {{- end }}
           volumeMounts:
             - name: setup-script
               mountPath: /scripts/setup-mcp.rb
               subPath: setup-mcp.rb
+            {{- if $opFromSource }}
+            - name: op-entry
+              mountPath: /app/docker/prod/entrypoint-slim.sh
+              subPath: entrypoint.sh
+            - name: op-source-data
+              mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+            - name: empty-app-dir
+              mountPath: /app
+            {{- end }}
       {{- end }}
       {{- if .Values.xwiki.enabled }}
         - name: xwiki-oauth-setup
           image: "docker.io/openproject/openproject:{{ .Values.openproject.dockerTag | default "17" }}"
           imagePullPolicy: IfNotPresent
+          {{- if $opFromSource }}
+          workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          # Same uid as seeder/web: the entrypoint's root branch execs gosu, which the image no longer ships.
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          command:
+            - /app/docker/prod/entrypoint-slim.sh
+            - bin/rails
+            - runner
+            - /scripts/setup-xwiki-oauth.rb
+          {{- else }}
           command:
             - bundle
             - exec
             - rails
             - runner
             - /scripts/setup-xwiki-oauth.rb
+          {{- end }}
           env:
             - name: XWIKI_OAUTH_CLIENT_ID
               value: {{ index .Values.openproject.xwiki "clientId" | default "xwiki-client-id" | quote }}
@@ -81,10 +139,37 @@ spec:
               value: {{ .Values.environment.DATABASE_HOST | quote }}
             - name: OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK
               value: "true"
+            {{- if $opFromSource }}
+            - name: APP_PATH
+              value: {{ .Values.openproject.customSourceMountPath | quote }}
+            - name: BUNDLE_APP_CONFIG
+              value: "./.bundle"
+            - name: BUNDLE_PATH
+              value: {{ printf "%s/vendor/bundle" .Values.openproject.customSourceMountPath | quote }}
+            - name: BUNDLE_WITHOUT
+              value: ""
+            {{- if .Values.openproject.gitSourceBranch }}
+            - name: OP_GIT_SOURCE_BRANCH
+              value: {{ .Values.openproject.gitSourceBranch | quote }}
+            {{- end }}
+            {{- if .Values.openproject.localSourcePath }}
+            - name: OP_USE_LOCAL_SOURCE
+              value: "true"
+            {{- end }}
+            {{- end }}
           volumeMounts:
             - name: setup-script
               mountPath: /scripts/setup-xwiki-oauth.rb
               subPath: setup-xwiki-oauth.rb
+            {{- if $opFromSource }}
+            - name: op-entry
+              mountPath: /app/docker/prod/entrypoint-slim.sh
+              subPath: entrypoint.sh
+            - name: op-source-data
+              mountPath: {{ .Values.openproject.customSourceMountPath | quote }}
+            - name: empty-app-dir
+              mountPath: /app
+            {{- end }}
       {{- end }}
       containers:
       {{- if not $standalone }}
@@ -137,6 +222,24 @@ spec:
           configMap:
             name: opnc-setup-configmap
             defaultMode: 0755
+        {{- if $opFromSource }}
+        - name: empty-app-dir
+          emptyDir: {}
+        - name: op-entry
+          configMap:
+            name: op-entry-configmap
+            defaultMode: 0755
+        {{- if .Values.openproject.localSourcePath }}
+        - name: op-source-data
+          hostPath:
+            path: {{ .Values.openproject.localSourcePath }}
+            type: Directory
+        {{- else }}
+        - name: op-source-data
+          persistentVolumeClaim:
+            claimName: op-source-pvc
+        {{- end }}
+        {{- end }}
         {{- if not $standalone }}
         {{- include "opnc.volumes.extraVolumes" . | indent 8 }}
         {{- end }}

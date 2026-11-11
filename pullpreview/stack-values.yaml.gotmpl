@@ -141,6 +141,10 @@ openproject:
       mountPath: /app/docker/prod/entrypoint.sh
       subPath: entrypoint.sh
 {{- if $openprojectBranch }}
+    # emptyDir at /app hides image ENTRYPOINT entrypoint-slim.sh; serve our script there too.
+    - name: entrypoint
+      mountPath: /app/docker/prod/entrypoint-slim.sh
+      subPath: entrypoint.sh
     - name: op-source-data
       mountPath: {{ $openprojectSourcePath | quote }}
     - name: empty-app-dir

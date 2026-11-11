@@ -84,4 +84,30 @@ grep -q 'name: setup-integration' "$RENDER" && fail "standalone must omit setup-
 grep -q 'name: setup-complete' "$RENDER" || fail "standalone must render setup-complete main container"
 pass "standalone keeps mcp-setup, skips integration"
 
+helm template mcp-check-source "$CHART" \
+  --set openproject.standalone=false \
+  --set setupJob.enabled=true \
+  --set setupJob.defer=false \
+  --set mcp.enabled=true \
+  --set mcp.oauthToken=bob_ai_mcp_test_token_1234567890 \
+  --set environment.DATABASE_URL=postgres://op:op@db/op \
+  --set environment.DATABASE_HOST=db \
+  --set xwiki.enabled=false \
+  --set openproject.gitSourceBranch=poc/test-management \
+  --set openproject.customSourceMountPath=/home/app/openproject \
+  >"$RENDER"
+grep -qE 'workingDir: "?/home/app/openproject"?' "$RENDER" ||
+  fail "git source mcp-setup must set workingDir to customSourceMountPath"
+grep -A20 'name: mcp-setup' "$RENDER" | grep -q 'entrypoint-slim.sh' ||
+  fail "git source mcp-setup must run via entrypoint-slim.sh"
+grep -A25 'name: mcp-setup' "$RENDER" | grep -q 'bin/rails' ||
+  fail "git source mcp-setup must use bin/rails (not bundle exec rails)"
+grep -A60 'name: mcp-setup' "$RENDER" | grep -q 'name: BUNDLE_PATH' ||
+  fail "git source mcp-setup must set BUNDLE_PATH to the source vendor/bundle"
+grep -A60 'name: mcp-setup' "$RENDER" | grep -q 'name: empty-app-dir' ||
+  fail "git source mcp-setup must mount emptyDir over /app"
+grep -A20 'name: mcp-setup' "$RENDER" | grep -q 'runAsUser: 1000' ||
+  fail "git source mcp-setup must run as uid 1000 (entrypoint root branch needs gosu)"
+pass "git source mcp-setup uses source workingDir + bin/rails + BUNDLE_PATH"
+
 echo "[PASS] MCP Bob_AI setup check"

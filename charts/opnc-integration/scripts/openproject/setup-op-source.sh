@@ -69,6 +69,36 @@ if [[ -n "$OP_GIT_SOURCE_BRANCH" ]] && [[ "$OP_USE_LOCAL_SOURCE" != "true" ]] &&
     git clone --branch "$OP_GIT_SOURCE_BRANCH" --depth 1 --single-branch "${OP_REPO_URL}" "$APP_PATH"
 fi
 
+# openproject:*-slim has no Node; bin/setup_dev runs npm ci. Prefer engines.node from the
+# cloned branch (e.g. ^24.22.1 on poc/test-management); Node 22 fails EBADENGINE there.
+NODE_VERSION="${OP_BUILD_NODE_VERSION:-}"
+if [[ -z "$NODE_VERSION" && -f frontend/package.json ]]; then
+    NODE_VERSION="$(
+        grep -oE '"node"[[:space:]]*:[[:space:]]*"[^"]+"' frontend/package.json \
+            | head -1 \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
+            | head -1
+    )" || true
+fi
+NODE_VERSION="${NODE_VERSION:-24.22.1}"
+if ! command -v npm >/dev/null 2>&1 || [[ "$(node -v 2>/dev/null || true)" != "v${NODE_VERSION}" ]]; then
+    if [[ "$(id -u)" -ne 0 ]]; then
+        echo "[ERROR] Need root to install Node.js/npm; op-buildsource-job must set securityContext runAsUser: 0."
+        exit 1
+    fi
+    echo "[INFO] Installing Node.js ${NODE_VERSION} (npm required for frontend build)..."
+    if ! command -v curl >/dev/null 2>&1; then
+        apt update >/dev/null
+        apt install -y --no-install-recommends ca-certificates curl >/dev/null
+    fi
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz" \
+        | tar -xz -C /usr/local --strip-components=1
+    command -v npm >/dev/null 2>&1 || {
+        echo "[ERROR] npm still missing after Node.js install."
+        exit 1
+    }
+fi
+
 cp /scripts/database.yaml ./config/database.yml
 
 export SECRET_KEY_BASE=1
