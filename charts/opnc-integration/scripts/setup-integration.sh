@@ -27,15 +27,19 @@ bind_public_host_to_service() {
 
 # When waits are already in-cluster HTTP, route API calls the same way so setup
 # does not depend on public Caddy/LE TLS. Identity URLs stay in NC_PUBLIC/OP_PUBLIC.
+#
+# Nextcloud: bind the public hostname to the Service IP so http://$NEXTCLOUD_HOST
+# keeps Host correct for trusted_domains. OpenProject: call the Service DNS
+# directly — pinning the public hostname makes Rails see that Host and return
+# empty/redirecting API responses (oidc setup then fails availability checks).
 use_incluster_api_hosts() {
     should_use_incluster_api "${NEXTCLOUD_WAIT_URL:-}" || return 0
 
     NC_PUBLIC="$NC_HOST"
     OP_PUBLIC="$OP_HOST"
     bind_public_host_to_service "$NEXTCLOUD_HOST" nextcloud
-    bind_public_host_to_service "$OPENPROJECT_HOST" openproject
     export NC_HOST="http://$NEXTCLOUD_HOST"
-    export OP_HOST="http://$OPENPROJECT_HOST:8080"
+    export OP_HOST="http://openproject:8080"
     USE_INCLUSTER_API=true
     echo "[INFO] Using in-cluster API hosts (NC_HOST=$NC_HOST OP_HOST=$OP_HOST); identity URLs remain $NC_PUBLIC / $OP_PUBLIC."
 }
