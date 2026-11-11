@@ -106,6 +106,8 @@ grep -A60 'name: mcp-setup' "$RENDER" | grep -q 'name: BUNDLE_PATH' ||
   fail "git source mcp-setup must set BUNDLE_PATH to the source vendor/bundle"
 grep -A60 'name: mcp-setup' "$RENDER" | grep -q 'name: empty-app-dir' ||
   fail "git source mcp-setup must mount emptyDir over /app"
+grep -A20 'name: mcp-setup' "$RENDER" | grep -q 'runAsUser: 1000' ||
+  fail "git source mcp-setup must run as uid 1000 (entrypoint root branch needs gosu)"
 pass "git source mcp-setup uses source workingDir + bin/rails + BUNDLE_PATH"
 
 echo "[PASS] MCP Bob_AI setup check"

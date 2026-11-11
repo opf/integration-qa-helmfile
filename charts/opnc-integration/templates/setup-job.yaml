@@ -38,6 +38,10 @@ spec:
           # emptyDir hides image /app (WORKDIR); run from the built source like seeder/web.
           # Source builds expose rails via bin/rails (bundle exec rails has no rails executable).
           workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          # Same uid as seeder/web: the entrypoint's root branch execs gosu, which the image no longer ships.
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
           command:
             - /app/docker/prod/entrypoint-slim.sh
             - bin/rails
@@ -102,6 +106,10 @@ spec:
           imagePullPolicy: IfNotPresent
           {{- if $opFromSource }}
           workingDir: {{ .Values.openproject.customSourceMountPath | quote }}
+          # Same uid as seeder/web: the entrypoint's root branch execs gosu, which the image no longer ships.
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
           command:
             - /app/docker/prod/entrypoint-slim.sh
             - bin/rails
