@@ -25,13 +25,40 @@ bind_public_host_to_service() {
     echo "$ip $public_host" >> /etc/hosts
 }
 
+# OpenProject chart sets https:true, so plain http://openproject:8080 returns 400
+# unless the request looks like it already passed a TLS terminator. Prefixed curl
+# adds Host + X-Forwarded-Proto for OP service URLs only (NC uses /etc/hosts).
+install_incluster_curl_wrapper() {
+    [[ "${USE_INCLUSTER_API:-false}" == "true" ]] || return 0
+
+    local wrap_dir="/tmp/opnc-curl-wrap"
+    local real_curl
+    real_curl="$(command -v curl)"
+    mkdir -p "$wrap_dir"
+    cat >"${wrap_dir}/curl" <<EOF
+#!/bin/bash
+extra=()
+for a in "\$@"; do
+  case "\$a" in
+    http://openproject:8080*|http://openproject/*|http://openproject)
+      extra=(-H "Host: ${OPENPROJECT_HOST}" -H "X-Forwarded-Proto: https" -H "X-Forwarded-Host: ${OPENPROJECT_HOST}")
+      break
+      ;;
+  esac
+done
+exec "${real_curl}" "\${extra[@]}" "\$@"
+EOF
+    chmod +x "${wrap_dir}/curl"
+    export PATH="${wrap_dir}:${PATH}"
+    echo "[INFO] Installed curl wrapper for in-cluster OpenProject (X-Forwarded-Proto: https)."
+}
+
 # When waits are already in-cluster HTTP, route API calls the same way so setup
 # does not depend on public Caddy/LE TLS. Identity URLs stay in NC_PUBLIC/OP_PUBLIC.
 #
 # Nextcloud: bind the public hostname to the Service IP so http://$NEXTCLOUD_HOST
-# keeps Host correct for trusted_domains. OpenProject: call the Service DNS
-# directly — pinning the public hostname makes Rails see that Host and return
-# empty/redirecting API responses (oidc setup then fails availability checks).
+# keeps Host correct for trusted_domains. OpenProject: Service DNS + curl wrapper
+# (https:true rejects bare http without forwarded proto).
 use_incluster_api_hosts() {
     should_use_incluster_api "${NEXTCLOUD_WAIT_URL:-}" || return 0
 
@@ -41,6 +68,7 @@ use_incluster_api_hosts() {
     export NC_HOST="http://$NEXTCLOUD_HOST"
     export OP_HOST="http://openproject:8080"
     USE_INCLUSTER_API=true
+    install_incluster_curl_wrapper
     echo "[INFO] Using in-cluster API hosts (NC_HOST=$NC_HOST OP_HOST=$OP_HOST); identity URLs remain $NC_PUBLIC / $OP_PUBLIC."
 }
 
