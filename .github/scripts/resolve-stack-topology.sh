@@ -10,15 +10,14 @@
 #   dns_placeholder default: {{ pullpreview_public_dns }}
 #
 # Env (optional):
-#   IN_XWIKI_ENABLED     true|false (default: false)
-#   IN_GITLAB_ENABLED    true|false (default: false)
-#   IN_SQUASHTM_ENABLED  true|false (default: false)
-#   IN_STANDALONE        true|false (default: false) — no Nextcloud; Keycloak
-#                        only when setupMethod=sso-external. XWiki/GitLab/Squash kept.
+#   IN_XWIKI_ENABLED   true|false (default: false)
+#   IN_GITLAB_ENABLED  true|false (default: false)
+#   IN_STANDALONE      true|false (default: false) — no Nextcloud; Keycloak
+#                      only when setupMethod=sso-external. XWiki/GitLab kept.
 #
 # Output (stdout, key=value lines for GITHUB_OUTPUT):
 #   stack_profile, skip_nextcloud, skip_xwiki, skip_keycloak, skip_gitlab,
-#   skip_squashtm, xwiki_enabled, gitlab_enabled, squashtm_enabled, proxy_tls_hosts
+#   xwiki_enabled, gitlab_enabled, proxy_tls_hosts
 set -euo pipefail
 
 suite="${1:-}"
@@ -27,7 +26,6 @@ _default_dns='{{ pullpreview_public_dns }}'
 dns_placeholder="${3:-${_default_dns}}"
 xwiki_requested="${IN_XWIKI_ENABLED:-false}"
 gitlab_requested="${IN_GITLAB_ENABLED:-false}"
-squashtm_requested="${IN_SQUASHTM_ENABLED:-false}"
 standalone_requested="${IN_STANDALONE:-false}"
 
 stack_profile=""
@@ -35,10 +33,8 @@ skip_nextcloud="false"
 skip_keycloak="false"
 skip_xwiki="true"
 skip_gitlab="true"
-skip_squashtm="true"
 xwiki_enabled="false"
 gitlab_enabled="false"
-squashtm_enabled="false"
 proxy_tls_hosts="nextcloud.${dns_placeholder},keycloak.${dns_placeholder}"
 
 if [[ "${xwiki_requested}" == "true" ]]; then
@@ -51,12 +47,6 @@ if [[ "${gitlab_requested}" == "true" ]]; then
   skip_gitlab="false"
   gitlab_enabled="true"
   proxy_tls_hosts="${proxy_tls_hosts},gitlab.${dns_placeholder}"
-fi
-
-if [[ "${squashtm_requested}" == "true" ]]; then
-  skip_squashtm="false"
-  squashtm_enabled="true"
-  proxy_tls_hosts="${proxy_tls_hosts},squashtm.${dns_placeholder}"
 fi
 
 rebuild_proxy_tls_hosts() {
@@ -73,9 +63,6 @@ rebuild_proxy_tls_hosts() {
   if [[ "${skip_gitlab}" != "true" ]]; then
     hosts+=("gitlab.${dns_placeholder}")
   fi
-  if [[ "${skip_squashtm}" != "true" ]]; then
-    hosts+=("squashtm.${dns_placeholder}")
-  fi
   local IFS=,
   proxy_tls_hosts="${hosts[*]-}"
 }
@@ -84,10 +71,8 @@ if [[ "${suite}" == "mcp" ]]; then
   skip_nextcloud="true"
   skip_xwiki="true"
   skip_gitlab="true"
-  skip_squashtm="true"
   xwiki_enabled="false"
   gitlab_enabled="false"
-  squashtm_enabled="false"
   case "${setup_method}" in
     oauth2)
       stack_profile="op-only"
@@ -136,8 +121,6 @@ echo "skip_nextcloud=${skip_nextcloud}"
 echo "skip_xwiki=${skip_xwiki}"
 echo "skip_keycloak=${skip_keycloak}"
 echo "skip_gitlab=${skip_gitlab}"
-echo "skip_squashtm=${skip_squashtm}"
 echo "xwiki_enabled=${xwiki_enabled}"
 echo "gitlab_enabled=${gitlab_enabled}"
-echo "squashtm_enabled=${squashtm_enabled}"
 echo "proxy_tls_hosts=${proxy_tls_hosts}"

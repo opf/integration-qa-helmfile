@@ -13,8 +13,6 @@
 {{- $xwikiEnabled := env "XWIKI_ENABLED" | default "true" -}}
 {{- $gitlabEnabled := env "GITLAB_ENABLED" | default "false" -}}
 {{- $gitlabVersion := env "GITLAB_VERSION" | default "v19.4.1" -}}
-{{- $squashtmEnabled := env "SQUASHTM_ENABLED" | default "false" -}}
-{{- $squashtmVersion := env "SQUASHTM_VERSION" | default "15.0.3" -}}
 {{- $profile := env "STACK_PROFILE" | default "full" -}}
 {{- $standalone := ne $profile "full" -}}
 {{- $keycloakEnabled := or (eq $profile "full") (eq $profile "op-keycloak") -}}
@@ -120,10 +118,3 @@ gitlab:
     password: gitlab
   redis:
     password: gitlab
-
-squashtm:
-  enabled: {{ eq $squashtmEnabled "true" }}
-  host: {{ printf "squashtm.%s" $publicDns | quote }}
-  version: {{ $squashtmVersion | quote }}
-  postgresql:
-    password: squashtm

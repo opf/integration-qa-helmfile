@@ -28,10 +28,6 @@ Host name of the servers used in the stack.
 {{ .Values.gitlabHost | default "gitlab.test" }}
 {{- end -}}
 
-{{- define "opnc.squashtmHost" -}}
-{{ .Values.squashtmHost | default "squashtm.test" }}
-{{- end -}}
-
 {{/*
 ---------------------------------------------
 Variables for cert-manager and TLS secrets.

@@ -28,7 +28,6 @@ nextcloudHost: nextcloud.test
 keycloakHost: keycloak.test
 xwikiHost: xwiki.test
 gitlabHost: gitlab.test
-squashtmHost: squashtm.test
 
 oidcProvider:
   name: keycloak
@@ -101,6 +100,3 @@ gitlab:
     password: gitlab
   redis:
     password: gitlab
-
-squashtm:
-  enabled: false

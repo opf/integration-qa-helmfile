@@ -31,9 +31,6 @@ spec:
         {{ if .Values.gitlab.enabled }}
         - {{ include "opnc.gitlabHost" . }}
         {{ end }}
-        {{ if .Values.squashtm.enabled }}
-        - {{ include "opnc.squashtmHost" . }}
-        {{ end }}
       secretName: {{ include "opnc.tlsSecretName" . }}
   {{- end }}
   rules:
@@ -106,18 +103,5 @@ spec:
                 name: gitlab-webservice-default
                 port:
                   number: 8181
-    {{ end }}
-
-    {{ if .Values.squashtm.enabled }}
-    - host: {{ include "opnc.squashtmHost" . }}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: squashtm
-                port:
-                  number: 8080
     {{ end }}
 {{- end }}

@@ -38,9 +38,6 @@ if [[ -n "${preview_url}" ]]; then
     if [[ "${SKIP_GITLAB:-true}" != "true" ]]; then
       echo "- GitLab: https://gitlab.${preview_host}"
     fi
-    if [[ "${SKIP_SQUASHTM:-true}" != "true" ]]; then
-      echo "- Squash TM: https://squashtm.${preview_host}/squash"
-    fi
   } >> "${summary_file}"
 else
   echo "_Preview URL not available (deploy did not become live). Check **PullPreview up** logs for diagnostics and SSH heartbeats._" >> "${summary_file}"

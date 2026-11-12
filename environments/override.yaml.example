@@ -13,10 +13,3 @@
 #     standalone: true
 #   xwiki:
 #     enabled: false
-
-# Squash TM (optional; off by default). Login: admin / admin at https://squashtm.test/squash
-#   squashtm:
-#     enabled: true
-#     version: '15.0.3'   # hub.docker.com/r/squashtest/squash/tags
-# amd64-only image: on Apple Silicon it runs under emulation (slow first start).
-# Downgrades need a clean DB: helmfile destroy -l name=squashtm, then delete the squashtm-postgresql PVC.
