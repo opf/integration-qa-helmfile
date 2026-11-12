@@ -50,11 +50,4 @@ else
   echo "[validate-pullpreview] skip gitlab template (run: helm dependency build charts/gitlab)"
 fi
 
-if [[ -d charts/squashtm/charts ]]; then
-  echo "[validate-pullpreview] helmfile template release=squashtm"
-  SQUASHTM_ENABLED=true "${helmfile_common[@]}" -l "name=squashtm" template --skip-deps >/dev/null
-else
-  echo "[validate-pullpreview] skip squashtm template (run: helm dependency build charts/squashtm)"
-fi
-
 echo "[validate-pullpreview] OK"

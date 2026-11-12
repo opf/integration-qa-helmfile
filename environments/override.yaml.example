@@ -13,12 +13,3 @@
 #     standalone: true
 #   xwiki:
 #     enabled: false
-
-# Squash TM (optional; off by default). Login: admin / admin at https://squashtm.test/squash
-#   squashtm:
-#     enabled: true
-#     version: '15.0.3'   # hub.docker.com/r/squashtest/squash/tags
-#     # jwtSecret is set in environments/default/config.yaml (Base64 >=512 bits).
-#     # Required for My account → Personal API tokens; rotating it invalidates tokens.
-# amd64-only image: on Apple Silicon it runs under emulation (slow first start).
-# Downgrades need a clean DB: helmfile destroy -l name=squashtm, then delete the squashtm-postgresql PVC.

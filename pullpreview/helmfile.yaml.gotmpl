@@ -159,14 +159,3 @@ releases:
     needs:
       # Same as xwiki: hold until OpenProject is Ready so the source build is done first.
       - openproject
-
-  - name: squashtm
-    chart: ../charts/squashtm
-    # Above startupProbe budget (30 + 120*10 = 1230s) so Helm --wait does not lose the race.
-    timeout: 1500
-    installed: {{ .Values.squashtm.enabled }}
-    values:
-      - ../values/squashtm-values.gotmpl
-    needs:
-      # Same as xwiki/gitlab: stay off the 16GB node until OpenProject is Ready.
-      - openproject

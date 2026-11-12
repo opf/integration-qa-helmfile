@@ -11,8 +11,6 @@
 {{- $wikiEnhancements := eq (trim (env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true")) "true" -}}
 {{- $xwikiEnabled := eq (trim (env "XWIKI_ENABLED" | default "true")) "true" -}}
 {{- $gitlabEnabled := eq (trim (env "GITLAB_ENABLED" | default "false")) "true" -}}
-{{- $squashtmEnabled := eq (trim (env "SQUASHTM_ENABLED" | default "false")) "true" -}}
-{{- $squashtmVersion := trim (env "SQUASHTM_VERSION") | default "15.0.3" -}}
 {{- $stackProfile := trim (env "STACK_PROFILE") | default "full" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
@@ -26,14 +24,10 @@ opnc-integration:
   keycloakHost: "keycloak.{{ pullpreview_public_dns }}"
   xwikiHost: "xwiki.{{ pullpreview_public_dns }}"
   gitlabHost: "gitlab.{{ pullpreview_public_dns }}"
-  squashtmHost: "squashtm.{{ pullpreview_public_dns }}"
   xwiki:
     enabled: {{ $xwikiEnabled }}
   gitlab:
     enabled: {{ $gitlabEnabled }}
-  squashtm:
-    enabled: {{ $squashtmEnabled }}
-    version: {{ $squashtmVersion | quote }}
   stackProfile: {{ $stackProfile | quote }}
   openproject:
     dockerTag: {{ $openprojectImageTag | quote }}

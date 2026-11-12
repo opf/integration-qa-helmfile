@@ -16,7 +16,6 @@ helm repo update
 
 helm dependency build charts/pullpreview-stack
 helm dependency build charts/gitlab
-helm dependency build charts/squashtm
 
 if ! command -v helmfile >/dev/null 2>&1; then
   echo "[pullpreview pre_script] Installing helmfile..."
