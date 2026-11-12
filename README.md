@@ -45,7 +45,7 @@
 
 4. Add these hosts to your `/etc/hosts` file:
    ```bash
-   echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test xwiki.test gitlab.test" | sudo tee -a /etc/hosts
+   echo "127.0.0.1	openproject.test nextcloud.test keycloak.test openproject-assets.test xwiki.test gitlab.test squashtm.test" | sudo tee -a /etc/hosts
    ```
 
 NOTE: make sure at least one `setup-job-*` pod is completed successfully before proceeding.
@@ -63,11 +63,14 @@ Access the services via the following URLs:
 - Keycloak: [https://keycloak.test](https://keycloak.test)
 - XWiki: [https://xwiki.test](https://xwiki.test)
 - GitLab: [https://gitlab.test](https://gitlab.test)
+- Squash TM: [https://squashtm.test/squash](https://squashtm.test/squash) (`admin` / `admin`; enable with `squashtm.enabled: true` in `environments/override.yaml`)
 
 > [!NOTE]
 > XWiki will take good amount of time to install the standard flavor.
 >
 > You can check the installation logs: `kubectl logs -n opnc-integration -f xwiki-0`
+>
+> Squash TM is optional and off by default (same as GitLab). Pin the image tag with `squashtm.version` (see [Docker Hub tags](https://hub.docker.com/r/squashtest/squash/tags)). The image is amd64-only, so on Apple Silicon it runs under emulation and the first start is slow. Schema upgrades migrate in place; a downgrade needs a clean DB (`helmfile destroy -l name=squashtm`, then delete the `squashtm-postgresql` PVC).
 
 To uninstall the deployment, run:
 

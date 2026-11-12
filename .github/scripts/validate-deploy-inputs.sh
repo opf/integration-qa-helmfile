@@ -2,7 +2,8 @@
 # Validate and resolve deploy image tags / git branches before PullPreview.
 # Env in: IN_OP_VER, IN_NC_VER, IN_XWIKI_VER, IN_IO_VER, IN_XWIKI_EXT,
 #         IN_OP_BRANCH, IN_NC_BRANCH, IN_IO_BRANCH,
-#         IN_XWIKI_ENABLED, IN_GITLAB_ENABLED, IN_GITLAB_VER
+#         IN_XWIKI_ENABLED, IN_GITLAB_ENABLED, IN_GITLAB_VER,
+#         IN_SQUASHTM_ENABLED, IN_SQUASHTM_VER
 # Writes effective pins to GITHUB_OUTPUT and a per-product GITHUB_STEP_SUMMARY.
 #
 # resolve_playwright is a separate prior job because GHA binds container.image from
@@ -58,6 +59,9 @@ if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
 fi
 if [[ "${IN_GITLAB_ENABLED:-false}" == "true" ]]; then
   validate_image_tag "gitlab_version" "${IN_GITLAB_VER:-}"
+fi
+if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" ]]; then
+  validate_image_tag "squashtm_version" "${IN_SQUASHTM_VER:-}"
 fi
 validate_version_token "integration_openproject_version" "${IN_IO_VER:-}"
 validate_branch "openproject_branch" "${IN_OP_BRANCH:-}"
@@ -174,6 +178,7 @@ effective_nc_ver="${IN_NC_VER:-34}"
 effective_xwiki_ver="${IN_XWIKI_VER:-17.10.10}"
 effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0}"
 effective_gitlab_ver="${IN_GITLAB_VER:-v19.4.1}"
+effective_squashtm_ver="${IN_SQUASHTM_VER:-15.0.3}"
 
 check_branch_exists "openproject_branch" "https://github.com/opf/openproject.git" "${IN_OP_BRANCH:-}"
 if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
@@ -189,6 +194,9 @@ if [[ "${IN_XWIKI_ENABLED:-true}" == "true" ]]; then
 fi
 if [[ "${IN_GITLAB_ENABLED:-false}" == "true" ]]; then
   check_image_exists "gitlab_version" "registry.gitlab.com/gitlab-org/build/cng/gitlab-webservice-ee:${effective_gitlab_ver}"
+fi
+if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" ]]; then
+  check_image_exists "squashtm_version" "docker.io/squashtest/squash:${effective_squashtm_ver}"
 fi
 if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
   resolve_integration_openproject_source
@@ -207,6 +215,7 @@ fi
   echo "effective_xwiki_version=${effective_xwiki_ver}"
   echo "effective_xwiki_extension_version=${effective_xwiki_ext}"
   echo "effective_gitlab_version=${effective_gitlab_ver}"
+  echo "effective_squashtm_version=${effective_squashtm_ver}"
 } >> "${GITHUB_OUTPUT}"
 
 requested_io="${IN_IO_VER:-}"
@@ -223,6 +232,7 @@ nc_requested="$(display_or_default "${IN_NC_VER:-}" "${effective_nc_ver}")"
 xw_requested="$(display_or_default "${IN_XWIKI_VER:-}" "${effective_xwiki_ver}")"
 xw_ext_requested="$(display_or_default "${IN_XWIKI_EXT:-}" "${effective_xwiki_ext}")"
 gl_requested="$(display_or_default "${IN_GITLAB_VER:-}" "${effective_gitlab_ver}")"
+sq_requested="$(display_or_default "${IN_SQUASHTM_VER:-}" "${effective_squashtm_ver}")"
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
@@ -247,6 +257,9 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     fi
     if [[ "${IN_GITLAB_ENABLED:-false}" == "true" ]]; then
       echo "| GitLab | \`${gl_requested}\` | \`${effective_gitlab_ver}\` |"
+    fi
+    if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" ]]; then
+      echo "| Squash TM | \`${sq_requested}\` | \`${effective_squashtm_ver}\` |"
     fi
     echo ""
   } >> "${GITHUB_STEP_SUMMARY}"

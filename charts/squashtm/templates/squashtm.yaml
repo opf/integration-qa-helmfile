@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.fullnameOverride }}
+  labels:
+    app.kubernetes.io/name: squashtm
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squashtm
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squashtm
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: wait-for-db
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              until pg_isready -h {{ .Values.postgresql.fullnameOverride }} -U {{ .Values.postgresql.auth.username }} -d {{ .Values.postgresql.auth.database }}; do
+                echo "waiting for {{ .Values.postgresql.fullnameOverride }}"
+                sleep 2
+              done
+      containers:
+        - name: squashtm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SQTM_DB_TYPE
+              value: postgresql
+            - name: SQTM_DB_HOST
+              value: {{ .Values.postgresql.fullnameOverride | quote }}
+            - name: SQTM_DB_PORT
+              value: "5432"
+            - name: SQTM_DB_NAME
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: SQTM_DB_USERNAME
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: SQTM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.fullnameOverride }}
+                  key: password
+            # Squash docs use SPRING_APPLICATION_JSON for SSL offload; Boot 3 wants
+            # forward-headers-strategy (use-forward-headers was removed).
+            - name: SPRING_APPLICATION_JSON
+              value: '{"server":{"forward-headers-strategy":"native"}}'
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /squash/isSquashAlive
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet:
+              path: /squash/isSquashAlive
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /squash/isSquashAlive
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.fullnameOverride }}
+  labels:
+    app.kubernetes.io/name: squashtm
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: squashtm
+    app.kubernetes.io/instance: {{ .Release.Name }}
