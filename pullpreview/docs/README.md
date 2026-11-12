@@ -40,13 +40,13 @@ PullPreview still uses [`charts/pullpreview-stack`](../../charts/pullpreview-sta
 
 | | Local (`make deploy`) | PullPreview / E2E CI |
 |---|---|---|
-| Orchestration | [`helmfile.yaml.gotmpl`](../../helmfile.yaml.gotmpl) — cert-manager → opnc-integration (incl. `setup-job`) → openproject → **nextcloud-pvc** (if `nextcloud.gitSourceBranch`) → nextcloud / keycloak / xwiki | [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) — traefik → opnc-integration (bootstrap; `waitForJobs: false` when OP git/local source so postgres can start) → openproject → keycloak / nextcloud / **xwiki / gitlab** (need `openproject` when building from source so the Angular build is alone on the 16GB node) → **opnc-setup-job** |
+| Orchestration | [`helmfile.yaml.gotmpl`](../../helmfile.yaml.gotmpl) — cert-manager → opnc-integration (incl. `setup-job`) → openproject → **nextcloud-pvc** (if `nextcloud.gitSourceBranch`) → nextcloud / keycloak / xwiki / gitlab / squashtm | [`helmfile.yaml.gotmpl`](../helmfile.yaml.gotmpl) — traefik → opnc-integration (bootstrap; `waitForJobs: false` when OP git/local source so postgres can start) → openproject → keycloak / nextcloud / **xwiki / gitlab / squashtm** (need `openproject` when building from source so the Angular build is alone on the 16GB node) → **opnc-setup-job** |
 | Namespace | `opnc-integration` (k3d) | Dynamic `pp-gh-…` (PullPreview) |
 | Hosts | `/etc/hosts` (`*.test`) | `*.my.opf.run` (generated FQDN) |
 | Integration wiring | Wait for `setup-job` **Completed** (root README) | `opnc-setup-job` release after OpenProject/Keycloak/Nextcloud, then [`wait-setup-job.sh`](../wait-setup-job.sh) |
 | GitHub summary | — | Per-service URL checks and deploy status ([`e2e.yml`](../../.github/workflows/e2e.yml), [`pullpreview.yml`](../../.github/workflows/pullpreview.yml)) |
 
-DAG sync runs on the preview VM via [`helmfile-sync.sh`](../helmfile-sync.sh) (triggered from [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) when the action installs `pullpreview-stack`). Values come from [`environments/pullpreview/config.yaml.gotmpl`](../../environments/pullpreview/config.yaml.gotmpl) and the same [`values/*.gotmpl`](../../values/) templates as local, with `previewMode: true` (no in-cluster CA / cert-manager path). When `OPENPROJECT_BRANCH` / `gitSourceBranch` is set, `opnc-integration` does **not** wait for `op-buildsource-job` (that job needs `op-postgresql` from the openproject release — waiting would deadlock). OpenProject pods block on `files/build-completed` until the build finishes; Keycloak / Nextcloud / GitLab / XWiki `needs: [openproject]` in that mode so the Angular build is not fighting them for RAM on the 16GB node.
+DAG sync runs on the preview VM via [`helmfile-sync.sh`](../helmfile-sync.sh) (triggered from [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) when the action installs `pullpreview-stack`). Values come from [`environments/pullpreview/config.yaml.gotmpl`](../../environments/pullpreview/config.yaml.gotmpl) and the same [`values/*.gotmpl`](../../values/) templates as local, with `previewMode: true` (no in-cluster CA / cert-manager path). When `OPENPROJECT_BRANCH` / `gitSourceBranch` is set, `opnc-integration` does **not** wait for `op-buildsource-job` (that job needs `op-postgresql` from the openproject release — waiting would deadlock). OpenProject pods block on `files/build-completed` until the build finishes; Keycloak / Nextcloud / GitLab / XWiki / Squash TM `needs: [openproject]` in that mode so the Angular build is not fighting them for RAM on the 16GB node. Squash TM is optional (`SQUASHTM_ENABLED` / `squashtm_enabled` on **PullPreview Environment**); when enabled it is at `https://squashtm.<fqdn>/squash` (`admin` / `admin`).
 
 [`resolve-pullpreview-env.sh`](../resolve-pullpreview-env.sh) reads the rendered PullPreview stack values file on the VM and exports `PULLPREVIEW_PUBLIC_DNS`, `OPENPROJECT_ENTERPRISE_TOKEN`, and workflow image/branch inputs (`NEXTCLOUD_VERSION`, `OPENPROJECT_VERSION`, git branches, etc.) so helmfile does not fall back to chart defaults when those env vars are not forwarded to the instance shell.
 
@@ -83,7 +83,7 @@ Per-tier secrets (`OPENPROJECT_TOKEN_BASIC`, etc.) can be reintroduced if lower-
 
 E2E Manual Run and PR previews both use `OPENPROJECT_ENTERPRISE_TOKEN`.
 
-Published URLs follow the generated FQDN, for example `https://<fqdn>`, `https://nextcloud.<fqdn>`, and `https://keycloak.<fqdn>/realms/opnc`.
+Published URLs follow the generated FQDN, for example `https://<fqdn>`, `https://nextcloud.<fqdn>`, `https://keycloak.<fqdn>/realms/opnc`, and when enabled `https://squashtm.<fqdn>/squash`.
 
 ## Layout
 

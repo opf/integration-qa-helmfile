@@ -1,0 +1,5 @@
+image:
+  tag: {{ .Values.squashtm.version | quote }}
+postgresql:
+  auth:
+    password: {{ .Values.squashtm.postgresql.password | quote }}

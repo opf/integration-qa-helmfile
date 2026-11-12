@@ -164,3 +164,12 @@ gitlab:
     password: gitlab
   redis:
     password: gitlab
+
+squashtm:
+  # Off by default (same pattern as GitLab). Enable in environments/override.yaml.
+  enabled: false
+  host: squashtm.test
+  # hub.docker.com/r/squashtest/squash/tags — e.g. 15.0.3, 14.0.8, 13.0.9
+  version: '15.0.3'
+  postgresql:
+    password: squashtm

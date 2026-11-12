@@ -1,0 +1,39 @@
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  repository: squashtest/squash
+  tag: '15.0.3'
+  pullPolicy: IfNotPresent
+
+fullnameOverride: squashtm
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    memory: 3Gi
+
+postgresql:
+  fullnameOverride: squashtm-postgresql
+  image:
+    repository: bitnamilegacy/postgresql
+    tag: '17.5.0-debian-12-r16'
+  auth:
+    username: squashtm
+    password: squashtm
+    database: squashtm
+  primary:
+    podLabels:
+      app.kubernetes.io/name: squashtm-postgresql
+    resourcesPreset: none
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+    persistence:
+      enabled: true
