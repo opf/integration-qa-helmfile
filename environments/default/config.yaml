@@ -171,7 +171,5 @@ squashtm:
   host: squashtm.test
   # hub.docker.com/r/squashtest/squash/tags — e.g. 15.0.3, 14.0.8, 13.0.9
   version: '15.0.3'
-  # Base64, >=512 bits. Required for personal API tokens; rotating invalidates them.
-  jwtSecret: 'Ym9uam91cmplc3Vpc2RldmVsb3BwZXVzZXN1cnNxdWFzaHRtZXRub3Vzc29tbWVzZW5sYW5uZWUyMDI0ISEhIS'
   postgresql:
     password: squashtm

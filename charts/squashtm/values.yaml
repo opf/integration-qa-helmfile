@@ -9,10 +9,6 @@ image:
 
 fullnameOverride: squashtm
 
-# Base64, >=512 bits (>=86 chars). Required for personal API tokens (squash.rest-api.jwt.secret).
-# Rotating this value invalidates existing tokens.
-jwtSecret: 'Ym9uam91cmplc3Vpc2RldmVsb3BwZXVzZXN1cnNxdWFzaHRtZXRub3Vzc29tbWVzZW5sYW5uZWUyMDI0ISEhIS'
-
 resources:
   requests:
     cpu: 250m
