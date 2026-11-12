@@ -125,5 +125,6 @@ squashtm:
   enabled: {{ eq $squashtmEnabled "true" }}
   host: {{ printf "squashtm.%s" $publicDns | quote }}
   version: {{ $squashtmVersion | quote }}
+  jwtSecret: 'Ym9uam91cmplc3Vpc2RldmVsb3BwZXVzZXN1cnNxdWFzaHRtZXRub3Vzc29tbWVzZW5sYW5uZWUyMDI0ISEhIS'
   postgresql:
     password: squashtm

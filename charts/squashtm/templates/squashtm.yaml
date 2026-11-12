@@ -63,6 +63,9 @@ spec:
             # forward-headers-strategy (use-forward-headers was removed).
             - name: SPRING_APPLICATION_JSON
               value: '{"server":{"forward-headers-strategy":"native"}}'
+            # Personal API tokens (squash.rest-api.jwt.secret); Base64 >=512 bits.
+            - name: SQUASH_REST_API_JWT_SECRET
+              value: {{ .Values.jwtSecret | quote }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           startupProbe:
