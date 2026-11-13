@@ -1,6 +1,7 @@
+{{- if .Values.squashtm.version }}
 image:
   tag: {{ .Values.squashtm.version | quote }}
-jwtSecret: {{ .Values.squashtm.jwtSecret | quote }}
-postgresql:
-  auth:
-    password: {{ .Values.squashtm.postgresql.password | quote }}
+{{- end }}
+{{- if .Values.squashtm.adminPassword }}
+adminPassword: {{ .Values.squashtm.adminPassword | quote }}
+{{- end }}

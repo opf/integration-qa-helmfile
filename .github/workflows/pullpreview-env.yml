@@ -36,7 +36,7 @@ run-name: >-
       github.event.inputs.squashtm_enabled == 'true'
         && format(
           'SquashTM {0}',
-          github.event.inputs.squashtm_version != '' && github.event.inputs.squashtm_version || '15.0.3'
+          github.event.inputs.squashtm_version != '' && github.event.inputs.squashtm_version || 'default'
         )
         || 'SquashTM off'
     )
@@ -130,9 +130,8 @@ on:
         default: false
         type: boolean
       squashtm_version:
-        description: "[Squash TM] Image tag (used only when Squash TM is checked)"
+        description: "[Squash TM] Image tag (empty = chart default; used only when Squash TM is checked)"
         required: false
-        default: "15.0.3"
         type: string
 
 permissions:
@@ -244,6 +243,7 @@ jobs:
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
           SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+          SECRET_SQUASHTM_ADMIN_PASSWORD: ${{ secrets.SQUASHTM_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -253,6 +253,10 @@ jobs:
           fi
           if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
             echo "::error::Secret HETZNER_CA_KEY is not set or empty."
+            exit 1
+          fi
+          if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" && -z "${SECRET_SQUASHTM_ADMIN_PASSWORD:-}" ]]; then
+            echo "::error::Secret SQUASHTM_ADMIN_PASSWORD is required when Squash TM is enabled."
             exit 1
           fi
 
@@ -300,6 +304,7 @@ jobs:
           GITLAB_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_gitlab_version }}
           SQUASHTM_ENABLED: ${{ steps.resolve.outputs.squashtm_enabled }}
           SQUASHTM_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_squashtm_version }}
+          SQUASHTM_ADMIN_PASSWORD: ${{ secrets.SQUASHTM_ADMIN_PASSWORD }}
           STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
 
       - name: Deploy preview summary
@@ -454,7 +459,7 @@ jobs:
               echo "- GitLab: https://${GITLAB_HOST}"
             fi
             if [[ -n "${SQUASHTM_HOST}" ]]; then
-              echo "- Squash TM: https://${SQUASHTM_HOST}/squash (admin / admin)"
+              echo "- Squash TM: https://${SQUASHTM_HOST}/squash"
             fi
             echo ""
             echo "To tear down later, run workflow **PullPreview Cleanup**:"

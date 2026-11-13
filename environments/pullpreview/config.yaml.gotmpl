@@ -14,7 +14,8 @@
 {{- $gitlabEnabled := env "GITLAB_ENABLED" | default "false" -}}
 {{- $gitlabVersion := env "GITLAB_VERSION" | default "v19.4.1" -}}
 {{- $squashtmEnabled := env "SQUASHTM_ENABLED" | default "false" -}}
-{{- $squashtmVersion := env "SQUASHTM_VERSION" | default "15.0.3" -}}
+{{- $squashtmVersion := env "SQUASHTM_VERSION" | default "" -}}
+
 {{- $profile := env "STACK_PROFILE" | default "full" -}}
 {{- $standalone := ne $profile "full" -}}
 {{- $keycloakEnabled := or (eq $profile "full") (eq $profile "op-keycloak") -}}
@@ -125,6 +126,9 @@ squashtm:
   enabled: {{ eq $squashtmEnabled "true" }}
   host: {{ printf "squashtm.%s" $publicDns | quote }}
   version: {{ $squashtmVersion | quote }}
-  jwtSecret: 'Ym9uam91cmplc3Vpc2RldmVsb3BwZXVzZXN1cnNxdWFzaHRtZXRub3Vzc29tbWVzZW5sYW5uZWUyMDI0ISEhIS'
-  postgresql:
-    password: squashtm
+  {{- if eq $squashtmEnabled "true" }}
+  adminPassword: {{ requiredEnv "SQUASHTM_ADMIN_PASSWORD" | quote }}
+  {{- else }}
+  adminPassword: ''
+  {{- end }}
+

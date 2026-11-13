@@ -63,14 +63,14 @@ Access the services via the following URLs:
 - Keycloak: [https://keycloak.test](https://keycloak.test)
 - XWiki: [https://xwiki.test](https://xwiki.test)
 - GitLab: [https://gitlab.test](https://gitlab.test)
-- Squash TM: [https://squashtm.test/squash](https://squashtm.test/squash) (`admin` / `admin`; enable with `squashtm.enabled: true` in `environments/override.yaml`)
+- Squash TM: [https://squashtm.test/squash](https://squashtm.test/squash) (enable with `squashtm.enabled: true` in `environments/override.yaml`)
 
 > [!NOTE]
 > XWiki will take good amount of time to install the standard flavor.
 >
 > You can check the installation logs: `kubectl logs -n opnc-integration -f xwiki-0`
 >
-> Squash TM is optional and off by default (same as GitLab). Pin the image tag with `squashtm.version` (see [Docker Hub tags](https://hub.docker.com/r/squashtest/squash/tags)). The image is amd64-only, so on Apple Silicon it runs under emulation and the first start is slow. Schema upgrades migrate in place; a downgrade needs a clean DB (`helmfile destroy -l name=squashtm`, then delete the `squashtm-postgresql` PVC).
+> Squash TM is optional and off by default (same as GitLab). Image tag defaults to `charts/squashtm/values.yaml`; pin with `squashtm.version` (see [Docker Hub tags](https://hub.docker.com/r/squashtest/squash/tags)). Local login defaults to Squash's `admin` / `admin`; set `squashtm.adminPassword` in `environments/override.yaml` to replace it at deploy (PullPreview always sets this from the `SQUASHTM_ADMIN_PASSWORD` GitHub secret). The image is amd64-only, so on Apple Silicon it runs under emulation and the first start is slow. After chart changes that replace Bitnami Postgres, destroy and delete the PVC before redeploy (`helmfile destroy -l name=squashtm`, then `kubectl -n opnc-integration delete pvc data-squashtm-postgresql-0`).
 
 To uninstall the deployment, run:
 

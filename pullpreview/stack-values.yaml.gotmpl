@@ -12,7 +12,8 @@
 {{- $xwikiEnabled := eq (trim (env "XWIKI_ENABLED" | default "true")) "true" -}}
 {{- $gitlabEnabled := eq (trim (env "GITLAB_ENABLED" | default "false")) "true" -}}
 {{- $squashtmEnabled := eq (trim (env "SQUASHTM_ENABLED" | default "false")) "true" -}}
-{{- $squashtmVersion := trim (env "SQUASHTM_VERSION") | default "15.0.3" -}}
+{{- $squashtmVersion := trim (env "SQUASHTM_VERSION") -}}
+
 {{- $stackProfile := trim (env "STACK_PROFILE") | default "full" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
@@ -33,7 +34,10 @@ opnc-integration:
     enabled: {{ $gitlabEnabled }}
   squashtm:
     enabled: {{ $squashtmEnabled }}
+    {{- if $squashtmVersion }}
     version: {{ $squashtmVersion | quote }}
+    {{- end }}
+
   stackProfile: {{ $stackProfile | quote }}
   openproject:
     dockerTag: {{ $openprojectImageTag | quote }}

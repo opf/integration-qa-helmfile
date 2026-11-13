@@ -14,11 +14,13 @@
 #   xwiki:
 #     enabled: false
 
-# Squash TM (optional; off by default). Login: admin / admin at https://squashtm.test/squash
+# Squash TM (optional; off by default).
 #   squashtm:
 #     enabled: true
-#     version: '15.0.3'   # hub.docker.com/r/squashtest/squash/tags
-#     # jwtSecret is set in environments/default/config.yaml (Base64 >=512 bits).
-#     # Required for My account → Personal API tokens; rotating it invalidates tokens.
+#     # version: '15.0.3'   # optional pin; empty uses charts/squashtm/values.yaml image.tag
+#     # adminPassword: 'change-me'  # optional; omit to keep Squash default admin/admin (local only)
 # amd64-only image: on Apple Silicon it runs under emulation (slow first start).
-# Downgrades need a clean DB: helmfile destroy -l name=squashtm, then delete the squashtm-postgresql PVC.
+# DB layout / selectors changed with the plain Postgres chart: destroy before redeploy:
+#   helmfile destroy -l name=squashtm
+#   kubectl -n opnc-integration delete pvc -l app.kubernetes.io/name=squashtm-postgresql
+#   # or: kubectl -n opnc-integration delete pvc data-squashtm-postgresql-0

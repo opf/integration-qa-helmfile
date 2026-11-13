@@ -178,7 +178,8 @@ effective_nc_ver="${IN_NC_VER:-34}"
 effective_xwiki_ver="${IN_XWIKI_VER:-17.10.10}"
 effective_xwiki_ext="${IN_XWIKI_EXT:-1.2.0}"
 effective_gitlab_ver="${IN_GITLAB_VER:-v19.4.1}"
-effective_squashtm_ver="${IN_SQUASHTM_VER:-15.0.3}"
+# Empty = charts/squashtm/values.yaml image.tag (single source of truth).
+effective_squashtm_ver="${IN_SQUASHTM_VER:-}"
 
 check_branch_exists "openproject_branch" "https://github.com/opf/openproject.git" "${IN_OP_BRANCH:-}"
 if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
@@ -195,7 +196,7 @@ fi
 if [[ "${IN_GITLAB_ENABLED:-false}" == "true" ]]; then
   check_image_exists "gitlab_version" "registry.gitlab.com/gitlab-org/build/cng/gitlab-webservice-ee:${effective_gitlab_ver}"
 fi
-if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" ]]; then
+if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" && -n "${effective_squashtm_ver}" ]]; then
   check_image_exists "squashtm_version" "docker.io/squashtest/squash:${effective_squashtm_ver}"
 fi
 if [[ "${IN_NEXTCLOUD_ENABLED:-true}" == "true" ]]; then
@@ -259,7 +260,11 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
       echo "| GitLab | \`${gl_requested}\` | \`${effective_gitlab_ver}\` |"
     fi
     if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" ]]; then
-      echo "| Squash TM | \`${sq_requested}\` | \`${effective_squashtm_ver}\` |"
+      if [[ -n "${effective_squashtm_ver}" ]]; then
+        echo "| Squash TM | \`${sq_requested}\` | \`${effective_squashtm_ver}\` |"
+      else
+        echo "| Squash TM | \`(unset)\` | \`(chart default)\` |"
+      fi
     fi
     echo ""
   } >> "${GITHUB_STEP_SUMMARY}"
