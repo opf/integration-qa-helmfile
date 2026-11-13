@@ -216,6 +216,8 @@ if sq_enabled is not None:
     values["SQUASHTM_ENABLED"] = "true" if sq_enabled else "false"
 if sq.get("version"):
     values["SQUASHTM_VERSION"] = str(sq["version"])
+if sq.get("adminPassword"):
+    values["SQUASHTM_ADMIN_PASSWORD"] = str(sq["adminPassword"])
 
 stack_profile = opnc.get("stackProfile")
 if stack_profile:

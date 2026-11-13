@@ -37,6 +37,9 @@ opnc-integration:
     {{- if $squashtmVersion }}
     version: {{ $squashtmVersion | quote }}
     {{- end }}
+    {{- if $squashtmEnabled }}
+    adminPassword: {{ requiredEnv "SQUASHTM_ADMIN_PASSWORD" | quote }}
+    {{- end }}
 
   stackProfile: {{ $stackProfile | quote }}
   openproject:
