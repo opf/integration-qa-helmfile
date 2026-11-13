@@ -2,7 +2,7 @@ name: PullPreview Environment
 run-name: >-
   ${{
     format(
-      'PullPreview env · {0}{1} · {2} · {3} · {4} · {5} · {6}',
+      'PullPreview env · {0}{1} · {2} · {3} · {4} · {5} · {6} · {7}',
       github.event.inputs.openproject_standalone == 'true' && 'standalone ' || '',
       github.event.inputs.setup_method,
       format(
@@ -32,7 +32,13 @@ run-name: >-
           'GitLab {0}',
           github.event.inputs.gitlab_version != '' && github.event.inputs.gitlab_version || 'v19.4.1'
         )
-        || 'GitLab off'
+        || 'GitLab off',
+      github.event.inputs.squashtm_enabled == 'true'
+        && format(
+          'SquashTM {0}',
+          github.event.inputs.squashtm_version != '' && github.event.inputs.squashtm_version || '15.0.3'
+        )
+        || 'SquashTM off'
     )
   }}
 
@@ -118,6 +124,16 @@ on:
         required: false
         default: "v19.4.1"
         type: string
+      squashtm_enabled:
+        description: "[Squash TM] Deploy Squash TM (version below ignored when unchecked)"
+        required: false
+        default: false
+        type: boolean
+      squashtm_version:
+        description: "[Squash TM] Image tag (used only when Squash TM is checked)"
+        required: false
+        default: "15.0.3"
+        type: string
 
 permissions:
   contents: read
@@ -137,6 +153,7 @@ jobs:
       effective_xwiki_version: ${{ steps.validate.outputs.effective_xwiki_version }}
       effective_xwiki_extension_version: ${{ steps.validate.outputs.effective_xwiki_extension_version }}
       effective_gitlab_version: ${{ steps.validate.outputs.effective_gitlab_version }}
+      effective_squashtm_version: ${{ steps.validate.outputs.effective_squashtm_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -147,6 +164,7 @@ jobs:
           IN_STANDALONE: ${{ github.event.inputs.openproject_standalone }}
           IN_XWIKI_ENABLED: ${{ github.event.inputs.xwiki_enabled }}
           IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
+          IN_SQUASHTM_ENABLED: ${{ github.event.inputs.squashtm_enabled }}
         run: .github/scripts/resolve-stack-topology.sh "" "${IN_SETUP}" >/dev/null
 
       - name: Validate and resolve deploy inputs
@@ -160,6 +178,8 @@ jobs:
           IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_version }}
           IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
           IN_GITLAB_VER: ${{ github.event.inputs.gitlab_version }}
+          IN_SQUASHTM_ENABLED: ${{ github.event.inputs.squashtm_enabled }}
+          IN_SQUASHTM_VER: ${{ github.event.inputs.squashtm_version }}
           IN_OP_BRANCH: ${{ github.event.inputs.openproject_branch }}
           IN_NC_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
           IN_IO_BRANCH: ${{ github.event.inputs.integration_app_branch }}
@@ -185,6 +205,7 @@ jobs:
       keycloak_host: ${{ steps.publish.outputs.keycloak_host }}
       xwiki_host: ${{ steps.publish.outputs.xwiki_host }}
       gitlab_host: ${{ steps.publish.outputs.gitlab_host }}
+      squashtm_host: ${{ steps.publish.outputs.squashtm_host }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -218,10 +239,12 @@ jobs:
           IN_STANDALONE: ${{ github.event.inputs.openproject_standalone }}
           IN_XWIKI_ENABLED: ${{ github.event.inputs.xwiki_enabled }}
           IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
+          IN_SQUASHTM_ENABLED: ${{ github.event.inputs.squashtm_enabled }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
           SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+          SECRET_SQUASHTM_ADMIN_PASSWORD: ${{ secrets.SQUASHTM_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -231,6 +254,10 @@ jobs:
           fi
           if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
             echo "::error::Secret HETZNER_CA_KEY is not set or empty."
+            exit 1
+          fi
+          if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" && -z "${SECRET_SQUASHTM_ADMIN_PASSWORD:-}" ]]; then
+            echo "::error::Secret SQUASHTM_ADMIN_PASSWORD is required when Squash TM is enabled."
             exit 1
           fi
 
@@ -276,6 +303,9 @@ jobs:
           XWIKI_ENABLED: ${{ steps.resolve.outputs.xwiki_enabled }}
           GITLAB_ENABLED: ${{ steps.resolve.outputs.gitlab_enabled }}
           GITLAB_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_gitlab_version }}
+          SQUASHTM_ENABLED: ${{ steps.resolve.outputs.squashtm_enabled }}
+          SQUASHTM_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_squashtm_version }}
+          SQUASHTM_ADMIN_PASSWORD: ${{ secrets.SQUASHTM_ADMIN_PASSWORD }}
           STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
 
       - name: Deploy preview summary
@@ -289,6 +319,7 @@ jobs:
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
           SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
+          SKIP_SQUASHTM: ${{ steps.resolve.outputs.skip_squashtm }}
         run: .github/scripts/deploy-preview-summary.sh
 
       - name: Report Let's Encrypt rate limit
@@ -308,6 +339,7 @@ jobs:
           skip-nextcloud: ${{ steps.resolve.outputs.skip_nextcloud }}
           skip-keycloak: ${{ steps.resolve.outputs.skip_keycloak }}
           skip-gitlab: ${{ steps.resolve.outputs.skip_gitlab }}
+          skip-squashtm: ${{ steps.resolve.outputs.skip_squashtm }}
 
       - name: Export hosts
         id: export_hosts
@@ -319,6 +351,7 @@ jobs:
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
           SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
+          SKIP_SQUASHTM: ${{ steps.resolve.outputs.skip_squashtm }}
         run: |
           set -euo pipefail
           preview_url="${PREVIEW_URL}"
@@ -344,6 +377,9 @@ jobs:
           if [[ "${SKIP_GITLAB:-false}" != "true" ]]; then
             echo "GITLAB_HOST=gitlab.${preview_host}" >> "$GITHUB_ENV"
           fi
+          if [[ "${SKIP_SQUASHTM:-false}" != "true" ]]; then
+            echo "SQUASHTM_HOST=squashtm.${preview_host}" >> "$GITHUB_ENV"
+          fi
 
           {
             echo "### PullPreview endpoints"
@@ -361,6 +397,9 @@ jobs:
             fi
             if [[ "${SKIP_GITLAB:-false}" != "true" ]]; then
               echo "- GitLab: https://gitlab.${preview_host}"
+            fi
+            if [[ "${SKIP_SQUASHTM:-false}" != "true" ]]; then
+              echo "- Squash TM: https://squashtm.${preview_host}/squash"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -381,6 +420,7 @@ jobs:
             echo "keycloak_host=${KEYCLOAK_HOST:-}"
             echo "xwiki_host=${XWIKI_HOST:-}"
             echo "gitlab_host=${GITLAB_HOST:-}"
+            echo "squashtm_host=${SQUASHTM_HOST:-}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Environment kept notice
@@ -395,6 +435,7 @@ jobs:
           KEYCLOAK_HOST: ${{ steps.publish.outputs.keycloak_host }}
           XWIKI_HOST: ${{ steps.publish.outputs.xwiki_host }}
           GITLAB_HOST: ${{ steps.publish.outputs.gitlab_host }}
+          SQUASHTM_HOST: ${{ steps.publish.outputs.squashtm_host }}
         run: |
           set -euo pipefail
           {
@@ -417,6 +458,9 @@ jobs:
             fi
             if [[ -n "${GITLAB_HOST}" ]]; then
               echo "- GitLab: https://${GITLAB_HOST}"
+            fi
+            if [[ -n "${SQUASHTM_HOST}" ]]; then
+              echo "- Squash TM: https://${SQUASHTM_HOST}/squash"
             fi
             echo ""
             echo "To tear down later, run workflow **PullPreview Cleanup**:"

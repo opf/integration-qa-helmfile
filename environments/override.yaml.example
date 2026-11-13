@@ -13,3 +13,14 @@
 #     standalone: true
 #   xwiki:
 #     enabled: false
+
+# Squash TM (optional; off by default).
+#   squashtm:
+#     enabled: true
+#     # version: '15.0.3'   # optional pin; empty uses charts/squashtm/values.yaml image.tag
+#     # adminPassword: 'change-me'  # optional; omit to keep Squash default admin/admin (local only)
+# amd64-only image: on Apple Silicon it runs under emulation (slow first start).
+# DB layout / selectors changed with the plain Postgres chart: destroy before redeploy:
+#   helmfile destroy -l name=squashtm
+#   kubectl -n opnc-integration delete pvc -l app.kubernetes.io/name=squashtm-postgresql
+#   # or: kubectl -n opnc-integration delete pvc data-squashtm-postgresql-0

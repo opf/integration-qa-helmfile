@@ -1,0 +1,7 @@
+{{- if .Values.squashtm.version }}
+image:
+  tag: {{ .Values.squashtm.version | quote }}
+{{- end }}
+{{- if .Values.squashtm.adminPassword }}
+adminPassword: {{ .Values.squashtm.adminPassword | quote }}
+{{- end }}

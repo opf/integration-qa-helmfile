@@ -1,0 +1,40 @@
+image:
+  repository: squashtest/squash
+  tag: '15.0.3'
+  pullPolicy: IfNotPresent
+
+fullnameOverride: squashtm
+
+# Optional. Empty = keep Squash default admin/admin (local). PullPreview must set this.
+adminPassword: ''
+
+# httpd image provides htpasswd for the optional set-admin-password sidecar.
+passwordResetImage:
+  repository: httpd
+  tag: '2.4-alpine'
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    memory: 3Gi
+
+postgresql:
+  fullnameOverride: squashtm-postgresql
+  image:
+    repository: postgres
+    tag: '17'
+    pullPolicy: IfNotPresent
+  auth:
+    username: squashtm
+    database: squashtm
+  persistence:
+    size: 8Gi
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi

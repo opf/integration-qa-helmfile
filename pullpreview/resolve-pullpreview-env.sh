@@ -210,6 +210,15 @@ gl_enabled = (opnc.get("gitlab") or {}).get("enabled")
 if gl_enabled is not None:
     values["GITLAB_ENABLED"] = "true" if gl_enabled else "false"
 
+sq = opnc.get("squashtm") or {}
+sq_enabled = sq.get("enabled")
+if sq_enabled is not None:
+    values["SQUASHTM_ENABLED"] = "true" if sq_enabled else "false"
+if sq.get("version"):
+    values["SQUASHTM_VERSION"] = str(sq["version"])
+if sq.get("adminPassword"):
+    values["SQUASHTM_ADMIN_PASSWORD"] = str(sq["adminPassword"])
+
 stack_profile = opnc.get("stackProfile")
 if stack_profile:
     values["STACK_PROFILE"] = str(stack_profile)
