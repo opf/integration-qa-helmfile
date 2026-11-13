@@ -36,7 +36,7 @@ run-name: >-
       github.event.inputs.squashtm_enabled == 'true'
         && format(
           'SquashTM {0}',
-          github.event.inputs.squashtm_version != '' && github.event.inputs.squashtm_version || 'default'
+          github.event.inputs.squashtm_version != '' && github.event.inputs.squashtm_version || '15.0.3'
         )
         || 'SquashTM off'
     )
@@ -130,8 +130,9 @@ on:
         default: false
         type: boolean
       squashtm_version:
-        description: "[Squash TM] Image tag (empty = chart default; used only when Squash TM is checked)"
+        description: "[Squash TM] Image tag (used only when Squash TM is checked)"
         required: false
+        default: "15.0.3"
         type: string
 
 permissions:
