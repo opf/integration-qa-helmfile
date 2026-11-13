@@ -7,6 +7,7 @@ chart=charts/squashtm
 out="$(helm template squashtm "${chart}")"
 echo "${out}" | grep -q 'image: "postgres:17"'
 echo "${out}" | grep -q 'readOnlyRootFilesystem: true'
+echo "${out}" | grep -q 'supplementalGroupsPolicy: Strict'
 echo "${out}" | grep -q 'key: jwt-secret'
 ! echo "${out}" | grep -q 'bitnami'
 ! echo "${out}" | grep -q 'app.kubernetes.io/instance'

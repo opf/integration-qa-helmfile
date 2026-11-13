@@ -37,6 +37,8 @@ spec:
         runAsUser: 999
         runAsGroup: 999
         fsGroup: 999
+        supplementalGroups: []
+        supplementalGroupsPolicy: Strict
         seccompProfile:
           type: RuntimeDefault
       containers:

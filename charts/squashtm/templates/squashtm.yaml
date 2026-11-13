@@ -23,6 +23,8 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: Always
+        supplementalGroups: []
+        supplementalGroupsPolicy: Strict
         seccompProfile:
           type: RuntimeDefault
       initContainers:
