@@ -123,3 +123,10 @@ releases:
       - values/gitlab-values.gotmpl
     needs:
       - opnc-integration
+  - name: squashtm
+    chart: ./charts/squashtm
+    installed: {{ .Values.squashtm.enabled }}
+    values:
+      - values/squashtm-values.gotmpl
+    needs:
+      - opnc-integration

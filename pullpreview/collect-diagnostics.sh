@@ -199,6 +199,16 @@ collect_diagnostics() {
       -c dependencies --tail=60 2>&1 | redact_stream || true
   fi
 
+  local squashtm_pod=""
+  squashtm_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=squashtm" \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [[ -n "${squashtm_pod}" ]]; then
+    echo "[pullpreview] Squash TM pod log tail (${squashtm_pod}):"
+    kubectl logs "${squashtm_pod}" -n "${namespace}" -c squashtm --tail=200 2>&1 | redact_stream || true
+    echo "[pullpreview] Squash TM pod previous log tail (${squashtm_pod}):"
+    kubectl logs "${squashtm_pod}" -n "${namespace}" -c squashtm --previous --tail=200 2>&1 | redact_stream || true
+  fi
+
   local caddy_pod=""
   caddy_pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=pullpreview-caddy" \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"

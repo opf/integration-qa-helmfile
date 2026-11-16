@@ -17,6 +17,7 @@ nextcloudHost: {{ .Values.nextcloud.host }}
 keycloakHost: {{ .Values.keycloak.host }}
 xwikiHost: {{ .Values.xwiki.host }}
 gitlabHost: {{ .Values.gitlab.host }}
+squashtmHost: {{ .Values.squashtm.host }}
 
 nextcloud:
   gitSourceBranch: {{ .Values.nextcloud.gitSourceBranch | quote }}
@@ -78,3 +79,6 @@ gitlab:
     password: {{ .Values.gitlab.postgresql.password }}
   redis:
     password: {{ .Values.gitlab.redis.password }}
+
+squashtm:
+  enabled: {{ .Values.squashtm.enabled }}

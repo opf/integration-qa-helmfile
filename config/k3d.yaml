@@ -2,6 +2,7 @@ apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
   name: opnc
+image: rancher/k3s:v1.34.13-k3s1
 ports:
   - port: 80:80
     nodeFilters:

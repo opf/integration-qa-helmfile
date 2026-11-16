@@ -164,3 +164,13 @@ gitlab:
     password: gitlab
   redis:
     password: gitlab
+
+squashtm:
+  # Off by default (same pattern as GitLab). Enable in environments/override.yaml.
+  enabled: false
+  host: squashtm.test
+  # Empty = chart default (charts/squashtm/values.yaml image.tag). Pin via override or workflow.
+  version: ''
+  # Optional local override of Squash default admin/admin. PullPreview requires this via env.
+  adminPassword: ''
+

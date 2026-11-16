@@ -1,0 +1,288 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.fullnameOverride }}
+  labels:
+    app.kubernetes.io/name: squashtm
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squashtm
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squashtm
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: Always
+        supplementalGroups: []
+        supplementalGroupsPolicy: Strict
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-db
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until pg_isready -h {{ .Values.postgresql.fullnameOverride }} -U {{ .Values.postgresql.auth.username }} -d {{ .Values.postgresql.auth.database }}; do
+                echo "waiting for {{ .Values.postgresql.fullnameOverride }}"
+                sleep 2
+              done
+        # Mounting emptyDir over plugins hides image JARs; seed them first.
+        - name: seed-plugins
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # emptyDir cannot preserve image timestamps (-a); content copy is enough.
+              cp -R /opt/squash-tm/plugins/. /seed/
+          volumeMounts:
+            - name: plugins
+              mountPath: /seed
+            - name: tmp
+              mountPath: /tmp
+        {{- if .Values.adminPassword }}
+        - name: hash-admin-password
+          image: "{{ .Values.passwordResetImage.repository }}:{{ .Values.passwordResetImage.tag }}"
+          imagePullPolicy: {{ .Values.passwordResetImage.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fullnameOverride }}
+                  key: admin-password
+          volumeMounts:
+            - name: admin-hash
+              mountPath: /hash
+            - name: tmp
+              mountPath: /tmp
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # Spring Security accepts htpasswd -B ($2y$) with a {bcrypt} prefix.
+              HTPASSWD="$(command -v htpasswd || echo /usr/local/apache2/bin/htpasswd)"
+              printf '%s' "{bcrypt}$("${HTPASSWD}" -nbBC 10 x "${ADMIN_PASSWORD}" | cut -d: -f2)" > /hash/password
+        {{- end }}
+      containers:
+        - name: squashtm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SQTM_DB_TYPE
+              value: postgresql
+            - name: SQTM_DB_HOST
+              value: {{ .Values.postgresql.fullnameOverride | quote }}
+            - name: SQTM_DB_PORT
+              value: "5432"
+            - name: SQTM_DB_NAME
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: SQTM_DB_USERNAME
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: SQTM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fullnameOverride }}
+                  key: db-password
+            # Squash docs use SPRING_APPLICATION_JSON for SSL offload; Boot 3 wants
+            # forward-headers-strategy (use-forward-headers was removed).
+            - name: SPRING_APPLICATION_JSON
+              value: '{"server":{"forward-headers-strategy":"native"}}'
+            - name: SQUASH_REST_API_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fullnameOverride }}
+                  key: jwt-secret
+            - name: SQUASH_CRYPTO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fullnameOverride }}
+                  key: crypto-secret
+          volumeMounts:
+            - name: logs
+              mountPath: /opt/squash-tm/logs
+            - name: squash-tmp
+              mountPath: /opt/squash-tm/tmp
+            - name: tomcat-home
+              mountPath: /opt/squash-tm/tomcat-home
+            - name: plugins
+              mountPath: /opt/squash-tm/plugins
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /squash/isSquashAlive
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet:
+              path: /squash/isSquashAlive
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /squash/isSquashAlive
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+        {{- if .Values.adminPassword }}
+        # Blocks Service endpoints until default admin/admin is replaced in auth_user.
+        - name: set-admin-password
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: PGHOST
+              value: {{ .Values.postgresql.fullnameOverride | quote }}
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.fullnameOverride }}
+                  key: db-password
+          volumeMounts:
+            - name: admin-hash
+              mountPath: /hash
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              hash="$(cat /hash/password)"
+              # bcrypt hashes contain $; quote for SQL (do not use psql -v, which mishandles $).
+              sql_hash="$(printf '%s' "${hash}" | sed "s/'/''/g")"
+              until psql -v ON_ERROR_STOP=1 -tAc "SELECT 1 FROM auth_user WHERE login = 'admin'" | grep -q 1; do
+                echo "waiting for auth_user.admin"
+                sleep 5
+              done
+              psql -v ON_ERROR_STOP=1 \
+                -c "UPDATE auth_user SET password = '${sql_hash}' WHERE login = 'admin'"
+              touch /tmp/admin-password-ready
+              echo "admin password updated"
+              exec sleep infinity
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - test -f /tmp/admin-password-ready
+            periodSeconds: 5
+            failureThreshold: 36
+        {{- end }}
+      volumes:
+        - name: logs
+          emptyDir: {}
+        - name: squash-tmp
+          emptyDir: {}
+        - name: tomcat-home
+          emptyDir: {}
+        - name: plugins
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.adminPassword }}
+        - name: admin-hash
+          emptyDir: {}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.fullnameOverride }}
+  labels:
+    app.kubernetes.io/name: squashtm
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: squashtm

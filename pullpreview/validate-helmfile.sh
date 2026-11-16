@@ -50,4 +50,8 @@ else
   echo "[validate-pullpreview] skip gitlab template (run: helm dependency build charts/gitlab)"
 fi
 
+echo "[validate-pullpreview] helmfile template release=squashtm"
+SQUASHTM_ENABLED=true SQUASHTM_ADMIN_PASSWORD='validate-only-dummy' \
+  "${helmfile_common[@]}" -l "name=squashtm" template --skip-deps >/dev/null
+
 echo "[validate-pullpreview] OK"

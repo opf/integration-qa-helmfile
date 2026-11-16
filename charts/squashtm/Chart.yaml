@@ -1,0 +1,6 @@
+---
+apiVersion: v2
+name: squashtm
+description: Squash TM with PostgreSQL
+type: application
+version: 0.1.0
