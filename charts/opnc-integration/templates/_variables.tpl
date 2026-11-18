@@ -72,6 +72,10 @@ OpenID Connect variables.
 {{ .Values.oidcProvider.openprojectClientSecret | default "openproject-secret" }}
 {{- end -}}
 
+{{- define "opnc.oidc.nextcloudClientSecret" -}}
+{{ .Values.oidcProvider.nextcloudClientSecret | default "nextcloud-secret" }}
+{{- end -}}
+
 {{/*
 ---------------------------------------------
 Volumes

@@ -1,5 +1,2 @@
 # Carrier path only. PullPreview CI deploys via helmfile (see pullpreview/helmfile-sync.sh);
 # this file is not rendered onto the cluster. Keep it empty of credentials.
-global:
-  security:
-    allowInsecureImages: true

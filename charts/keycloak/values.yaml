@@ -13,12 +13,25 @@ setupImage:
 
 auth:
   adminUser: admin
-  adminPassword: admin
+
+hostname: keycloak.test
+
+realm:
+  name: opnc
+
+postgresql:
+  host: kc-postgresql
+  username: keycloak
+  database: keycloak
+
+clients:
+  nextcloud:
+    id: nextcloud
+    host: nextcloud.test
+  openproject:
+    id: openproject
+    host: openproject.test
 
 service:
   ports:
     http: 8080
-
-extraEnvVars: []
-extraVolumes: []
-extraVolumeMounts: []

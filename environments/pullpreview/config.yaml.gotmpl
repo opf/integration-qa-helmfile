@@ -27,6 +27,7 @@
 {{- $opKcOidcSecret := requiredEnv "PULLPREVIEW_OP_KC_OIDC_SECRET" -}}
 {{- $xwikiOauthSecret := requiredEnv "PULLPREVIEW_XWIKI_OAUTH_SECRET" -}}
 {{- $xwikiDbPassword := requiredEnv "PULLPREVIEW_XWIKI_DB_PASSWORD" -}}
+{{- $kcDbPassword := requiredEnv "PULLPREVIEW_KC_DB_PASSWORD" -}}
 
 {{- $profile := env "STACK_PROFILE" | default "full" -}}
 {{- $standalone := ne $profile "full" -}}
@@ -112,6 +113,7 @@ keycloak:
     name: opnc
   postgresql:
     host: kc-postgresql
+    password: {{ $kcDbPassword | quote }}
 
 ingress:
   ingressClassName: traefik

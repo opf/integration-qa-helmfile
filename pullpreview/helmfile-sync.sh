@@ -23,6 +23,7 @@ ensure_pullpreview_generated_secrets() {
     PULLPREVIEW_OP_KC_OIDC_SECRET
     PULLPREVIEW_XWIKI_OAUTH_SECRET
     PULLPREVIEW_XWIKI_DB_PASSWORD
+    PULLPREVIEW_KC_DB_PASSWORD
   )
   local key existing value args=()
 

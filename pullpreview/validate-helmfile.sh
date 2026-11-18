@@ -21,6 +21,7 @@ export PULLPREVIEW_OP_NC_OIDC_SECRET="${PULLPREVIEW_OP_NC_OIDC_SECRET:-validate-
 export PULLPREVIEW_OP_KC_OIDC_SECRET="${PULLPREVIEW_OP_KC_OIDC_SECRET:-validate-only-opkc-oidc}"
 export PULLPREVIEW_XWIKI_OAUTH_SECRET="${PULLPREVIEW_XWIKI_OAUTH_SECRET:-validate-only-xwiki}"
 export PULLPREVIEW_XWIKI_DB_PASSWORD="${PULLPREVIEW_XWIKI_DB_PASSWORD:-validate-only-xwiki-db}"
+export PULLPREVIEW_KC_DB_PASSWORD="${PULLPREVIEW_KC_DB_PASSWORD:-validate-only-kc-db}"
 
 helmfile_path="pullpreview/helmfile.yaml.gotmpl"
 helmfile_common=(helmfile -f "${helmfile_path}" -e pullpreview)
@@ -75,7 +76,7 @@ if printf '%s\n' "${render}" | grep -E 'bitnamilegacy/|image:.*bitnami/' >/dev/n
 fi
 # Shared defaults must not appear as live credential values on PullPreview
 # (usernames may still be "admin"; passwords / tokens / OIDC secrets must not).
-bad_cred_re='admin-password: "admin"|password: "admin"|db-password: "admin"|value: "1234"|bob_ai_mcp_test_token|nextcloud-secret|openproject-secret|r00t#dev'
+bad_cred_re='admin-password: "admin"|password: "admin"|db-password: "admin"|value: "1234"|bob_ai_mcp_test_token|nextcloud-secret|openproject-secret|xwiki-client-secret|r00t#dev'
 if printf '%s\n' "${render}" | grep -E "${bad_cred_re}" >/dev/null; then
   echo "[validate-pullpreview] FAIL: shared default credential still rendered for PullPreview" >&2
   printf '%s\n' "${render}" | grep -E "${bad_cred_re}" >&2 || true

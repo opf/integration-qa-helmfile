@@ -5,7 +5,7 @@
  * They are defined in charts/opnc-integration/scripts/keycloak.sh
  *
  * Local keeps simple defaults. PullPreview (E2E_ENV=pullpreview) requires secret-backed
- * env vars and fails closed when they are missing.
+ * passwords and fails closed when those are missing. Usernames/emails keep defaults.
  */
 
 export interface TestUser {
@@ -19,7 +19,12 @@ export interface TestUser {
 const isPullPreview = (): boolean =>
   (process.env.E2E_ENV || process.env.ENV || 'local').toLowerCase() === 'pullpreview';
 
-const envOrDefault = (key: string, fallback: string, roleEnv?: string): string => {
+const envOrDefault = (
+  key: string,
+  fallback: string,
+  roleEnv?: string,
+  opts?: { secret?: boolean },
+): string => {
   const direct = process.env[key];
   if (direct && direct.trim().length > 0) {
     return direct;
@@ -30,7 +35,7 @@ const envOrDefault = (key: string, fallback: string, roleEnv?: string): string =
       return role;
     }
   }
-  if (isPullPreview()) {
+  if (opts?.secret && isPullPreview()) {
     throw new Error(
       `Missing credential env ${key}${roleEnv ? ` (or ${roleEnv})` : ''} for PullPreview; refuse local defaults.`,
     );
@@ -44,7 +49,7 @@ const envOrDefault = (key: string, fallback: string, roleEnv?: string): string =
  */
 export const ADMIN_USER: TestUser = {
   username: envOrDefault('E2E_KC_ADMIN_USER', 'admin'),
-  password: envOrDefault('E2E_KC_ADMIN_PASS', 'admin', 'E2E_ADMIN_PASS'),
+  password: envOrDefault('E2E_KC_ADMIN_PASS', 'admin', 'E2E_ADMIN_PASS', { secret: true }),
 };
 
 /**
@@ -52,7 +57,7 @@ export const ADMIN_USER: TestUser = {
  */
 export const OP_ADMIN_USER: TestUser = {
   username: envOrDefault('E2E_OP_ADMIN_USER', 'admin'),
-  password: envOrDefault('E2E_OP_ADMIN_PASS', 'admin', 'E2E_ADMIN_PASS'),
+  password: envOrDefault('E2E_OP_ADMIN_PASS', 'admin', 'E2E_ADMIN_PASS', { secret: true }),
 };
 
 /**
@@ -60,7 +65,7 @@ export const OP_ADMIN_USER: TestUser = {
  */
 export const NC_ADMIN_USER: TestUser = {
   username: envOrDefault('E2E_NC_ADMIN_USER', 'admin'),
-  password: envOrDefault('E2E_NC_ADMIN_PASS', 'admin', 'E2E_ADMIN_PASS'),
+  password: envOrDefault('E2E_NC_ADMIN_PASS', 'admin', 'E2E_ADMIN_PASS', { secret: true }),
 };
 
 /**
@@ -69,7 +74,7 @@ export const NC_ADMIN_USER: TestUser = {
  */
 export const ALICE_USER: TestUser = {
   username: envOrDefault('E2E_ALICE_USER', 'alice'),
-  password: envOrDefault('E2E_ALICE_PASS', '1234', 'E2E_USER_PASS'),
+  password: envOrDefault('E2E_ALICE_PASS', '1234', 'E2E_USER_PASS', { secret: true }),
   firstName: 'Alice',
   lastName: 'Hansen',
   email: 'alice@example.com',
@@ -81,7 +86,7 @@ export const ALICE_USER: TestUser = {
  */
 export const BRIAN_USER: TestUser = {
   username: envOrDefault('E2E_BRIAN_USER', 'brian'),
-  password: envOrDefault('E2E_BRIAN_PASS', '1234', 'E2E_USER_PASS'),
+  password: envOrDefault('E2E_BRIAN_PASS', '1234', 'E2E_USER_PASS', { secret: true }),
   firstName: 'Brian',
   lastName: 'Murphy',
   email: 'brian@example.com',
@@ -94,7 +99,7 @@ export const BRIAN_USER: TestUser = {
  */
 export const OLIVER_OAUTH_USER: TestUser = {
   username: envOrDefault('E2E_OLIVER_USER', 'oliver'),
-  password: envOrDefault('E2E_OLIVER_PASS', 'OliverOauth-1234!', 'E2E_USER_PASS'),
+  password: envOrDefault('E2E_OLIVER_PASS', 'OliverOauth-1234!', 'E2E_USER_PASS', { secret: true }),
   firstName: 'Oliver',
   lastName: 'Oauth',
   email: envOrDefault('E2E_OLIVER_EMAIL', 'oliver@example.com'),
@@ -106,7 +111,9 @@ export const OLIVER_OAUTH_USER: TestUser = {
  */
 export const FILES_AUTH_OAUTH_USER: TestUser = {
   username: envOrDefault('E2E_FILES_AUTH_USER', 'oliver-files-auth'),
-  password: envOrDefault('E2E_FILES_AUTH_PASS', 'OliverFilesAuth-1234!', 'E2E_USER_PASS'),
+  password: envOrDefault('E2E_FILES_AUTH_PASS', 'OliverFilesAuth-1234!', 'E2E_USER_PASS', {
+    secret: true,
+  }),
   firstName: 'Oliver',
   lastName: 'FilesAuth',
   email: envOrDefault('E2E_FILES_AUTH_EMAIL', 'oliver-files-auth@example.com'),
@@ -118,7 +125,7 @@ export const FILES_AUTH_OAUTH_USER: TestUser = {
  */
 export const BOB_OAUTH_USER: TestUser = {
   username: envOrDefault('E2E_BOB_USER', 'bob'),
-  password: envOrDefault('E2E_BOB_PASS', 'BobOauth-1234!', 'E2E_USER_PASS'),
+  password: envOrDefault('E2E_BOB_PASS', 'BobOauth-1234!', 'E2E_USER_PASS', { secret: true }),
   firstName: 'Bob',
   lastName: 'Oauth',
   email: envOrDefault('E2E_BOB_EMAIL', 'bob@example.com'),

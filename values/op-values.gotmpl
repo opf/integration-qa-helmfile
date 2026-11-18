@@ -1,6 +1,3 @@
-global:
-  security:
-    allowInsecureImages: true
 fullnameOverride: {{ .Values.openproject.fullnameOverride }}
 previewMode: {{ .Values.previewMode | default false }}
 {{- if and (.Values.previewMode | default false) (.Values.xwiki.enabled | default false) }}

@@ -138,6 +138,7 @@ keycloak:
     name: opnc
   postgresql:
     host: kc-postgresql
+    password: keycloak
 
 ingress:
   ingressClassName: 'traefik'

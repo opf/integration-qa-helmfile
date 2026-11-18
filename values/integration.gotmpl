@@ -1,10 +1,13 @@
 {{- $openprojectXwiki := .Values.openproject.xwiki | default dict -}}
 {{- $mcp := dig "mcp" dict .Values -}}
 {{- $adminPassword := .Values.adminPassword | default "admin" -}}
+{{- $userPassword := .Values.userPassword | default "1234" -}}
 {{- $standalone := .Values.openproject.standalone | default false -}}
+{{- $keycloakEnabled := and (not $standalone) (ne (dig "keycloak" "enabled" true .Values) false) -}}
 integrationSetupMethod: {{ .Values.integration.setupMethod }}
 previewMode: {{ dig "previewMode" false .Values }}
 adminPassword: {{ $adminPassword | quote }}
+userPassword: {{ $userPassword | quote }}
 
 mcp:
   enabled: {{ dig "enabled" true $mcp }}
@@ -36,6 +39,15 @@ databases:
     database: {{ .Values.nextcloud.postgresql.database | quote }}
     password: {{ .Values.nextcloud.postgresql.password | quote }}
     size: 8Gi
+  {{- end }}
+  {{- if $keycloakEnabled }}
+  - name: {{ dig "postgresql" "host" "kc-postgresql" .Values.keycloak | quote }}
+    username: keycloak
+    database: keycloak
+    password: {{ dig "postgresql" "password" "keycloak" .Values.keycloak | quote }}
+    size: 8Gi
+    memoryRequest: 256Mi
+    memoryLimit: 1Gi
   {{- end }}
   {{- if .Values.gitlab.enabled }}
   - name: gitlab-postgresql
@@ -95,6 +107,7 @@ oidcProvider:
   name: {{ .Values.keycloak.providerName }}
   openprojectClientId: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
   openprojectClientSecret: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
+  nextcloudClientSecret: {{ .Values.integration.oidcClients.nextcloud.secret | quote }}
 
 ingress:
   ingressClassName: {{ .Values.ingress.ingressClassName }}

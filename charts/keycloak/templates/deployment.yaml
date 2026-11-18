@@ -35,30 +35,66 @@ spec:
             runAsUser: 1000
             runAsGroup: 1000
             allowPrivilegeEscalation: false
-            # shortcut: start-dev needs writable dirs; emptyDirs below cover them.
-            readOnlyRootFilesystem: true
+            # shortcut: first `start` runs Quarkus build against the image tree; re-enable RO root with a pre-built image.
+            readOnlyRootFilesystem: false
             seccompProfile:
               type: RuntimeDefault
             capabilities:
               drop:
                 - ALL
           args:
-            - start-dev
+            - start
             - --http-enabled=true
             - --hostname-strict=false
             - --proxy-headers=xforwarded
-            - --spi-connections-http-client-default-disable-trust-manager=true
           env:
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
               value: {{ .Values.auth.adminUser | quote }}
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
-              value: {{ .Values.auth.adminPassword | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: admin-password
             - name: KC_HEALTH_ENABLED
               value: "true"
-            {{- range .Values.extraEnvVars }}
-            - name: {{ .name }}
-              value: {{ .value | quote }}
-            {{- end }}
+            - name: KC_HOSTNAME
+              value: {{ .Values.hostname | quote }}
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: {{ printf "jdbc:postgresql://%s:5432/%s" .Values.postgresql.host .Values.postgresql.database | quote }}
+            - name: KC_DB_USERNAME
+              value: {{ .Values.postgresql.username | quote }}
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.host }}
+                  key: db-password
+            - name: KC_REALM_NAME
+              value: {{ .Values.realm.name | quote }}
+            - name: KC_REALM_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: realm-user-password
+            - name: KC_NEXTCLOUD_CLIENT_ID
+              value: {{ .Values.clients.nextcloud.id | quote }}
+            - name: KC_NEXTCLOUD_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: oidc-nextcloud-client-secret
+            - name: KC_NEXTCLOUD_CLIENT_HOST
+              value: {{ .Values.clients.nextcloud.host | quote }}
+            - name: KC_OPENPROJECT_CLIENT_ID
+              value: {{ .Values.clients.openproject.id | quote }}
+            - name: KC_OPENPROJECT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: oidc-openproject-client-secret
+            - name: KC_OPENPROJECT_CLIENT_HOST
+              value: {{ .Values.clients.openproject.host | quote }}
           ports:
             - name: http
               containerPort: 8080
@@ -68,14 +104,11 @@ spec:
               mountPath: /tmp
             - name: data
               mountPath: /opt/keycloak/data
-            {{- with .Values.extraVolumeMounts }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
           readinessProbe:
             httpGet:
               path: /realms/master
               port: http
-            initialDelaySeconds: 20
+            initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 30
@@ -83,7 +116,7 @@ spec:
             httpGet:
               path: /realms/master
               port: http
-            initialDelaySeconds: 60
+            initialDelaySeconds: 90
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 6
@@ -114,11 +147,35 @@ spec:
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
               value: {{ .Values.auth.adminUser | quote }}
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
-              value: {{ .Values.auth.adminPassword | quote }}
-            {{- range .Values.extraEnvVars }}
-            - name: {{ .name }}
-              value: {{ .value | quote }}
-            {{- end }}
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: admin-password
+            - name: KC_REALM_NAME
+              value: {{ .Values.realm.name | quote }}
+            - name: KC_REALM_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: realm-user-password
+            - name: KC_NEXTCLOUD_CLIENT_ID
+              value: {{ .Values.clients.nextcloud.id | quote }}
+            - name: KC_NEXTCLOUD_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: oidc-nextcloud-client-secret
+            - name: KC_NEXTCLOUD_CLIENT_HOST
+              value: {{ .Values.clients.nextcloud.host | quote }}
+            - name: KC_OPENPROJECT_CLIENT_ID
+              value: {{ .Values.clients.openproject.id | quote }}
+            - name: KC_OPENPROJECT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: oidc-openproject-client-secret
+            - name: KC_OPENPROJECT_CLIENT_HOST
+              value: {{ .Values.clients.openproject.host | quote }}
           volumeMounts:
             - name: entrypoint
               mountPath: /scripts/entrypoint.sh
@@ -134,6 +191,3 @@ spec:
           configMap:
             name: kc-entry-configmap
             defaultMode: 0755
-        {{- with .Values.extraVolumes }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}

@@ -1,29 +1,17 @@
 fullnameOverride: {{ .Values.keycloak.fullnameOverride }}
 auth:
   adminUser: admin
-  adminPassword: {{ .Values.adminPassword | default "admin" | quote }}
-extraEnvVars:
-  - name: KEYCLOAK_HOSTNAME
-    value: {{ .Values.keycloak.host }}
-  - name: KC_REALM_NAME
-    value: {{ .Values.keycloak.realm.name }}
-  - name: KC_REALM_USER_PASSWORD
-    value: {{ .Values.userPassword | default "1234" | quote }}
-  - name: KC_NEXTCLOUD_CLIENT_ID
-    value: {{ .Values.integration.oidcClients.nextcloud.id }}
-  - name: KC_NEXTCLOUD_CLIENT_SECRET
-    value: {{ .Values.integration.oidcClients.nextcloud.secret }}
-  - name: KC_NEXTCLOUD_CLIENT_HOST
-    value: {{ .Values.nextcloud.host }}
-  - name: KC_OPENPROJECT_CLIENT_ID
-    value: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
-  - name: KC_OPENPROJECT_CLIENT_SECRET
-    value: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
-  - name: KC_OPENPROJECT_CLIENT_HOST
-    value: {{ .Values.openproject.host }}
-extraVolumes:
-  - name: entrypoint
-    configMap:
-      name: kc-entry-configmap
-      defaultMode: 0755
-extraVolumeMounts: []
+hostname: {{ .Values.keycloak.host | quote }}
+realm:
+  name: {{ .Values.keycloak.realm.name | quote }}
+postgresql:
+  host: {{ dig "postgresql" "host" "kc-postgresql" .Values.keycloak | quote }}
+  username: keycloak
+  database: keycloak
+clients:
+  nextcloud:
+    id: {{ .Values.integration.oidcClients.nextcloud.id | quote }}
+    host: {{ .Values.nextcloud.host | quote }}
+  openproject:
+    id: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") | quote }}
+    host: {{ .Values.openproject.host | quote }}
