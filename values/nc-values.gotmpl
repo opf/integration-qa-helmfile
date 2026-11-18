@@ -12,7 +12,11 @@ image:
   # Nextcloud version image tag
   tag: {{ .Values.nextcloud.version | default "latest" | quote }}
 persistence:
+  # Chart default is emptyDir; pod restarts (e.g. securityContext) wipe the install.
+  enabled: true
   storageClassName: {{ .Values.persistence.storageClassName | quote }}
+  accessMode: {{ .Values.persistence.accessMode | default "ReadWriteOnce" | quote }}
+  size: 8Gi
 service:
   port: 80
 nextcloud:

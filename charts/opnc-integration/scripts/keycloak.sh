@@ -99,6 +99,88 @@ json_first_id() {
   tr -d '\n' | sed 's/"id":"/\n/' | sed -n '2s/\([^"]*\)".*/\1/p'
 }
 
+# Split a JSON array of objects on "},{" so name filters stay object-local.
+json_objects() {
+  tr -d '\n' | sed 's/^\[//;s/\]$//;s/},{/}\n{/g'
+}
+
+resolve_scope_uuid() {
+  scope_name="$1"
+  curl -sf "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/client-scopes" \
+    -H "${AUTH_H}" \
+    | json_objects \
+    | grep "\"name\":\"${scope_name}\"" \
+    | json_first_id
+}
+
+# Create-or-find a client scope with an audience mapper for audience_client_id.
+ensure_client_scope() {
+  scope_name="$1"
+  audience_client_id="$2"
+  code="$(
+    curl -sS -o /tmp/kc-scope-create.out -w '%{http_code}' -X POST \
+      "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/client-scopes" \
+      -H "${AUTH_H}" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"name\": \"${scope_name}\",
+        \"protocol\": \"openid-connect\",
+        \"attributes\": {\"include.in.token.scope\": \"true\"},
+        \"protocolMappers\": [
+          {
+            \"name\": \"${audience_client_id}_aud_mapper\",
+            \"protocol\": \"openid-connect\",
+            \"protocolMapper\": \"oidc-audience-mapper\",
+            \"config\": {
+              \"included.client.audience\": \"${audience_client_id}\",
+              \"access.token.claim\": \"true\"
+            }
+          }
+        ]
+      }"
+  )"
+  if [ "${code}" != "201" ] && [ "${code}" != "409" ]; then
+    echo "Failed to create client scope '${scope_name}' (HTTP ${code}): $(cat /tmp/kc-scope-create.out)" >&2
+    return 1
+  fi
+  scope_id="$(resolve_scope_uuid "${scope_name}")"
+  if [ -z "${scope_id}" ]; then
+    echo "Could not resolve client scope id for '${scope_name}'" >&2
+    return 1
+  fi
+  echo "Ensured client scope '${scope_name}' (${scope_id})" >&2
+  printf '%s' "${scope_id}"
+}
+
+# Default (not optional): OP/NC tokens must carry the aud mapper without clients asking for the scope.
+add_default_scope_to_client() {
+  client_uuid="$1"
+  scope_uuid="$2"
+  label="$3"
+  # Drop optional attach if a prior run left it there.
+  curl -sS -o /dev/null -X DELETE \
+    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}/optional-client-scopes/${scope_uuid}" \
+    -H "${AUTH_H}" || true
+  code="$(
+    curl -sS -o /tmp/kc-scope-attach.out -w '%{http_code}' -X PUT \
+      "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}/default-client-scopes/${scope_uuid}" \
+      -H "${AUTH_H}"
+  )"
+  if [ "${code}" = "204" ]; then
+    echo "Attached default scope to ${label}"
+    return 0
+  fi
+  if curl -sf \
+    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}/default-client-scopes" \
+    -H "${AUTH_H}" \
+    | grep -q "\"id\":\"${scope_uuid}\""; then
+    echo "Default scope already on ${label}"
+    return 0
+  fi
+  echo "Failed to attach default scope to ${label} (HTTP ${code}): $(cat /tmp/kc-scope-attach.out)" >&2
+  return 1
+}
+
 reset_user_password() {
   username="$1"
   email="$2"
@@ -183,7 +265,9 @@ curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
     \"directAccessGrantsEnabled\": true,
     \"serviceAccountsEnabled\": true,
     \"attributes\": {
-        \"oauth2.device.authorization.grant.enabled\": \"true\"
+        \"oauth2.device.authorization.grant.enabled\": \"true\",
+        \"standard.token.exchange.enabled\": \"true\",
+        \"standard.token.exchange.enableRefreshRequestedTokenType\": \"SAME_SESSION\"
     }
 }" || echo "Nextcloud client may already exist"
 
@@ -209,7 +293,9 @@ curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
     \"directAccessGrantsEnabled\": true,
     \"serviceAccountsEnabled\": true,
     \"attributes\": {
-        \"oauth2.device.authorization.grant.enabled\": \"true\"
+        \"oauth2.device.authorization.grant.enabled\": \"true\",
+        \"standard.token.exchange.enabled\": \"true\",
+        \"standard.token.exchange.enableRefreshRequestedTokenType\": \"SAME_SESSION\"
     }
 }" || echo "OpenProject client may already exist"
 
@@ -249,6 +335,36 @@ set_client_secret() {
   echo "Synced client secret for ${label}"
 }
 
+# Idempotent for clients created before TE attrs were in the POST body.
+ensure_standard_token_exchange() {
+  client_uuid="$1"
+  label="$2"
+  body="$(
+    curl -sf \
+      "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}" \
+      -H "${AUTH_H}" | tr -d '\n'
+  )"
+  body="$(printf '%s' "${body}" \
+    | sed -e 's/,"standard.token.exchange.enabled":"[^"]*"//g' \
+          -e 's/"standard.token.exchange.enabled":"[^"]*",//g' \
+          -e 's/,"standard.token.exchange.enableRefreshRequestedTokenType":"[^"]*"//g' \
+          -e 's/"standard.token.exchange.enableRefreshRequestedTokenType":"[^"]*",//g')"
+  body="$(printf '%s' "${body}" \
+    | sed 's/"attributes":{/"attributes":{"standard.token.exchange.enabled":"true","standard.token.exchange.enableRefreshRequestedTokenType":"SAME_SESSION",/')"
+  code="$(
+    curl -sS -o /tmp/kc-te-put.out -w '%{http_code}' -X PUT \
+      "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}" \
+      -H "${AUTH_H}" \
+      -H "Content-Type: application/json" \
+      -d "${body}"
+  )"
+  if [ "${code}" != "204" ] && [ "${code}" != "200" ]; then
+    echo "Failed to enable standard token exchange on ${label} (HTTP ${code}): $(cat /tmp/kc-te-put.out)" >&2
+    return 1
+  fi
+  echo "Ensured standard token exchange on ${label}"
+}
+
 OP_CLIENT_UUID="$(resolve_client_uuid "${KC_OPENPROJECT_CLIENT_ID}")"
 NC_CLIENT_UUID="$(resolve_client_uuid "${KC_NEXTCLOUD_CLIENT_ID}")"
 
@@ -265,60 +381,16 @@ else
   exit 1
 fi
 
-if [ -n "${OP_CLIENT_UUID}" ] && [ -n "${NC_CLIENT_UUID}" ]; then
-  echo "Enabling standard token exchange (OpenProject client)..."
-  curl -sf -X PUT \
-    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${OP_CLIENT_UUID}" \
-    -H "${AUTH_H}" \
-    -H "Content-Type: application/json" \
-    -d "$(curl -sf \
-      "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${OP_CLIENT_UUID}" \
-      -H "${AUTH_H}" \
-      | sed 's/"attributes":{/"attributes":{"standard.token.exchange.enabled":"true",/')" \
-    || echo "Could not enable standard.token.exchange on OpenProject client"
+# NC→OP needs api_v3 (aud=openproject); OP→NC Files tab needs add-nc-aud (aud=nextcloud).
+echo "Ensuring client scopes api_v3 and add-nc-aud..."
+APIV3_SCOPE_ID="$(ensure_client_scope "api_v3" "${KC_OPENPROJECT_CLIENT_ID}")"
+NC_AUD_SCOPE_ID="$(ensure_client_scope "add-nc-aud" "${KC_NEXTCLOUD_CLIENT_ID}")"
+add_default_scope_to_client "${NC_CLIENT_UUID}" "${APIV3_SCOPE_ID}" "${KC_NEXTCLOUD_CLIENT_ID}"
+add_default_scope_to_client "${OP_CLIENT_UUID}" "${NC_AUD_SCOPE_ID}" "${KC_OPENPROJECT_CLIENT_ID}"
 
-  echo "Creating client policy for token exchange (Nextcloud → OpenProject)..."
-  curl -sf -X PUT \
-    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/client-policies/policies" \
-    -H "${AUTH_H}" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"policies\": [
-        {
-          \"name\": \"allow-nc-token-exchange\",
-          \"description\": \"Allow Nextcloud client to exchange tokens for OpenProject\",
-          \"enabled\": true,
-          \"conditions\": [
-            {
-              \"condition\": \"client-access-type\",
-              \"configuration\": { \"type\": [\"confidential\"] }
-            }
-          ],
-          \"profiles\": [\"allow-nc-token-exchange\"]
-        }
-      ]
-    }" || echo "Client policy may already exist or API differs"
-
-  echo "Creating client profile for token exchange..."
-  curl -sf -X PUT \
-    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/client-policies/profiles?include-global-profiles=false" \
-    -H "${AUTH_H}" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"profiles\": [
-        {
-          \"name\": \"allow-nc-token-exchange\",
-          \"description\": \"Allow token exchange for OpenProject\",
-          \"executors\": [
-            {
-              \"executor\": \"use-lightweight-access-token\",
-              \"configuration\": {}
-            }
-          ]
-        }
-      ]
-    }" || echo "Client profile may already exist or API differs"
-fi
+echo "Ensuring standard token exchange on Nextcloud and OpenProject clients..."
+ensure_standard_token_exchange "${NC_CLIENT_UUID}" "${KC_NEXTCLOUD_CLIENT_ID}"
+ensure_standard_token_exchange "${OP_CLIENT_UUID}" "${KC_OPENPROJECT_CLIENT_ID}"
 
 echo "Keycloak realm setup complete."
 # Keep sidecar alive so the pod does not restart the setup container forever.

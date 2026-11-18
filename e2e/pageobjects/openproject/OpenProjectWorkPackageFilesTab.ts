@@ -112,15 +112,28 @@ export class OpenProjectWorkPackageFilesTab extends OpenProjectBasePage {
   }
 
   getLinkedWorkPackageFileDownloadAction(fileName: string): Locator {
-    return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileDownloadAction');
+    const row = this.getLinkedWorkPackageFileItem(fileName);
+    // OP 18: accessible name is "Download <filename>"; href fallback for older builds.
+    return row
+      .getByRole('link', { name: /Download/i })
+      .or(row.locator(this.getCssLocatorValue('workPackageLinkedFileDownloadAction')))
+      .first();
   }
 
   getLinkedWorkPackageFileOpenLocationAction(fileName: string): Locator {
-    return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileOpenLocationAction');
+    const row = this.getLinkedWorkPackageFileItem(fileName);
+    return row
+      .getByRole('link', { name: /Open file in location|Open file location|Open containing folder|Show in folder/i })
+      .or(row.locator(this.getCssLocatorValue('workPackageLinkedFileOpenLocationAction')))
+      .first();
   }
 
   getLinkedWorkPackageFileRemoveLinkAction(fileName: string): Locator {
-    return this.getLinkedWorkPackageFileAction(fileName, 'workPackageLinkedFileRemoveLinkAction');
+    const row = this.getLinkedWorkPackageFileItem(fileName);
+    return row
+      .getByRole('button', { name: /Remove file link|Remove link|Unlink/i })
+      .or(row.locator(this.getCssLocatorValue('workPackageLinkedFileRemoveLinkAction')))
+      .first();
   }
 
   /**

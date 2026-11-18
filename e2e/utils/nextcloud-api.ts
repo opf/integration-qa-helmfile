@@ -1312,7 +1312,16 @@ export async function ensureNextcloudFolder(
     logInfo('Nextcloud folder already exists: %s', folderPath);
     return;
   }
-  await createFolder(ncHost, userId, folderPath, authorization);
+  // MKCOL is not recursive; create each segment so AMPF seeds work when only OpenProject/ exists.
+  const segments = folderPath.split('/').filter(Boolean);
+  let current = '';
+  for (const segment of segments) {
+    current = current ? `${current}/${segment}` : segment;
+    if (await fileExists(ncHost, userId, current, authorization)) {
+      continue;
+    }
+    await createFolder(ncHost, userId, current, authorization);
+  }
   logInfo('Created Nextcloud folder: %s', folderPath);
 }
 

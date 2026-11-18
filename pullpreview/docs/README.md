@@ -84,15 +84,16 @@ The preview VM pre-script installs **helmfile** and **kustomize** (required for 
 Before pushing PullPreview changes, run from the repository root:
 
 ```bash
-make validate-pullpreview-helmfile
+make check-preview-guards
 ```
 
-That runs [`validate-helmfile.sh`](../validate-helmfile.sh) (helmfile build + template for critical releases including `nextcloud-pvc`; XWiki when `kustomize` is on `PATH`).
+That runs the secret assert scripts plus [`validate-helmfile.sh`](../validate-helmfile.sh) (helmfile build + template for critical releases including `nextcloud-pvc`; XWiki when `kustomize` is on `PATH`). CI runs the same target via [`.github/workflows/preview-guards.yml`](../../.github/workflows/preview-guards.yml) on every PR.
 
 ## CI workflows
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
+| [`.github/workflows/preview-guards.yml`](../../.github/workflows/preview-guards.yml) | `pull_request` | Secret assert scripts + PullPreview helmfile validate (no deploy) |
 | [`.github/workflows/pullpreview.yml`](../../.github/workflows/pullpreview.yml) | PR label `pullpreview` | Full stack on PR previews; optional `with-xwiki` / `with-gitlab` and `auth-*` labels control the stack |
 | [`.github/workflows/e2e.yml`](../../.github/workflows/e2e.yml) | Manual `workflow_dispatch` | Deploy + Playwright |
 | [`.github/workflows/pullpreview-env.yml`](../../.github/workflows/pullpreview-env.yml) | Manual `workflow_dispatch` | Deploy-only PullPreview environment (no E2E / MCP tests) |
