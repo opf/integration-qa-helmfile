@@ -1,0 +1,31 @@
+name: Preview guards
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-guards-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Install helmfile and helm
+        run: |
+          set -euo pipefail
+          helm version
+          curl -fsSL -o /tmp/helmfile.tar.gz \
+            "https://github.com/helmfile/helmfile/releases/download/v0.171.0/helmfile_0.171.0_linux_amd64.tar.gz"
+          tar -xzf /tmp/helmfile.tar.gz -C /tmp helmfile
+          sudo install -m 0755 /tmp/helmfile /usr/local/bin/helmfile
+          helmfile version
+
+      - name: Check preview credential and helmfile guards
+        run: make check-preview-guards

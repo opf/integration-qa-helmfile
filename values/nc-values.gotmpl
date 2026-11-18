@@ -19,7 +19,11 @@ nextcloud:
   host: {{ .Values.nextcloud.host }}
   username: admin
   password: {{ .Values.adminPassword | default "admin" | quote }}
-  # shortcut: Apache Nextcloud image needs root + chown; harden when non-root is feasible.
+  # shortcut: Apache needs root + CAP_CHOWN; drop ALL when non-root is feasible.
+  securityContext:
+    allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
   # Tracing JIT (image default) corrupts the PHP heap after an app enable
   # (zend_mm_heap corrupted, then every Apache child segfaults with 502).
   phpConfigs:

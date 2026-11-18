@@ -65,13 +65,15 @@ Charset: `^[A-Za-z0-9_-]{16,}$` (safe for JSON / URLs / `xwiki.cfg`). Workflows 
 
 Machine secrets (DB passwords, OIDC client secrets, XWiki OAuth secret) are generated once per preview namespace into Secret `pullpreview-generated` and reused on redeploy.
 
+Rotating `PULLPREVIEW_USER_PASSWORD` or OIDC machine secrets is applied by the Keycloak realm-setup sidecar on pod restart. Rotating `PULLPREVIEW_ADMIN_PASSWORD` only seeds an empty Keycloak DB — delete the `kc-postgresql` PVC (or tear down the preview) when changing the Keycloak master admin password.
+
 **After this change merges, tear down every existing preview** so none keep the old default logins.
 
 ### Pod hardening exceptions
 
 | Component | Exception |
 | --- | --- |
-| Nextcloud (Apache) | Runs as root; `allowPrivilegeEscalation: false`, drop `ALL`, RuntimeDefault seccomp |
+| Nextcloud (Apache) | Root; `allowPrivilegeEscalation: false` + RuntimeDefault seccomp; no capability drop yet (entrypoint needs `CAP_CHOWN`) |
 | OpenProject / Keycloak / Postgres / Redis / memcached / Squash | Non-root + drop ALL + RuntimeDefault |
 | XWiki | Non-root uid 100 (Tomcat) |
 

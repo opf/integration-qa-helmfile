@@ -104,11 +104,18 @@ spec:
               mountPath: /tmp
             - name: data
               mountPath: /opt/keycloak/data
+          # Cold start: Quarkus build + Postgres migrate can exceed 4+ minutes under load.
+          startupProbe:
+            httpGet:
+              path: /realms/master
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /realms/master
               port: http
-            initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 30
@@ -116,10 +123,10 @@ spec:
             httpGet:
               path: /realms/master
               port: http
-            initialDelaySeconds: 90
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 6
+
           resources:
             requests:
               memory: 512Mi

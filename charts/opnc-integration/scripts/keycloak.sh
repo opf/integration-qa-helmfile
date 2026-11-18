@@ -1,8 +1,11 @@
-#!/bin/bash
-# Realm bootstrap for the Keycloak sidecar (main container runs start-dev).
+#!/bin/sh
+# Realm bootstrap for the Keycloak sidecar (main container runs start against Postgres).
 # Talks to Keycloak on localhost:8080 (shared pod network).
+# Creates realm/users/clients if missing, then always resets passwords and client secrets
+# from env so secret rotation works without wiping kc-postgresql.
+# Invoked as /bin/sh (setup image); keep POSIX — no bash arrays.
 
-set -euo pipefail
+set -eu
 
 : "${KC_BOOTSTRAP_ADMIN_USERNAME:=${KEYCLOAK_ADMIN:-admin}}"
 : "${KC_BOOTSTRAP_ADMIN_PASSWORD:=${KEYCLOAK_ADMIN_PASSWORD:-admin}}"
@@ -26,24 +29,36 @@ ADMIN_TOKEN="$(
     -d "client_id=admin-cli" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'
 )"
 if [ -z "${ADMIN_TOKEN}" ]; then
-  echo "Failed to obtain admin token" >&2
+  echo "Failed to obtain admin token (rotating PULLPREVIEW_ADMIN_PASSWORD requires wiping kc-postgresql PVC)" >&2
   exit 1
 fi
 
+AUTH_H="Authorization: Bearer ${ADMIN_TOKEN}"
+
 echo "Creating realm '${KC_REALM_NAME}'..."
 curl -sf -X POST "${KEYCLOAK_URL}/admin/realms" \
-  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "${AUTH_H}" \
   -H "Content-Type: application/json" \
   -d "{
     \"realm\": \"${KC_REALM_NAME}\",
     \"enabled\": true,
-    \"registrationEmailAsUsername\": true,
+    \"registrationEmailAsUsername\": false,
     \"loginWithEmailAllowed\": true,
     \"duplicateEmailsAllowed\": false,
     \"resetPasswordAllowed\": true,
     \"editUsernameAllowed\": true,
     \"bruteForceProtected\": true
 }" || echo "Realm may already exist (continuing)"
+
+# Existing DBs may still have email-as-username; E2E logs in as alice/brian.
+realm_body="$(curl -sf "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}" -H "${AUTH_H}" | tr -d '\n')"
+realm_body="$(printf '%s' "${realm_body}" \
+  | sed 's/"registrationEmailAsUsername":true/"registrationEmailAsUsername":false/')"
+curl -sf -X PUT "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}" \
+  -H "${AUTH_H}" \
+  -H "Content-Type: application/json" \
+  -d "${realm_body}"
+echo "Ensured registrationEmailAsUsername=false"
 
 COMMON_USER_ATTRIBUTES='
 "emailVerified": true,
@@ -58,7 +73,7 @@ COMMON_USER_ATTRIBUTES='
 
 echo "Creating users..."
 curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
-  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "${AUTH_H}" \
   -H "Content-Type: application/json" \
   -d "{
     \"username\": \"alice\",
@@ -69,7 +84,7 @@ curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
 }" || echo "User alice may already exist"
 
 curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
-  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "${AUTH_H}" \
   -H "Content-Type: application/json" \
   -d "{
     \"username\": \"brian\",
@@ -79,9 +94,75 @@ curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
     ${COMMON_USER_ATTRIBUTES}
 }" || echo "User brian may already exist"
 
+# First "id":"..." only (greedy .* would take a nested/last id and 404 on PUT).
+json_first_id() {
+  tr -d '\n' | sed 's/"id":"/\n/' | sed -n '2s/\([^"]*\)".*/\1/p'
+}
+
+reset_user_password() {
+  username="$1"
+  email="$2"
+  first_name="$3"
+  last_name="$4"
+  # registrationEmailAsUsername realms may store email as username; try both.
+  user_id="$(
+    curl -sf -G "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
+      -H "${AUTH_H}" \
+      --data-urlencode "username=${username}" --data-urlencode "exact=true" \
+      | json_first_id
+  )"
+  if [ -z "${user_id}" ]; then
+    user_id="$(
+      curl -sf -G "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
+        -H "${AUTH_H}" \
+        --data-urlencode "email=${email}" --data-urlencode "exact=true" \
+        | json_first_id
+    )"
+  fi
+  if [ -z "${user_id}" ]; then
+    user_id="$(
+      curl -sf -G "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
+        -H "${AUTH_H}" \
+        --data-urlencode "search=${email}" --data-urlencode "max=1" \
+        | json_first_id
+    )"
+  fi
+  if [ -z "${user_id}" ]; then
+    echo "Could not resolve user id for ${username} (${email})" >&2
+    return 1
+  fi
+  # Force short username when an older realm stored the email as username.
+  curl -sf -X PUT \
+    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users/${user_id}" \
+    -H "${AUTH_H}" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"username\": \"${username}\",
+      \"email\": \"${email}\",
+      \"firstName\": \"${first_name}\",
+      \"lastName\": \"${last_name}\",
+      \"emailVerified\": true,
+      \"enabled\": true
+    }"
+  curl -sf -X PUT \
+    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users/${user_id}/reset-password" \
+    -H "${AUTH_H}" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"type\": \"password\",
+      \"value\": \"${KC_REALM_USER_PASSWORD}\",
+      \"temporary\": false
+    }"
+  echo "Reset password for ${username}"
+}
+
+echo "Syncing realm user passwords from env..."
+reset_user_password alice alice@example.com Alice Hansen
+reset_user_password brian brian@example.com Brian Murphy
+
 echo "Creating clients..."
 curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
-  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "${AUTH_H}" \
   -H "Content-Type: application/json" \
   -d "{
     \"protocol\": \"openid-connect\",
@@ -107,7 +188,7 @@ curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
 }" || echo "Nextcloud client may already exist"
 
 curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
-  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "${AUTH_H}" \
   -H "Content-Type: application/json" \
   -d "{
     \"protocol\": \"openid-connect\",
@@ -132,36 +213,74 @@ curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
     }
 }" || echo "OpenProject client may already exist"
 
-# Token exchange for Nextcloud → OpenProject SSO (Keycloak 26+: client policies, not feature flag).
-OP_CLIENT_UUID="$(
+resolve_client_uuid() {
+  client_id="$1"
   curl -sf -G "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
-    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
-    --data-urlencode "clientId=${KC_OPENPROJECT_CLIENT_ID}" \
-    | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1
-)"
-NC_CLIENT_UUID="$(
-  curl -sf -G "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
-    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
-    --data-urlencode "clientId=${KC_NEXTCLOUD_CLIENT_ID}" \
-    | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1
-)"
+    -H "${AUTH_H}" \
+    --data-urlencode "clientId=${client_id}" \
+    | json_first_id
+}
+
+set_client_secret() {
+  client_uuid="$1"
+  secret="$2"
+  label="$3"
+  body="$(
+    curl -sf \
+      "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}" \
+      -H "${AUTH_H}" | tr -d '\n'
+  )"
+  # Drop any existing secret field (string or null), then inject desired value.
+  body="$(printf '%s' "${body}" \
+    | sed -e 's/,"secret":"[^"]*"//g' -e 's/"secret":"[^"]*",//g' \
+          -e 's/,"secret":null//g' -e 's/"secret":null,//g')"
+  body="$(printf '%s' "${body}" | sed "s/}$/,\"secret\":\"${secret}\"}/")"
+  code="$(
+    curl -sS -o /tmp/kc-client-put.out -w '%{http_code}' -X PUT \
+      "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}" \
+      -H "${AUTH_H}" \
+      -H "Content-Type: application/json" \
+      -d "${body}"
+  )"
+  if [ "${code}" != "204" ] && [ "${code}" != "200" ]; then
+    echo "Failed to sync client secret for ${label} (HTTP ${code}): $(cat /tmp/kc-client-put.out)" >&2
+    return 1
+  fi
+  echo "Synced client secret for ${label}"
+}
+
+OP_CLIENT_UUID="$(resolve_client_uuid "${KC_OPENPROJECT_CLIENT_ID}")"
+NC_CLIENT_UUID="$(resolve_client_uuid "${KC_NEXTCLOUD_CLIENT_ID}")"
+
+if [ -n "${NC_CLIENT_UUID}" ]; then
+  set_client_secret "${NC_CLIENT_UUID}" "${KC_NEXTCLOUD_CLIENT_SECRET}" "${KC_NEXTCLOUD_CLIENT_ID}"
+else
+  echo "Missing Nextcloud client UUID" >&2
+  exit 1
+fi
+if [ -n "${OP_CLIENT_UUID}" ]; then
+  set_client_secret "${OP_CLIENT_UUID}" "${KC_OPENPROJECT_CLIENT_SECRET}" "${KC_OPENPROJECT_CLIENT_ID}"
+else
+  echo "Missing OpenProject client UUID" >&2
+  exit 1
+fi
 
 if [ -n "${OP_CLIENT_UUID}" ] && [ -n "${NC_CLIENT_UUID}" ]; then
   echo "Enabling standard token exchange (OpenProject client)..."
   curl -sf -X PUT \
     "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${OP_CLIENT_UUID}" \
-    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "${AUTH_H}" \
     -H "Content-Type: application/json" \
     -d "$(curl -sf \
       "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${OP_CLIENT_UUID}" \
-      -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+      -H "${AUTH_H}" \
       | sed 's/"attributes":{/"attributes":{"standard.token.exchange.enabled":"true",/')" \
     || echo "Could not enable standard.token.exchange on OpenProject client"
 
   echo "Creating client policy for token exchange (Nextcloud → OpenProject)..."
   curl -sf -X PUT \
     "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/client-policies/policies" \
-    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "${AUTH_H}" \
     -H "Content-Type: application/json" \
     -d "{
       \"policies\": [
@@ -172,7 +291,7 @@ if [ -n "${OP_CLIENT_UUID}" ] && [ -n "${NC_CLIENT_UUID}" ]; then
           \"conditions\": [
             {
               \"condition\": \"client-access-type\",
-              \"configuration\": { \"type\": \"confidential\" }
+              \"configuration\": { \"type\": [\"confidential\"] }
             }
           ],
           \"profiles\": [\"allow-nc-token-exchange\"]
@@ -183,7 +302,7 @@ if [ -n "${OP_CLIENT_UUID}" ] && [ -n "${NC_CLIENT_UUID}" ]; then
   echo "Creating client profile for token exchange..."
   curl -sf -X PUT \
     "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/client-policies/profiles?include-global-profiles=false" \
-    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "${AUTH_H}" \
     -H "Content-Type: application/json" \
     -d "{
       \"profiles\": [
@@ -199,8 +318,6 @@ if [ -n "${OP_CLIENT_UUID}" ] && [ -n "${NC_CLIENT_UUID}" ]; then
         }
       ]
     }" || echo "Client profile may already exist or API differs"
-else
-  echo "Skipping token-exchange policy (missing client UUIDs)"
 fi
 
 echo "Keycloak realm setup complete."
