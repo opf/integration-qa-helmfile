@@ -259,6 +259,9 @@ jobs:
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
           SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -270,6 +273,7 @@ jobs:
             echo "::error::Secret HETZNER_CA_KEY is not set or empty."
             exit 1
           fi
+          .github/scripts/require-preview-secrets.sh
 
           grep=""
           case "${IN_SUITE}" in
@@ -335,6 +339,9 @@ jobs:
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_xwiki_extension_version }}
           OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.openproject_wiki_enhancements }}
           XWIKI_ENABLED: ${{ steps.resolve.outputs.xwiki_enabled }}
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
           GITLAB_ENABLED: ${{ steps.resolve.outputs.gitlab_enabled }}
           GITLAB_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_gitlab_version }}
           STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
@@ -538,6 +545,18 @@ jobs:
       GITLAB_HOST: ${{ needs.deploy.outputs.gitlab_host }}
       OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
       E2E_ENV: pullpreview
+      E2E_ADMIN_PASS: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+      E2E_USER_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_OP_ADMIN_PASS: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+      E2E_NC_ADMIN_PASS: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+      E2E_KC_ADMIN_PASS: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+      E2E_ALICE_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_BRIAN_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_OLIVER_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_BOB_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_FILES_AUTH_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_OP_NC_SERVICE_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      MCP_OAUTH_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3

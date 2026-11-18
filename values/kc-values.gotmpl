@@ -1,23 +1,14 @@
-global:
-  security:
-    allowInsecureImages: true
 fullnameOverride: {{ .Values.keycloak.fullnameOverride }}
-service:
-  ports:
-    http: 8080
-image:
-  tag: {{ .Values.keycloak.version | quote  }}
-  repository: bitnamilegacy/keycloak
-command: ['/scripts/entrypoint.sh']
-usePasswordFiles: false
 auth:
   adminUser: admin
-  adminPassword: admin
+  adminPassword: {{ .Values.adminPassword | default "admin" | quote }}
 extraEnvVars:
   - name: KEYCLOAK_HOSTNAME
     value: {{ .Values.keycloak.host }}
   - name: KC_REALM_NAME
     value: {{ .Values.keycloak.realm.name }}
+  - name: KC_REALM_USER_PASSWORD
+    value: {{ .Values.userPassword | default "1234" | quote }}
   - name: KC_NEXTCLOUD_CLIENT_ID
     value: {{ .Values.integration.oidcClients.nextcloud.id }}
   - name: KC_NEXTCLOUD_CLIENT_SECRET
@@ -35,18 +26,4 @@ extraVolumes:
     configMap:
       name: kc-entry-configmap
       defaultMode: 0755
-extraVolumeMounts:
-  - name: entrypoint
-    mountPath: /scripts/entrypoint.sh
-    subPath: entrypoint.sh
-cache:
-  enabled: false
-postgresql:
-  fullnameOverride: {{ .Values.keycloak.postgresql.host }}
-  image:
-    repository: bitnamilegacy/postgresql
-  primary:
-    podLabels:
-      app.kubernetes.io/name: {{ .Values.keycloak.postgresql.host }}
-    persistence:
-      enabled: false
+extraVolumeMounts: []

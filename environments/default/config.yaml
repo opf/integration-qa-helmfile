@@ -1,5 +1,9 @@
 previewMode: false
 
+# Local-only defaults. PullPreview overrides via GitHub secrets (never printed).
+adminPassword: admin
+userPassword: '1234'
+
 integration:
   ############################################
   # Integration setup                        #
@@ -125,6 +129,7 @@ nextcloud:
     password: nextcloud
 
 keycloak:
+  enabled: true
   version: '26.2.5'
   fullnameOverride: keycloak
   host: keycloak.test
@@ -151,6 +156,8 @@ xwiki:
   enabled: true
   host: xwiki.test
   version: '17.10.10'
+  postgresql:
+    password: xwiki
   extensions:
     openproject:
       version: '1.2.0'
@@ -159,7 +166,8 @@ gitlab:
   enabled: false
   host: gitlab.test
   version: v19.4.1
-  initialRootPassword: r00t#dev
+  # Local default matches adminPassword; PullPreview overrides via secrets.
+  initialRootPassword: admin
   postgresql:
     password: gitlab
   redis:

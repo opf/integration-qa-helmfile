@@ -1,7 +1,10 @@
 {{- $openprojectXwiki := .Values.openproject.xwiki | default dict -}}
 {{- $mcp := dig "mcp" dict .Values -}}
+{{- $adminPassword := .Values.adminPassword | default "admin" -}}
+{{- $standalone := .Values.openproject.standalone | default false -}}
 integrationSetupMethod: {{ .Values.integration.setupMethod }}
 previewMode: {{ dig "previewMode" false .Values }}
+adminPassword: {{ $adminPassword | quote }}
 
 mcp:
   enabled: {{ dig "enabled" true $mcp }}
@@ -19,6 +22,40 @@ xwikiHost: {{ .Values.xwiki.host }}
 gitlabHost: {{ .Values.gitlab.host }}
 squashtmHost: {{ .Values.squashtm.host }}
 
+databases:
+  - name: {{ .Values.openproject.postgresql.host | quote }}
+    username: {{ .Values.openproject.postgresql.username | quote }}
+    database: {{ .Values.openproject.postgresql.database | quote }}{{ if eq .Values.openproject.railsEnv "development" }}_dev{{ end }}
+    password: {{ .Values.openproject.postgresql.password | quote }}
+    size: 8Gi
+    memoryRequest: 256Mi
+    memoryLimit: 1Gi
+  {{- if not $standalone }}
+  - name: {{ .Values.nextcloud.postgresql.host | quote }}
+    username: {{ .Values.nextcloud.postgresql.username | quote }}
+    database: {{ .Values.nextcloud.postgresql.database | quote }}
+    password: {{ .Values.nextcloud.postgresql.password | quote }}
+    size: 8Gi
+  {{- end }}
+  {{- if .Values.gitlab.enabled }}
+  - name: gitlab-postgresql
+    username: gitlab
+    database: gitlab
+    password: {{ .Values.gitlab.postgresql.password | quote }}
+    size: 8Gi
+    memoryRequest: 512Mi
+    memoryLimit: 2Gi
+  {{- end }}
+  {{- if .Values.xwiki.enabled }}
+  - name: xwiki-postgresql
+    username: xwiki
+    database: xwiki
+    password: {{ dig "postgresql" "password" "xwiki" .Values.xwiki | quote }}
+    size: 8Gi
+    memoryRequest: 256Mi
+    memoryLimit: 1Gi
+  {{- end }}
+
 nextcloud:
   gitSourceBranch: {{ .Values.nextcloud.gitSourceBranch | quote }}
   enableApps:
@@ -29,7 +66,7 @@ openproject:
   gitSourceBranch: {{ .Values.openproject.gitSourceBranch | quote }}
   localSourcePath: {{ .Values.openproject.localSourcePath | quote }}
   customSourceMountPath: {{ .Values.openproject.customSourceMountPath | quote }}
-  standalone: {{ .Values.openproject.standalone | default false }}
+  standalone: {{ $standalone }}
   enableTestSetup: {{ .Values.openproject.enableTestSetup | default false }}
   railsEnv: {{ .Values.openproject.railsEnv | quote }}
   xwiki:

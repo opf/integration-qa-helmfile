@@ -30,7 +30,8 @@ bob.lastname = "AI"
 bob.mail = "bob.ai@example.net"
 bob.admin = true
 bob.status = User.statuses[:active]
-bob.password = "Password123!"
+# Random unused password: MCP auth uses the OAuth token, not this login.
+bob.password = SecureRandom.alphanumeric(32)
 bob.force_password_change = false
 bob.save!
 puts "[INFO] Provisioned user 'Bob_AI' (ID: #{bob.id}, admin: #{bob.admin?})"
@@ -70,7 +71,9 @@ end
 oauth_app.update!(scopes: "mcp") unless oauth_app.scopes.to_s.split.include?("mcp")
 puts "[INFO] Provisioned Doorkeeper application 'MCP E2E' (ID: #{oauth_app.id})"
 
-raw_oauth_token = ENV.fetch("MCP_OAUTH_TOKEN", "bob_ai_mcp_test_token_1234567890")
+raw_oauth_token = ENV.fetch("MCP_OAUTH_TOKEN") do
+  raise "MCP_OAUTH_TOKEN is required (set mcp.oauthToken / PULLPREVIEW_MCP_TOKEN)"
+end
 oauth_token = Doorkeeper::AccessToken.find_or_initialize_by(resource_owner_id: bob.id, scopes: "mcp")
 oauth_token.application_id = oauth_app.id
 oauth_token.expires_in = 86400 * 365

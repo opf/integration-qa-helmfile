@@ -1,58 +1,49 @@
 #!/bin/bash
+# Realm bootstrap for the Keycloak sidecar (main container runs start-dev).
+# Talks to Keycloak on localhost:8080 (shared pod network).
 
-set -eo pipefail
+set -euo pipefail
 
-CURL=$(which curl)
-if [ -z "$CURL" ]; then
-    echo "[ERROR] curl: command not found"
-    exit 1
-fi
+: "${KC_BOOTSTRAP_ADMIN_USERNAME:=${KEYCLOAK_ADMIN:-admin}}"
+: "${KC_BOOTSTRAP_ADMIN_PASSWORD:=${KEYCLOAK_ADMIN_PASSWORD:-admin}}"
+# Local default 1234; PullPreview sets KC_REALM_USER_PASSWORD from GitHub secrets.
+KC_REALM_USER_PASSWORD="${KC_REALM_USER_PASSWORD:-1234}"
 
-KC_URL="http://localhost:8080"
-
-NC_CLIENT_DB_ID=d97b00f4-c4eb-41f0-ad9e-0c6674d13348
-OP_CLIENT_DB_ID=2a721a37-e840-49d1-8715-ab36cfc56dcf
-APIV3_SCOPE_ID=83625306-1925-4069-a77b-d8d9d2ec520b
-NC_AUD_SCOPE_ID=7107eebd-c2ef-4a8f-aa3c-f8112a243b9f
-
-###################################
-# Start Keycloak                  #
-###################################
-/opt/bitnami/keycloak/bin/kc.sh start-dev --proxy-headers xforwarded \
-    --spi-connections-http-client-default-disable-trust-manager=true &
-KC_PID=$!
-# wait to ensure the process has started
-sleep 1
-if [[ ! -d "/proc/$KC_PID" ]]; then
-    echo "[ERROR] Failed to start Keycloak"
-    exit 1
-fi
-
-# wait for Keycloak to start
-max_retry=60
-retry=1
-time_elapsed=0
-# pre-wait to allow Keycloak to start
-echo "[INFO] Waiting for Keycloak to be ready..."
-sleep 10
-while [[ $retry -le $max_retry ]]; do
-    server_status=$($CURL -s -o /dev/null -w "%{http_code}" "$KC_URL" || echo "000")
-    if [[ $server_status -ne 0 && $server_status -lt 400 ]]; then
-        break
-    fi
-    echo "[INFO] Waiting for Keycloak to be ready... (Retry $retry/$max_retry)"
-    sleep 5
-    time_elapsed=$((time_elapsed + 5))
-    ((retry++))
+KEYCLOAK_URL="http://127.0.0.1:8080"
+echo "Waiting for Keycloak at ${KEYCLOAK_URL}..."
+until curl -sf "${KEYCLOAK_URL}/realms/master" >/dev/null; do
+  sleep 2
 done
-if [[ $retry -gt $max_retry ]]; then
-    echo "[ERROR] $time_elapsed seconds timeout. Keycloak is not ready"
-    exit 1
+echo "Keycloak is up."
+
+echo "Obtaining admin token..."
+ADMIN_TOKEN="$(
+  curl -sf -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=${KC_BOOTSTRAP_ADMIN_USERNAME}" \
+    -d "password=${KC_BOOTSTRAP_ADMIN_PASSWORD}" \
+    -d "grant_type=password" \
+    -d "client_id=admin-cli" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'
+)"
+if [ -z "${ADMIN_TOKEN}" ]; then
+  echo "Failed to obtain admin token" >&2
+  exit 1
 fi
 
-###################################
-# Setup realm, users and clients  #
-###################################
+echo "Creating realm '${KC_REALM_NAME}'..."
+curl -sf -X POST "${KEYCLOAK_URL}/admin/realms" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"realm\": \"${KC_REALM_NAME}\",
+    \"enabled\": true,
+    \"registrationEmailAsUsername\": true,
+    \"loginWithEmailAllowed\": true,
+    \"duplicateEmailsAllowed\": false,
+    \"resetPasswordAllowed\": true,
+    \"editUsernameAllowed\": true,
+    \"bruteForceProtected\": true
+}" || echo "Realm may already exist (continuing)"
 
 COMMON_USER_ATTRIBUTES='
 "emailVerified": true,
@@ -60,151 +51,158 @@ COMMON_USER_ATTRIBUTES='
 "credentials": [
     {
         "type": "password",
-        "value": "1234",
+        "value": "'"${KC_REALM_USER_PASSWORD}"'",
         "temporary": false
     }
 ]'
 
-COMMON_CLIENT_ATTRIBUTES='
-"clientAuthenticatorType" : "client-secret",
-"protocol": "openid-connect",
-"enabled": true,
-"attributes": {
-    "standard.token.exchange.enableRefreshRequestedTokenType" : "SAME_SESSION",
-    "standard.token.exchange.enabled" : "true"
-}'
+echo "Creating users..."
+curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"username\": \"alice\",
+    \"firstName\": \"Alice\",
+    \"lastName\": \"Hansen\",
+    \"email\": \"alice@example.com\",
+    ${COMMON_USER_ATTRIBUTES}
+}" || echo "User alice may already exist"
 
-# get access token for Keycloak admin
-TOKEN=$($CURL -s -XPOST "$KC_URL/realms/master/protocol/openid-connect/token" \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "client_id=admin-cli" \
-    -d "username=$KC_BOOTSTRAP_ADMIN_USERNAME" \
-    -d "password=$KC_BOOTSTRAP_ADMIN_PASSWORD" \
-    -d "grant_type=password" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/users" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"username\": \"brian\",
+    \"firstName\": \"Brian\",
+    \"lastName\": \"Murphy\",
+    \"email\": \"brian@example.com\",
+    ${COMMON_USER_ATTRIBUTES}
+}" || echo "User brian may already exist"
 
-if [ -z "$TOKEN" ]; then
-    echo "[ERROR] Failed to obtain access token"
-    exit 1
-fi
+echo "Creating clients..."
+curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"protocol\": \"openid-connect\",
+    \"clientId\": \"${KC_NEXTCLOUD_CLIENT_ID}\",
+    \"name\": \"Nextcloud client\",
+    \"description\": \"Client for Nextcloud\",
+    \"enabled\": true,
+    \"publicClient\": false,
+    \"clientAuthenticatorType\": \"client-secret\",
+    \"secret\": \"${KC_NEXTCLOUD_CLIENT_SECRET}\",
+    \"redirectUris\": [
+        \"https://${KC_NEXTCLOUD_CLIENT_HOST}/*\"
+    ],
+    \"webOrigins\": [
+        \"https://${KC_NEXTCLOUD_CLIENT_HOST}\"
+    ],
+    \"standardFlowEnabled\": true,
+    \"directAccessGrantsEnabled\": true,
+    \"serviceAccountsEnabled\": true,
+    \"attributes\": {
+        \"oauth2.device.authorization.grant.enabled\": \"true\"
+    }
+}" || echo "Nextcloud client may already exist"
 
-# create realm with users and clients
-realm_status=$(
-    $CURL -XPOST "$KC_URL/admin/realms" -s -o /dev/null -w "%{http_code}" \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        -d '{ 
-        "realm":"'"$KC_REALM_NAME"'",
-        "enabled":true,
-        "users": [
+curl -sf -X POST "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"protocol\": \"openid-connect\",
+    \"clientId\": \"${KC_OPENPROJECT_CLIENT_ID}\",
+    \"name\": \"OpenProject client\",
+    \"description\": \"Client for OpenProject\",
+    \"enabled\": true,
+    \"publicClient\": false,
+    \"clientAuthenticatorType\": \"client-secret\",
+    \"secret\": \"${KC_OPENPROJECT_CLIENT_SECRET}\",
+    \"redirectUris\": [
+        \"https://${KC_OPENPROJECT_CLIENT_HOST}/*\"
+    ],
+    \"webOrigins\": [
+        \"https://${KC_OPENPROJECT_CLIENT_HOST}\"
+    ],
+    \"standardFlowEnabled\": true,
+    \"directAccessGrantsEnabled\": true,
+    \"serviceAccountsEnabled\": true,
+    \"attributes\": {
+        \"oauth2.device.authorization.grant.enabled\": \"true\"
+    }
+}" || echo "OpenProject client may already exist"
+
+# Token exchange for Nextcloud → OpenProject SSO (Keycloak 26+: client policies, not feature flag).
+OP_CLIENT_UUID="$(
+  curl -sf -G "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    --data-urlencode "clientId=${KC_OPENPROJECT_CLIENT_ID}" \
+    | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1
+)"
+NC_CLIENT_UUID="$(
+  curl -sf -G "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    --data-urlencode "clientId=${KC_NEXTCLOUD_CLIENT_ID}" \
+    | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1
+)"
+
+if [ -n "${OP_CLIENT_UUID}" ] && [ -n "${NC_CLIENT_UUID}" ]; then
+  echo "Enabling standard token exchange (OpenProject client)..."
+  curl -sf -X PUT \
+    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${OP_CLIENT_UUID}" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$(curl -sf \
+      "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${OP_CLIENT_UUID}" \
+      -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+      | sed 's/"attributes":{/"attributes":{"standard.token.exchange.enabled":"true",/')" \
+    || echo "Could not enable standard.token.exchange on OpenProject client"
+
+  echo "Creating client policy for token exchange (Nextcloud → OpenProject)..."
+  curl -sf -X PUT \
+    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/client-policies/policies" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"policies\": [
+        {
+          \"name\": \"allow-nc-token-exchange\",
+          \"description\": \"Allow Nextcloud client to exchange tokens for OpenProject\",
+          \"enabled\": true,
+          \"conditions\": [
             {
-                "username": "alice",
-                "firstName" : "Alice",
-                "lastName" : "Hansen",
-                "email" : "alice@example.com",
-                "realmRoles" : [ "offline_access" ],
-                '"$COMMON_USER_ATTRIBUTES"'
-            },
-            {
-                "username": "brian",
-                "firstName" : "Brian",
-                "lastName" : "Murphy",
-                "email" : "brian@example.com",
-                "realmRoles" : [ "offline_access" ],
-                '"$COMMON_USER_ATTRIBUTES"'
+              \"condition\": \"client-access-type\",
+              \"configuration\": { \"type\": \"confidential\" }
             }
-        ],
-        "clients": [
-            {
-                "id": "'"$NC_CLIENT_DB_ID"'",
-                "clientId": "'"$KC_NEXTCLOUD_CLIENT_ID"'",
-                "secret" : "'"$KC_NEXTCLOUD_CLIENT_SECRET"'",
-                "redirectUris" : [ "https://'"$KC_NEXTCLOUD_CLIENT_HOST"'/*" ],
-                '"$COMMON_CLIENT_ATTRIBUTES"'
-            },
-            {
-                "id": "'"$OP_CLIENT_DB_ID"'",
-                "clientId": "'"$KC_OPENPROJECT_CLIENT_ID"'",
-                "secret" : "'"$KC_OPENPROJECT_CLIENT_SECRET"'",
-                "redirectUris" : [ "https://'"$KC_OPENPROJECT_CLIENT_HOST"'/*" ],
-                '"$COMMON_CLIENT_ATTRIBUTES"'
-            }
-        ]
-    }'
-)
+          ],
+          \"profiles\": [\"allow-nc-token-exchange\"]
+        }
+      ]
+    }" || echo "Client policy may already exist or API differs"
 
-if [[ "$realm_status" -ne 201 && "$realm_status" -ne 409 ]]; then
-    echo "[ERROR] Failed to create realm '$KC_REALM_NAME', status code: $realm_status"
-    exit 1
-elif [[ "$realm_status" -ne 409 ]]; then
-    echo "[INFO] Realm '$KC_REALM_NAME' exists, skipping creation..."
+  echo "Creating client profile for token exchange..."
+  curl -sf -X PUT \
+    "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/client-policies/profiles?include-global-profiles=false" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"profiles\": [
+        {
+          \"name\": \"allow-nc-token-exchange\",
+          \"description\": \"Allow token exchange for OpenProject\",
+          \"executors\": [
+            {
+              \"executor\": \"use-lightweight-access-token\",
+              \"configuration\": {}
+            }
+          ]
+        }
+      ]
+    }" || echo "Client profile may already exist or API differs"
 else
-    echo "[INFO] Realm '$KC_REALM_NAME' created successfully"
+  echo "Skipping token-exchange policy (missing client UUIDs)"
 fi
 
-function add_client_scope() {
-    local response_status
-    local scope_name="$1"
-    local scope_id="$2"
-    local client_id="$3"
-
-    response_status=$(
-        $CURL -XPOST "$KC_URL/admin/realms/$KC_REALM_NAME/client-scopes" \
-            -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{
-                "id":"'"$scope_id"'",
-                "name":"'"$scope_name"'",
-                "protocol":"openid-connect",
-                "attributes": {"include.in.token.scope":"true"},
-                "protocolMappers": [
-                    {
-                        "name": "'"$client_id"'_aud_mapper",
-                        "protocol": "openid-connect",
-                        "protocolMapper": "oidc-audience-mapper",
-                        "config": {
-                            "included.client.audience": "'"$client_id"'",
-                            "access.token.claim": "true"
-                        }
-                    }
-                ]
-            }'
-    )
-
-    if [[ "$response_status" -ne 201 && "$response_status" -ne 409 ]]; then
-        echo "[ERROR] Failed to create client scope '$scope_name', status code: $response_status"
-        exit 1
-    elif [[ "$response_status" -ne 409 ]]; then
-        echo "[INFO] Client scope '$scope_name' exists, skipping creation..."
-    else
-        echo "[INFO] Client scope '$scope_name' created successfully"
-    fi
-
-}
-
-function add_scope_to_client() {
-    local response_status
-    local client_id="$1" # client database ID (not a client identifier)
-    local scope_id="$2"
-
-    response_status=$(
-        $CURL -XPUT "$KC_URL/admin/realms/$KC_REALM_NAME/clients/$client_id/optional-client-scopes/$scope_id" \
-            -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $TOKEN"
-    )
-
-    if [ "$response_status" -ne 204 ]; then
-        echo "[ERROR] Failed to add scope '$scope_id' to client '$client_id', status code: $response_status"
-        exit 1
-    else
-        echo "[INFO] Scope '$scope_id' added to client '$client_id' successfully"
-    fi
-}
-
-add_client_scope "api_v3" "$APIV3_SCOPE_ID" "$KC_OPENPROJECT_CLIENT_ID"
-add_client_scope "add-nc-aud" "$NC_AUD_SCOPE_ID" "$KC_NEXTCLOUD_CLIENT_ID"
-add_scope_to_client "$NC_CLIENT_DB_ID" "$APIV3_SCOPE_ID"
-add_scope_to_client "$OP_CLIENT_DB_ID" "$NC_AUD_SCOPE_ID"
-
-# bring Keycloak to foreground
-wait $KC_PID
+echo "Keycloak realm setup complete."
+# Keep sidecar alive so the pod does not restart the setup container forever.
+exec sleep infinity

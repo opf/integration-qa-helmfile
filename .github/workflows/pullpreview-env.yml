@@ -245,6 +245,9 @@ jobs:
           SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
           SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
           SECRET_SQUASHTM_ADMIN_PASSWORD: ${{ secrets.SQUASHTM_ADMIN_PASSWORD }}
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -256,6 +259,7 @@ jobs:
             echo "::error::Secret HETZNER_CA_KEY is not set or empty."
             exit 1
           fi
+          .github/scripts/require-preview-secrets.sh
           if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" && -z "${SECRET_SQUASHTM_ADMIN_PASSWORD:-}" ]]; then
             echo "::error::Secret SQUASHTM_ADMIN_PASSWORD is required when Squash TM is enabled."
             exit 1
@@ -306,6 +310,9 @@ jobs:
           SQUASHTM_ENABLED: ${{ steps.resolve.outputs.squashtm_enabled }}
           SQUASHTM_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_squashtm_version }}
           SQUASHTM_ADMIN_PASSWORD: ${{ secrets.SQUASHTM_ADMIN_PASSWORD }}
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
           STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
 
       - name: Deploy preview summary

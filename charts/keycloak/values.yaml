@@ -1,0 +1,24 @@
+fullnameOverride: keycloak
+
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: "26.2.5"
+  pullPolicy: IfNotPresent
+
+# curl-capable image for realm bootstrap (official Keycloak has no curl).
+setupImage:
+  repository: curlimages/curl
+  tag: "8.12.1"
+  pullPolicy: IfNotPresent
+
+auth:
+  adminUser: admin
+  adminPassword: admin
+
+service:
+  ports:
+    http: 8080
+
+extraEnvVars: []
+extraVolumes: []
+extraVolumeMounts: []

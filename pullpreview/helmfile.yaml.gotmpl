@@ -69,8 +69,7 @@ releases:
       - opnc-integration
 
   - name: keycloak
-    chart: bitnami/keycloak
-    version: ~24.7.5
+    chart: ../charts/keycloak
     timeout: 900
     installed: {{ .Values.keycloak.enabled }}
     values:

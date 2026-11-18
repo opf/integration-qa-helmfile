@@ -1,6 +1,7 @@
 fullnameOverride: xwiki
 image:
-  tag: {{ .Values.xwiki.version | default "latest" | quote }}
+  # Postgres variant (replaces Bitnami MySQL dependency).
+  tag: {{ printf "%s-postgres-tomcat" (.Values.xwiki.version | default "17.10.10") | quote }}
 probes:
   liveness:
     enabled: false
@@ -22,7 +23,7 @@ customConfigs:
 customConfigsSecrets:
   xwiki.cfg:
     xwiki.superadminpassword:
-      value: admin
+      value: {{ .Values.adminPassword | default "admin" | quote }}
 extraEnvVars:
   - name: EXTENSION_OPENPROJECT_VERSION
     value: {{ .Values.xwiki.extensions.openproject.version | default "1.2.0" | quote }}
@@ -42,4 +43,28 @@ extraVolumeMounts:
     mountPath: /entrypoint.sh
     subPath: entrypoint.sh
 mysql:
+  enabled: false
+postgresql:
+  enabled: false
+externalDB:
+  type: postgresql
+  host: xwiki-postgresql
+  user: xwiki
+  database: xwiki
+  password: {{ dig "postgresql" "password" "xwiki" .Values.xwiki | quote }}
+securityContext:
   enabled: true
+  fsGroup: 100
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  enabled: true
+  runAsUser: 100
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault

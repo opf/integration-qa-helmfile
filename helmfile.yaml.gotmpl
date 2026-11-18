@@ -98,9 +98,8 @@ releases:
       - nextcloud-pvc
       {{- end }}
   - name: keycloak
-    chart: bitnami/keycloak
-    version: ~24.7.5
-    installed: {{ not .Values.openproject.standalone }}
+    chart: ./charts/keycloak
+    installed: {{ and (not .Values.openproject.standalone) (ne (dig "keycloak" "enabled" true .Values) false) }}
     values:
       - values/kc-values.gotmpl
     needs:

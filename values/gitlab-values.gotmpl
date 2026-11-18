@@ -2,6 +2,22 @@ gitlab:
   global:
     hosts:
       domain: {{ .Values.gitlab.host }}
+      https: false
+    initialRootPassword:
+      secret: gitlab-root-password
+      key: password
+    redis:
+      host: gitlab-redis-master
+      auth:
+        secret: gitlab-redis-password
+        key: password
+    psql:
+      host: gitlab-postgresql
+      username: gitlab
+      database: gitlab
+      password:
+        secret: gitlab-psql-password
+        key: password
     image:
       tag: {{ .Values.gitlab.version }}
   gitlab:
@@ -20,12 +36,3 @@ gitlab:
     migrations:
       image:
         tag: {{ .Values.gitlab.version }}
-postgresql:
-  global:
-    postgresql:
-      auth:
-        password: {{ .Values.gitlab.postgresql.password }}
-redis:
-  global:
-    redis:
-      password: {{ .Values.gitlab.redis.password }}

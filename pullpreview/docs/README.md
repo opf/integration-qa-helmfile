@@ -48,7 +48,32 @@ PullPreview still uses [`charts/pullpreview-stack`](../../charts/pullpreview-sta
 
 DAG sync runs on the preview VM via [`helmfile-sync.sh`](../helmfile-sync.sh) (triggered from [`pre-script-helm-deps.sh`](../pre-script-helm-deps.sh) when the action installs `pullpreview-stack`). Values come from [`environments/pullpreview/config.yaml.gotmpl`](../../environments/pullpreview/config.yaml.gotmpl) and the same [`values/*.gotmpl`](../../values/) templates as local, with `previewMode: true` (no in-cluster CA / cert-manager path). When `OPENPROJECT_BRANCH` / `gitSourceBranch` is set, `opnc-integration` does **not** wait for `op-buildsource-job` (that job needs `op-postgresql` from the openproject release — waiting would deadlock). OpenProject pods block on `files/build-completed` until the build finishes; Keycloak / Nextcloud / GitLab / XWiki / Squash TM `needs: [openproject]` in that mode so the Angular build is not fighting them for RAM on the 16GB node. Squash TM is optional (`SQUASHTM_ENABLED` / `squashtm_enabled` on **PullPreview Environment**); when enabled it is at `https://squashtm.<fqdn>/squash` and requires repo secret `SQUASHTM_ADMIN_PASSWORD` (never printed in the workflow summary).
 
-[`resolve-pullpreview-env.sh`](../resolve-pullpreview-env.sh) reads the rendered PullPreview stack values file on the VM and exports `PULLPREVIEW_PUBLIC_DNS`, `OPENPROJECT_ENTERPRISE_TOKEN`, and workflow image/branch inputs (`NEXTCLOUD_VERSION`, `OPENPROJECT_VERSION`, git branches, etc.) so helmfile does not fall back to chart defaults when those env vars are not forwarded to the instance shell.
+[`resolve-pullpreview-env.sh`](../resolve-pullpreview-env.sh) reads the rendered PullPreview stack values file on the VM and exports `PULLPREVIEW_PUBLIC_DNS`, `OPENPROJECT_ENTERPRISE_TOKEN`, human login secrets, and workflow image/branch inputs (`NEXTCLOUD_VERSION`, `OPENPROJECT_VERSION`, git branches, etc.) so helmfile does not fall back to chart defaults when those env vars are not forwarded to the instance shell.
+
+## Secrets (required for every preview deploy)
+
+Local k3d keeps `admin` / `admin` (and user `1234`). PullPreview does **not**.
+
+| GitHub secret | Role |
+| --- | --- |
+| `PULLPREVIEW_ADMIN_PASSWORD` | Admin login for OpenProject, Nextcloud, Keycloak, XWiki, GitLab root |
+| `PULLPREVIEW_USER_PASSWORD` | Realm / test users (alice, brian, Oliver, Bob, …) |
+| `PULLPREVIEW_MCP_TOKEN` | Bob_AI MCP OAuth bearer token |
+| `SQUASHTM_ADMIN_PASSWORD` | Squash TM only (when Squash is enabled) |
+
+Charset: `^[A-Za-z0-9_-]{16,}$` (safe for JSON / URLs / `xwiki.cfg`). Workflows call [`.github/scripts/require-preview-secrets.sh`](../../.github/scripts/require-preview-secrets.sh) before `PullPreview up` and never print these values.
+
+Machine secrets (DB passwords, OIDC client secrets, XWiki OAuth secret) are generated once per preview namespace into Secret `pullpreview-generated` and reused on redeploy.
+
+**After this change merges, tear down every existing preview** so none keep the old default logins.
+
+### Pod hardening exceptions
+
+| Component | Exception |
+| --- | --- |
+| Nextcloud (Apache) | Runs as root; `allowPrivilegeEscalation: false`, drop `ALL`, RuntimeDefault seccomp |
+| OpenProject / Keycloak / Postgres / Redis / memcached / Squash | Non-root + drop ALL + RuntimeDefault |
+| XWiki | Non-root uid 100 (Tomcat) |
 
 **Nextcloud git source:** `nc-gitsource-pvc` is not created in the bootstrap `opnc-integration` release (Helm `--wait` would block on `WaitForFirstConsumer` until the Nextcloud pod exists). It is installed via [`charts/opnc-nextcloud-pvc`](../../charts/opnc-nextcloud-pvc) in the `nextcloud-pvc` release immediately before `nextcloud`, only when `nextcloud.gitSourceBranch` / `NEXTCLOUD_BRANCH` is set. That release uses `wait: false` so Helm does not wait for the PVC to bind; binding happens when the `nextcloud` pod is scheduled.
 

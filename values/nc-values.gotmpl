@@ -21,7 +21,15 @@ service:
 nextcloud:
   host: {{ .Values.nextcloud.host }}
   username: admin
-  password: admin
+  password: {{ .Values.adminPassword | default "admin" | quote }}
+  # shortcut: Apache Nextcloud image needs root; drop ALL + add NET_BIND_SERVICE when non-root is feasible.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
   # Tracing JIT (image default) corrupts the PHP heap after an app enable
   # (zend_mm_heap corrupted, then every Apache child segfaults with 502).
   phpConfigs:
@@ -137,19 +145,7 @@ externalDatabase:
   password: {{ .Values.nextcloud.postgresql.password }}
   database: {{ .Values.nextcloud.postgresql.database }}
 postgresql:
-  enabled: true
-  fullnameOverride: {{ .Values.nextcloud.postgresql.host }}
-  image:
-    repository: bitnamilegacy/postgresql
-  global:
-    postgresql:
-      auth:
-        username: {{ .Values.nextcloud.postgresql.username }}
-        password: {{ .Values.nextcloud.postgresql.password }}
-        database: {{ .Values.nextcloud.postgresql.database }}
-  primary:
-    podLabels:
-      app.kubernetes.io/name: {{ .Values.nextcloud.postgresql.host }}
+  enabled: false
 livenessProbe:
   enabled: false
 readinessProbe:

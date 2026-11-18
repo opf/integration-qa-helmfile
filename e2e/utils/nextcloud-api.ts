@@ -14,15 +14,29 @@ const DEFAULT_AMPF_PROJECT_FOLDER = 'Demo project (1)';
 const GF_ACL_READ = 1;
 const GF_ACL_READ_WRITE_CREATE_DELETE = 1 + 2 + 4 + 8;
 const GF_ACL_MASK_ALL = 31;
+const isPullPreviewEnv = (): boolean =>
+  (process.env.E2E_ENV || process.env.ENV || 'local').toLowerCase() === 'pullpreview';
+
 /** NC service account that owns the Team Folder (manage ACL); password set via OCS in tests. */
 const OPENPROJECT_NC_SERVICE_USER: TestUser = {
   username: 'OpenProject',
-  password: process.env.E2E_OP_NC_SERVICE_PASS || 'OpNcService-Test-1234!',
+  password: (() => {
+    const fromEnv = process.env.E2E_OP_NC_SERVICE_PASS || process.env.E2E_USER_PASS;
+    if (fromEnv && fromEnv.trim()) {
+      return fromEnv;
+    }
+    if (isPullPreviewEnv()) {
+      throw new Error(
+        'Missing E2E_OP_NC_SERVICE_PASS (or E2E_USER_PASS) for PullPreview; refuse local default.',
+      );
+    }
+    return 'OpNcService-Test-1234!';
+  })(),
 };
 
 const KC_REALM = process.env.E2E_KC_REALM || 'opnc';
 const KC_NC_CLIENT_ID = process.env.E2E_KC_NC_CLIENT_ID || 'nextcloud';
-const KC_NC_CLIENT_SECRET = process.env.E2E_KC_NC_CLIENT_SECRET || 'nextcloud-secret';
+let cachedNcClientSecret: string | undefined;
 
 interface KeycloakTokenResponse {
   access_token?: string;
@@ -216,10 +230,38 @@ async function ensureNextcloudAudienceMapper(
   logInfo('Added Keycloak audience mapper for nextcloud access tokens');
 }
 
+async function resolveNextcloudClientSecret(kcHost: string): Promise<string> {
+  const fromEnv = process.env.E2E_KC_NC_CLIENT_SECRET;
+  if (fromEnv && fromEnv.trim()) {
+    return fromEnv;
+  }
+  if (cachedNcClientSecret) {
+    return cachedNcClientSecret;
+  }
+  const adminToken = await getKeycloakAdminToken(kcHost);
+  const clientUuid = await getNextcloudKeycloakClientId(kcHost, adminToken);
+  const secretResponse = await tlsFetch(
+    `https://${kcHost}/admin/realms/${KC_REALM}/clients/${clientUuid}/client-secret`,
+    { headers: { authorization: `Bearer ${adminToken}` } },
+  );
+  if (!secretResponse.ok) {
+    throw new Error(
+      `Keycloak client-secret fetch failed: HTTP ${secretResponse.status} ${secretResponse.statusText}`,
+    );
+  }
+  const body = (await secretResponse.json()) as { value?: string };
+  if (!body.value) {
+    throw new Error('Keycloak client-secret response missing value');
+  }
+  cachedNcClientSecret = body.value;
+  return cachedNcClientSecret;
+}
+
 async function getKeycloakTokenForUser(
   kcHost: string,
   user: TestUser
 ): Promise<string> {
+  const clientSecret = await resolveNextcloudClientSecret(kcHost);
   const response = await tlsFetch(
     `https://${kcHost}/realms/${KC_REALM}/protocol/openid-connect/token`,
     {
@@ -228,7 +270,7 @@ async function getKeycloakTokenForUser(
       body: new URLSearchParams({
         grant_type: 'password',
         client_id: KC_NC_CLIENT_ID,
-        client_secret: KC_NC_CLIENT_SECRET,
+        client_secret: clientSecret,
         username: user.username,
         password: user.password,
         scope: 'openid profile email',

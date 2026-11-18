@@ -10,6 +10,44 @@ values_file="${PULLPREVIEW_VALUES_FILE:-}"
 source pullpreview/collect-diagnostics.sh
 source pullpreview/resolve-pullpreview-env.sh "${values_file}"
 
+# Machine secrets stay in-cluster across redeploys; humans use GitHub secrets.
+ensure_pullpreview_generated_secrets() {
+  local secret_name="pullpreview-generated"
+  local -a keys=(
+    PULLPREVIEW_OP_DB_PASSWORD
+    PULLPREVIEW_NC_DB_PASSWORD
+    PULLPREVIEW_GITLAB_DB_PASSWORD
+    PULLPREVIEW_GITLAB_REDIS_PASSWORD
+    PULLPREVIEW_NC_OIDC_SECRET
+    PULLPREVIEW_OP_NC_OIDC_SECRET
+    PULLPREVIEW_OP_KC_OIDC_SECRET
+    PULLPREVIEW_XWIKI_OAUTH_SECRET
+    PULLPREVIEW_XWIKI_DB_PASSWORD
+  )
+  local key existing value args=()
+
+  for key in "${keys[@]}"; do
+    existing="$(kubectl get secret "${secret_name}" -n "${namespace}" \
+      -o "jsonpath={.data.${key}}" 2>/dev/null || true)"
+    if [[ -n "${existing}" ]]; then
+      value="$(printf '%s' "${existing}" | base64 -d)"
+    else
+      value="$(openssl rand -hex 24)"
+    fi
+    export "${key}=${value}"
+    args+=(--from-literal="${key}=${value}")
+  done
+
+  kubectl get namespace "${namespace}" >/dev/null 2>&1 || \
+    kubectl create namespace "${namespace}" >/dev/null
+  kubectl create secret generic "${secret_name}" -n "${namespace}" \
+    "${args[@]}" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "[pullpreview helmfile] Ensured ${secret_name} (${#keys[@]} keys) in ${namespace}"
+}
+
+ensure_pullpreview_generated_secrets
+
 echo "[pullpreview helmfile] namespace=${namespace} values_file=${values_file:-<none>} public_dns=${PULLPREVIEW_PUBLIC_DNS:-<unset>}"
 
 helmfile_path="pullpreview/helmfile.yaml.gotmpl"

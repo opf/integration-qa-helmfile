@@ -95,6 +95,13 @@ jobs:
           TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
         run: .github/scripts/resolve-enterprise-token.sh
 
+      - name: Require PullPreview login secrets
+        env:
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
+        run: .github/scripts/require-preview-secrets.sh
+
       - name: Recreate preview before component change
         if: steps.component_label_change.outputs.changed == 'true'
         uses: ./.github/actions/pullpreview # vendored from pullpreview/action@65df5209 (POC #133) + actions/cache@v6 Node 24
@@ -134,6 +141,9 @@ jobs:
           XWIKI_ENABLED: ${{ steps.resolve_setup_method.outputs.xwiki_enabled }}
           GITLAB_ENABLED: ${{ steps.resolve_setup_method.outputs.gitlab_enabled }}
           GITLAB_VERSION: ""
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
           PULLPREVIEW_LOGGER_LEVEL: INFO
 
       - name: Require live preview
