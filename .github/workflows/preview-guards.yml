@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: preview-guards-${{ github.workflow }}-${{ github.ref }}
@@ -16,6 +17,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Cache openproject chart deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0 (Node 24)
+        with:
+          path: charts/openproject/charts
+          key: openproject-chart-deps-${{ hashFiles('charts/openproject/Chart.lock') }}
 
       - name: Install helmfile and helm
         run: |

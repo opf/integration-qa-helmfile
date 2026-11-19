@@ -37,6 +37,10 @@ helm repo add --force-update xwiki-helm https://xwiki-contrib.github.io/xwiki-he
 helm repo add --force-update gitlab https://charts.gitlab.io >/dev/null 2>&1 || true
 helm repo update >/dev/null 2>&1 || true
 
+# charts/openproject/charts/*.tgz are gitignored; Helm 4 still requires them present even with --skip-deps.
+echo "[validate-pullpreview] helm dependency build charts/openproject"
+helm dependency build charts/openproject
+
 critical_releases=(opnc-integration openproject keycloak nextcloud-pvc nextcloud opnc-setup-job)
 for release in "${critical_releases[@]}"; do
   echo "[validate-pullpreview] helmfile template release=${release}"
