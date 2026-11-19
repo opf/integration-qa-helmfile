@@ -42,10 +42,10 @@ gitlab:
     migrations:
       image:
         tag: {{ .Values.gitlab.version }}
-      # Fresh GitLab schema load needs far more than the chart's 200Mi request on a full stack.
+      # Fresh GitLab schema load needs far more than the chart's 200Mi on a busy preview node.
       resources:
         requests:
-          cpu: 250m
-          memory: 1Gi
-        limits:
+          cpu: 500m
           memory: 2Gi
+        limits:
+          memory: 4Gi

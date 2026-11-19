@@ -130,6 +130,17 @@ releases:
       - nextcloud
       {{- end }}
 
+  - name: gitlab
+    chart: ../charts/gitlab
+    timeout: 2700
+    installed: {{ .Values.gitlab.enabled }}
+    values:
+      - ../values/gitlab-values.gotmpl
+    needs:
+      # After OpenProject so the source build is done; before XWiki/Squash so migrations get RAM.
+      - openproject
+      - opnc-integration
+
   - name: xwiki
     chart: xwiki-helm/xwiki
     version: ~1.7.1
@@ -144,20 +155,13 @@ releases:
       # setup-job registers in OP is needed only when users authenticate, which happens
       # after the full deploy completes.
       - openproject
+      {{- if .Values.gitlab.enabled }}
+      - gitlab
+      {{- end }}
     values:
       - ../values/xwiki-values.gotmpl
     strategicMergePatches:
       - ../patches/xwiki/xwiki.yaml
-
-  - name: gitlab
-    chart: ../charts/gitlab
-    timeout: 2700
-    installed: {{ .Values.gitlab.enabled }}
-    values:
-      - ../values/gitlab-values.gotmpl
-    needs:
-      # Same as xwiki: hold until OpenProject is Ready so the source build is done first.
-      - openproject
 
   - name: squashtm
     chart: ../charts/squashtm
@@ -169,3 +173,6 @@ releases:
     needs:
       # Same as xwiki/gitlab: stay off the 16GB node until OpenProject is Ready.
       - openproject
+      {{- if .Values.gitlab.enabled }}
+      - gitlab
+      {{- end }}

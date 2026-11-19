@@ -119,6 +119,23 @@ spec:
               cpu: "100m"
             limits:
               memory: {{ .memoryLimit | default "512Mi" | quote }}
+          {{- if .extensions }}
+          # initdb.d only runs on empty PGDATA; postStart covers upgrades/restarts too.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    for i in $(seq 1 60); do
+                      pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1 && break
+                      sleep 1
+                    done
+                    {{- range .extensions }}
+                    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE EXTENSION IF NOT EXISTS {{ . }};" || true
+                    {{- end }}
+          {{- end }}
           readinessProbe:
             exec:
               command:

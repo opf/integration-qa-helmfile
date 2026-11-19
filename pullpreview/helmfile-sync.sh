@@ -181,6 +181,71 @@ dump_openproject_seeder_logs() {
     || true
 }
 
+dump_gitlab_migrations_logs() {
+  local mig_job="${1:-}"
+  local reason="${2:-migrations failure}"
+  echo "::error::[pullpreview helmfile] ${reason}"
+  if [[ -n "${mig_job}" ]]; then
+    echo "[pullpreview helmfile] ${mig_job} describe:"
+    kubectl describe job "${mig_job}" -n "${namespace}" 2>&1 || true
+    echo "[pullpreview helmfile] ${mig_job} pods describe:"
+    kubectl describe pods -n "${namespace}" -l "job-name=${mig_job}" 2>&1 || true
+  fi
+  echo "[pullpreview helmfile] migrations container logs:"
+  kubectl logs -n "${namespace}" -l "app=migrations,release=gitlab" \
+    -c migrations --tail=-1 2>&1 || true
+  echo "[pullpreview helmfile] migrations container previous logs:"
+  kubectl logs -n "${namespace}" -l "app=migrations,release=gitlab" \
+    -c migrations --previous --tail=-1 2>&1 || true
+  echo "[pullpreview helmfile] gitlab-postgresql log tail:"
+  kubectl logs -n "${namespace}" gitlab-postgresql-0 -c postgresql --tail=80 2>&1 || true
+  echo "[pullpreview helmfile] gitlab-redis log tail:"
+  kubectl logs -n "${namespace}" gitlab-redis-0 -c redis --tail=40 2>&1 || true
+}
+
+# Migrations pods are deleted on BackoffLimitExceeded; dump logs on first failure
+# and abort Helm sync so we do not burn the full 45m gitlab --wait.
+watch_gitlab_migrations_job() {
+  local sync_pid="$1"
+  local poll_interval=15
+  local dumped=0
+
+  sleep "${poll_interval}"
+
+  while kill -0 "${sync_pid}" 2>/dev/null; do
+    local mig_job=""
+    mig_job="$(kubectl get jobs -n "${namespace}" -l "app=migrations,release=gitlab" \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+    if [[ -z "${mig_job}" ]]; then
+      sleep "${poll_interval}"
+      continue
+    fi
+
+    local term_reasons=""
+    term_reasons="$(kubectl get pods -n "${namespace}" -l "job-name=${mig_job}" \
+      -o jsonpath='{range .items[*]}{.status.containerStatuses[?(@.name=="migrations")].lastState.terminated.reason}{"\n"}{.status.containerStatuses[?(@.name=="migrations")].state.terminated.reason}{"\n"}{end}' \
+      2>/dev/null || true)"
+    local job_failed=""
+    job_failed="$(kubectl get job "${mig_job}" -n "${namespace}" \
+      -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)"
+
+    if [[ "${dumped}" -eq 0 ]]; then
+      if [[ "${term_reasons}" == *Error* || "${term_reasons}" == *OOMKilled* || "${job_failed}" == "True" ]]; then
+        dumped=1
+        dump_gitlab_migrations_logs "${mig_job}" \
+          "${mig_job} failed (${term_reasons:-BackoffLimitExceeded}); dumping logs before pods are GC'd."
+        echo "::error::[pullpreview helmfile] aborting Helmfile sync after GitLab migrations failure."
+        kill "${sync_pid}" 2>/dev/null || true
+        return 1
+      fi
+    fi
+
+    sleep "${poll_interval}"
+  done
+
+  return 0
+}
+
 # Seeder pods are deleted on BackoffLimitExceeded (restartPolicy OnFailure); dump
 # logs on first container failure and again when the Job fails.
 watch_openproject_seeder_job() {
@@ -255,6 +320,8 @@ run_helmfile_dag_sync() {
   local watcher_pid=$!
   watch_openproject_seeder_job "${sync_pid}" &
   local seeder_watcher_pid=$!
+  watch_gitlab_migrations_job "${sync_pid}" &
+  local gitlab_mig_watcher_pid=$!
 
   wait "${sync_pid}"
   local sync_status=$?
@@ -268,16 +335,27 @@ run_helmfile_dag_sync() {
     kill "${seeder_watcher_pid}" 2>/dev/null || true
   fi
   wait "${seeder_watcher_pid}" 2>/dev/null || true
+  if kill -0 "${gitlab_mig_watcher_pid}" 2>/dev/null; then
+    kill "${gitlab_mig_watcher_pid}" 2>/dev/null || true
+  fi
+  wait "${gitlab_mig_watcher_pid}" 2>/dev/null
+  local gitlab_mig_watcher_status=$?
   set -e
 
   if [[ "${watcher_status}" -eq 143 || "${watcher_status}" -eq 137 ]]; then
     watcher_status=0
   fi
+  if [[ "${gitlab_mig_watcher_status}" -eq 143 || "${gitlab_mig_watcher_status}" -eq 137 ]]; then
+    gitlab_mig_watcher_status=0
+  fi
 
   if [[ "${watcher_status}" -ne 0 && "${sync_status}" -eq 0 ]]; then
     sync_status="${watcher_status}"
   fi
-
+  # Watcher returns 1 after dumping migrate logs and killing helmfile; keep that failure.
+  if [[ "${gitlab_mig_watcher_status}" -ne 0 ]]; then
+    sync_status="${gitlab_mig_watcher_status}"
+  fi
   if [[ "${sync_status}" -eq 0 ]] && kubectl get job op-buildsource-job -n "${namespace}" >/dev/null 2>&1 && buildsource_job_failed; then
     if buildsource_job_oomkilled; then
       echo "::error::[pullpreview helmfile] op-buildsource-job was OOMKilled after Helmfile sync completed (node memory pressure during OpenProject source build)."
