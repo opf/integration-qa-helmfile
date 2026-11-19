@@ -6,14 +6,17 @@ global:
 gitlab:
   global:
     hosts:
-      domain: gitlab.test
+      domain: test
       https: false
+      gitlab:
+        name: gitlab.test
     initialRootPassword:
       secret: gitlab-root-password
       key: password
     redis:
       host: gitlab-redis-master
       auth:
+        enabled: true
         secret: gitlab-redis-password
         key: password
     psql:
@@ -21,8 +24,8 @@ gitlab:
       username: gitlab
       database: gitlab
       password:
-        secret: gitlab-psql-password
-        key: password
+        secret: gitlab-postgresql
+        key: db-password
     appConfig:
       artifacts:
         enabled: false

@@ -58,6 +58,11 @@ databases:
     size: 8Gi
     memoryRequest: 512Mi
     memoryLimit: 2Gi
+    # GitLab schema load requires these; missing them makes migrations Job crash fast.
+    extensions:
+      - pg_trgm
+      - btree_gist
+      - amcheck
   {{- end }}
   {{- if .Values.xwiki.enabled }}
   - name: xwiki-postgresql

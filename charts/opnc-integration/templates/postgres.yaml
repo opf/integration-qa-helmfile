@@ -12,6 +12,20 @@ metadata:
 type: Opaque
 stringData:
   db-password: {{ .password | quote }}
+{{- if .extensions }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .name }}-initdb
+  labels:
+    app.kubernetes.io/name: {{ .name }}
+data:
+  01-extensions.sql: |
+{{- range .extensions }}
+    CREATE EXTENSION IF NOT EXISTS {{ . }};
+{{- end }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -94,6 +108,11 @@ spec:
               mountPath: /tmp
             - name: run
               mountPath: /var/run/postgresql
+            {{- if .extensions }}
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            {{- end }}
           resources:
             requests:
               memory: {{ .memoryRequest | default "256Mi" | quote }}
@@ -127,6 +146,11 @@ spec:
           emptyDir: {}
         - name: run
           emptyDir: {}
+        {{- if .extensions }}
+        - name: initdb
+          configMap:
+            name: {{ .name }}-initdb
+        {{- end }}
   volumeClaimTemplates:
     - metadata:
         name: data
