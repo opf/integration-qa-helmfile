@@ -52,19 +52,8 @@ externalDB:
   user: xwiki
   database: xwiki
   password: {{ dig "postgresql" "password" "xwiki" .Values.xwiki | quote }}
+# Official xwiki image must write WEB-INF (hibernate.cfg.xml); upstream chart keeps these off.
 securityContext:
-  enabled: true
-  fsGroup: 100
-  runAsNonRoot: true
-  seccompProfile:
-    type: RuntimeDefault
+  enabled: false
 containerSecurityContext:
-  enabled: true
-  runAsUser: 100
-  runAsNonRoot: true
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  seccompProfile:
-    type: RuntimeDefault
+  enabled: false
