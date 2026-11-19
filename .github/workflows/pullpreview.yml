@@ -95,7 +95,11 @@ jobs:
           TOKEN_CORPORATE: ${{ secrets.OPENPROJECT_ENTERPRISE_TOKEN }}
         run: .github/scripts/resolve-enterprise-token.sh
 
+      # Destroy paths must not fail closed on secrets (orphans the Hetzner VM until TTL).
       - name: Require PullPreview login secrets
+        if: >-
+          github.event.action != 'closed' &&
+          !(github.event.action == 'unlabeled' && github.event.label.name == 'pullpreview')
         env:
           PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
           PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}

@@ -7,10 +7,10 @@
 
 set -eu
 
-: "${KC_BOOTSTRAP_ADMIN_USERNAME:=${KEYCLOAK_ADMIN:-admin}}"
-: "${KC_BOOTSTRAP_ADMIN_PASSWORD:=${KEYCLOAK_ADMIN_PASSWORD:-admin}}"
-# Local default 1234; PullPreview sets KC_REALM_USER_PASSWORD from GitHub secrets.
-KC_REALM_USER_PASSWORD="${KC_REALM_USER_PASSWORD:-1234}"
+# From secretKeyRef / chart env — no soft defaults (missing secrets fail the pod).
+: "${KC_BOOTSTRAP_ADMIN_USERNAME:?KC_BOOTSTRAP_ADMIN_USERNAME is required}"
+: "${KC_BOOTSTRAP_ADMIN_PASSWORD:?KC_BOOTSTRAP_ADMIN_PASSWORD is required}"
+: "${KC_REALM_USER_PASSWORD:?KC_REALM_USER_PASSWORD is required}"
 
 KEYCLOAK_URL="http://127.0.0.1:8080"
 echo "Waiting for Keycloak at ${KEYCLOAK_URL}..."
@@ -335,6 +335,28 @@ set_client_secret() {
   echo "Synced client secret for ${label}"
 }
 
+# Inject TE attrs into a client JSON body. Keep in sync with keycloak-te.test.sh.
+# Empty attributes:{} must not leave a trailing comma (illegal JSON).
+inject_standard_token_exchange_attrs() {
+  body="$1"
+  case "${body}" in
+    *"\"standard.token.exchange.enabled\""*)
+      printf '%s' "${body}"
+      return 0
+      ;;
+  esac
+  case "${body}" in
+    *"\"attributes\":{}"*)
+      printf '%s' "${body}" | sed \
+        's/"attributes":{}/"attributes":{"standard.token.exchange.enabled":"true","standard.token.exchange.enableRefreshRequestedTokenType":"SAME_SESSION"}/'
+      ;;
+    *)
+      printf '%s' "${body}" | sed \
+        's/"attributes":{/"attributes":{"standard.token.exchange.enabled":"true","standard.token.exchange.enableRefreshRequestedTokenType":"SAME_SESSION",/'
+      ;;
+  esac
+}
+
 # Idempotent for clients created before TE attrs were in the POST body.
 ensure_standard_token_exchange() {
   client_uuid="$1"
@@ -344,19 +366,17 @@ ensure_standard_token_exchange() {
       "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}" \
       -H "${AUTH_H}" | tr -d '\n'
   )"
-  body="$(printf '%s' "${body}" \
-    | sed -e 's/,"standard.token.exchange.enabled":"[^"]*"//g' \
-          -e 's/"standard.token.exchange.enabled":"[^"]*",//g' \
-          -e 's/,"standard.token.exchange.enableRefreshRequestedTokenType":"[^"]*"//g' \
-          -e 's/"standard.token.exchange.enableRefreshRequestedTokenType":"[^"]*",//g')"
-  body="$(printf '%s' "${body}" \
-    | sed 's/"attributes":{/"attributes":{"standard.token.exchange.enabled":"true","standard.token.exchange.enableRefreshRequestedTokenType":"SAME_SESSION",/')"
+  new_body="$(inject_standard_token_exchange_attrs "${body}")"
+  if [ "${new_body}" = "${body}" ]; then
+    echo "Standard token exchange already set on ${label}"
+    return 0
+  fi
   code="$(
     curl -sS -o /tmp/kc-te-put.out -w '%{http_code}' -X PUT \
       "${KEYCLOAK_URL}/admin/realms/${KC_REALM_NAME}/clients/${client_uuid}" \
       -H "${AUTH_H}" \
       -H "Content-Type: application/json" \
-      -d "${body}"
+      -d "${new_body}"
   )"
   if [ "${code}" != "204" ] && [ "${code}" != "200" ]; then
     echo "Failed to enable standard token exchange on ${label} (HTTP ${code}): $(cat /tmp/kc-te-put.out)" >&2
@@ -393,5 +413,7 @@ ensure_standard_token_exchange "${NC_CLIENT_UUID}" "${KC_NEXTCLOUD_CLIENT_ID}"
 ensure_standard_token_exchange "${OP_CLIENT_UUID}" "${KC_OPENPROJECT_CLIENT_ID}"
 
 echo "Keycloak realm setup complete."
+# Readiness marker for the realm-setup probe (shared emptyDir /tmp with keycloak).
+touch /tmp/realm-setup-complete
 # Keep sidecar alive so the pod does not restart the setup container forever.
 exec sleep infinity

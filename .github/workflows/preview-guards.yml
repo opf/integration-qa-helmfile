@@ -20,11 +20,15 @@ jobs:
       - name: Install helmfile and helm
         run: |
           set -euo pipefail
-          helm version
+          # ubuntu-latest may ship Helm 4; helmfile <1.8 still calls `helm version --client`.
+          HF_VERSION="1.8.4"
+          HF_SHA256="1f19ced8adb0cdf2350e94ca598cf64e390d8c21d0d9b4bdc1c9f246d4591c9d"
           curl -fsSL -o /tmp/helmfile.tar.gz \
-            "https://github.com/helmfile/helmfile/releases/download/v0.171.0/helmfile_0.171.0_linux_amd64.tar.gz"
+            "https://github.com/helmfile/helmfile/releases/download/v${HF_VERSION}/helmfile_${HF_VERSION}_linux_amd64.tar.gz"
+          echo "${HF_SHA256}  /tmp/helmfile.tar.gz" | sha256sum -c -
           tar -xzf /tmp/helmfile.tar.gz -C /tmp helmfile
           sudo install -m 0755 /tmp/helmfile /usr/local/bin/helmfile
+          helm version
           helmfile version
 
       - name: Check preview credential and helmfile guards

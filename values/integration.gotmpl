@@ -3,7 +3,8 @@
 {{- $adminPassword := .Values.adminPassword | default "admin" -}}
 {{- $userPassword := .Values.userPassword | default "1234" -}}
 {{- $standalone := .Values.openproject.standalone | default false -}}
-{{- $keycloakEnabled := and (not $standalone) (ne (dig "keycloak" "enabled" true .Values) false) -}}
+{{- /* Missing keycloak.enabled → on for full stack, off for standalone; explicit true wins (op-keycloak). */ -}}
+{{- $keycloakEnabled := dig "keycloak" "enabled" (not $standalone) .Values -}}
 integrationSetupMethod: {{ .Values.integration.setupMethod }}
 previewMode: {{ dig "previewMode" false .Values }}
 adminPassword: {{ $adminPassword | quote }}
@@ -28,7 +29,7 @@ squashtmHost: {{ .Values.squashtm.host }}
 databases:
   - name: {{ .Values.openproject.postgresql.host | quote }}
     username: {{ .Values.openproject.postgresql.username | quote }}
-    database: {{ .Values.openproject.postgresql.database | quote }}{{ if eq .Values.openproject.railsEnv "development" }}_dev{{ end }}
+    database: {{ printf "%s%s" .Values.openproject.postgresql.database (ternary "_dev" "" (eq .Values.openproject.railsEnv "development")) | quote }}
     password: {{ .Values.openproject.postgresql.password | quote }}
     size: 8Gi
     memoryRequest: 256Mi

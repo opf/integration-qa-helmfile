@@ -19,7 +19,7 @@ run-name: >-
       github.event.inputs.xwiki_enabled == 'true'
         && format(
           'XWiki {0} + ext {1}',
-          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.10',
+          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.15',
           github.event.inputs.xwiki_extension_version != '' && github.event.inputs.xwiki_extension_version || '1.2.0'
         )
         || 'XWiki off',
@@ -117,7 +117,7 @@ on:
       xwiki_version:
         description: "[XWiki] Image tag (used only when XWiki is checked)"
         required: false
-        default: "17.10.10"
+        default: "17.10.15"
         type: string
       xwiki_extension_version:
         description: "[XWiki] OpenProject extension version (used only when XWiki is checked)"
@@ -742,7 +742,7 @@ jobs:
             if [[ -n "${IN_XWIKI_VER:-}" ]]; then
               echo "- XWiki image tag: \`${IN_XWIKI_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
             else
-              echo "- XWiki image tag: \`17.10.10\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+              echo "- XWiki image tag: \`17.10.15\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
             fi
             if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
               echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"

@@ -70,31 +70,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.postgresql.host }}
                   key: db-password
-            - name: KC_REALM_NAME
-              value: {{ .Values.realm.name | quote }}
-            - name: KC_REALM_USER_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: opnc-secrets
-                  key: realm-user-password
-            - name: KC_NEXTCLOUD_CLIENT_ID
-              value: {{ .Values.clients.nextcloud.id | quote }}
-            - name: KC_NEXTCLOUD_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: opnc-secrets
-                  key: oidc-nextcloud-client-secret
-            - name: KC_NEXTCLOUD_CLIENT_HOST
-              value: {{ .Values.clients.nextcloud.host | quote }}
-            - name: KC_OPENPROJECT_CLIENT_ID
-              value: {{ .Values.clients.openproject.id | quote }}
-            - name: KC_OPENPROJECT_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: opnc-secrets
-                  key: oidc-openproject-client-secret
-            - name: KC_OPENPROJECT_CLIENT_HOST
-              value: {{ .Values.clients.openproject.host | quote }}
           ports:
             - name: http
               containerPort: 8080
@@ -189,6 +164,13 @@ spec:
               subPath: entrypoint.sh
             - name: tmp
               mountPath: /tmp
+          # Pod Ready only after realm/users/clients/TE finish (helm --wait / dependents).
+          readinessProbe:
+            exec:
+              command: ["test", "-f", "/tmp/realm-setup-complete"]
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 120
       volumes:
         - name: tmp
           emptyDir: {}

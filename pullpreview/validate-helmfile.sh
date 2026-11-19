@@ -67,6 +67,40 @@ echo "[validate-pullpreview] helmfile template release=squashtm"
 SQUASHTM_ENABLED=true SQUASHTM_ADMIN_PASSWORD='validate-only-dummy' \
   "${helmfile_common[@]}" -l "name=squashtm" template --skip-deps >/dev/null
 
+echo "[validate-pullpreview] profile=op-keycloak keeps Keycloak + kc-postgresql"
+# Avoid grep -q under pipefail: early match SIGPIPEs printf on large renders.
+opkc_render="$(
+  STACK_PROFILE=op-keycloak "${helmfile_common[@]}" -l "name=opnc-integration" template --skip-deps
+)"
+if ! printf '%s\n' "${opkc_render}" | grep -F 'name: kc-postgresql' >/dev/null; then
+  echo "[validate-pullpreview] FAIL: op-keycloak must render kc-postgresql" >&2
+  exit 1
+fi
+STACK_PROFILE=op-keycloak "${helmfile_common[@]}" -l "name=keycloak" template --skip-deps >/dev/null
+
+echo "[validate-pullpreview] development DB name must quote openproject_dev (deploy-dev)"
+# values/integration.gotmpl is helmfile-rendered; catch the closed-quote-before-_dev regression in source.
+if grep -E 'database: \{\{ .Values.openproject.postgresql.database \| quote \}\}\{\{ if' values/integration.gotmpl >/dev/null; then
+  echo "[validate-pullpreview] FAIL: openproject DB quote still closes before _dev" >&2
+  exit 1
+fi
+if ! grep -F 'printf "%s%s" .Values.openproject.postgresql.database' values/integration.gotmpl >/dev/null; then
+  echo "[validate-pullpreview] FAIL: expected printf+quote for openproject_dev database name" >&2
+  exit 1
+fi
+
+echo "[validate-pullpreview] keycloak.enabled derives from standalone when omitted"
+if ! grep -F 'dig "keycloak" "enabled" (not $standalone)' values/integration.gotmpl >/dev/null; then
+  echo "[validate-pullpreview] FAIL: expected keycloak.enabled default (not standalone)" >&2
+  exit 1
+fi
+# Hard-coding enabled under keycloak: in default config breaks "standalone alone → no KC".
+if awk '/^keycloak:/{k=1;next} k && /^[a-zA-Z]/{exit} k && /^[[:space:]]*enabled:/{found=1} END{exit !found}' \
+  environments/default/config.yaml; then
+  echo "[validate-pullpreview] FAIL: omit keycloak.enabled in default config (derive from standalone)" >&2
+  exit 1
+fi
+
 echo "[validate-pullpreview] guard: no Bitnami images / shared login defaults in render"
 render="$("${helmfile_common[@]}" template --skip-deps 2>/dev/null || true)"
 if printf '%s\n' "${render}" | grep -E 'bitnamilegacy/|image:.*bitnami/' >/dev/null; then

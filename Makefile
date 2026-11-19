@@ -73,6 +73,7 @@ validate-pullpreview-helmfile:
 check-preview-guards:
 	@.github/scripts/require-preview-secrets.test.sh
 	@e2e/utils/test-users.assert.sh
+	@charts/opnc-integration/scripts/keycloak-te.test.sh
 	@./pullpreview/validate-helmfile.sh
 
 .PHONY: teardown

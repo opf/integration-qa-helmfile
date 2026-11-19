@@ -206,7 +206,7 @@ jobs:
           NEXTCLOUD_BRANCH: ""
           INTEGRATION_OPENPROJECT_VERSION: ${{ steps.validate.outputs.integration_openproject_version }}
           INTEGRATION_OPENPROJECT_GIT_BRANCH: ${{ steps.validate.outputs.integration_openproject_branch }}
-          XWIKI_VERSION: "17.10.10"
+          XWIKI_VERSION: "17.10.15"
           XWIKI_EXTENSION_OPENPROJECT_VERSION: "1.2.0"
           OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: "false"
           XWIKI_ENABLED: "false"

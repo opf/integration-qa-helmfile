@@ -19,8 +19,9 @@ helm dependency build charts/gitlab
 
 if ! command -v helmfile >/dev/null 2>&1; then
   echo "[pullpreview pre_script] Installing helmfile..."
-  HF_VERSION="0.170.1"
-  HF_SHA256="af00359dca9162e587fcf102890cec0ffa63b5ee712426db8693dd2669460ec8"
+  # Helm 4 dropped `helm version --client`; need helmfile >=1.8.
+  HF_VERSION="1.8.4"
+  HF_SHA256="1f19ced8adb0cdf2350e94ca598cf64e390d8c21d0d9b4bdc1c9f246d4591c9d"
   curl -fsSL -o /tmp/helmfile.tgz "https://github.com/helmfile/helmfile/releases/download/v${HF_VERSION}/helmfile_${HF_VERSION}_linux_amd64.tar.gz"
   echo "${HF_SHA256}  /tmp/helmfile.tgz" | sha256sum -c -
   tar -xzf /tmp/helmfile.tgz -C /usr/local/bin helmfile

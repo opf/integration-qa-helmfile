@@ -1,7 +1,7 @@
 fullnameOverride: xwiki
 image:
   # Postgres variant (replaces Bitnami MySQL dependency).
-  tag: {{ printf "%s-postgres-tomcat" (.Values.xwiki.version | default "17.10.10") | quote }}
+  tag: {{ printf "%s-postgres-tomcat" (.Values.xwiki.version | default "17.10.15") | quote }}
 probes:
   liveness:
     enabled: false

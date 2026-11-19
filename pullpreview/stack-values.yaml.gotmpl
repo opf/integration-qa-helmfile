@@ -17,7 +17,7 @@
 {{- $stackProfile := trim (env "STACK_PROFILE") | default "full" -}}
 {{- $appVersion := $integrationOpenProjectVersion | default $integrationAppVersion -}}
 {{- $openprojectImageTag := $openprojectVersion | default "17" -}}
-{{- $xwikiImageTag := $xwikiVersion | default "17.10.10" -}}
+{{- $xwikiImageTag := $xwikiVersion | default "17.10.15" -}}
 {{- $openprojectSourcePath := "/home/app/openproject" -}}
 opnc-integration:
   integrationSetupMethod: {{ $setupMethod | quote }}

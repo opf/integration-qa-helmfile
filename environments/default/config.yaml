@@ -30,10 +30,11 @@ openproject:
   host: openproject.test
   assetHost: openproject-assets.test
   #####################################################
-  # Run OpenProject in standalone mode                #
-  # (without Nextcloud and Keycloak integration)      #
-  # For local MCP tests set standalone: true (and     #
-  # xwiki.enabled: false) in environments/override.yaml
+  # Standalone = no Nextcloud. Keycloak follows        #
+  # keycloak.enabled when set; if omitted, KC is on   #
+  # for full stack and off when standalone: true.     #
+  # SSO-only (no NC): standalone: true and            #
+  # keycloak.enabled: true (PullPreview op-keycloak). #
   #####################################################
   standalone: false
   #####################################################
@@ -129,7 +130,8 @@ nextcloud:
     password: nextcloud
 
 keycloak:
-  enabled: true
+  # Omit enabled to derive from standalone (see openproject.standalone comment).
+  # Set enabled: true|false to force (e.g. standalone SSO / explicit off).
   version: '26.2.5'
   fullnameOverride: keycloak
   host: keycloak.test
@@ -156,7 +158,7 @@ xwiki:
   # Full integration default. Local MCP: override with enabled: false.
   enabled: true
   host: xwiki.test
-  version: '17.10.10'
+  version: '17.10.15'
   postgresql:
     password: xwiki
   extensions:

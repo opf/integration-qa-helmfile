@@ -26,10 +26,27 @@ ensure_pullpreview_generated_secrets() {
     PULLPREVIEW_KC_DB_PASSWORD
   )
   local key existing value args=()
+  local secret_err secret_json=""
+  secret_err="$(mktemp)"
+
+  # Fail on API errors; only treat NotFound as "generate fresh keys".
+  if kubectl get secret "${secret_name}" -n "${namespace}" -o json >"${secret_err}.json" 2>"${secret_err}"; then
+    secret_json="$(cat "${secret_err}.json")"
+  elif ! grep -qiE 'NotFound|not found' "${secret_err}"; then
+    echo "::error::[pullpreview helmfile] failed to read secret ${secret_name} in ${namespace}:" >&2
+    cat "${secret_err}" >&2
+    rm -f "${secret_err}" "${secret_err}.json"
+    exit 1
+  fi
+  rm -f "${secret_err}" "${secret_err}.json"
 
   for key in "${keys[@]}"; do
-    existing="$(kubectl get secret "${secret_name}" -n "${namespace}" \
-      -o "jsonpath={.data.${key}}" 2>/dev/null || true)"
+    existing=""
+    if [[ -n "${secret_json}" ]]; then
+      existing="$(printf '%s' "${secret_json}" | python3 -c \
+        'import json,sys; print(json.load(sys.stdin).get("data",{}).get(sys.argv[1],""))' \
+        "${key}")"
+    fi
     if [[ -n "${existing}" ]]; then
       value="$(printf '%s' "${existing}" | base64 -d)"
     else

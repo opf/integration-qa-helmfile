@@ -40,4 +40,16 @@ if ! run "${good_admin}" "${good_user}" "${good_mcp}" >/dev/null; then
 fi
 pass "valid secrets pass"
 
+# Exactly 16 chars (minimum) with allowed charset.
+min16='abcdefghijklmnop'
+if ! run "${min16}" "${min16}" "${min16}" >/dev/null; then
+  fail "16-char alnum secrets should pass"
+fi
+pass "minimum length passes"
+
+if run 'PullPreview Admin Pass01' "${good_user}" "${good_mcp}" >/dev/null 2>&1; then
+  fail "whitespace in secret should fail"
+fi
+pass "whitespace rejected"
+
 echo "[PASS] require-preview-secrets"

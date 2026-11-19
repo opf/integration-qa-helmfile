@@ -6,13 +6,14 @@
 
 # Usage: copy 'override.yaml.example' to 'override.yaml'
 #
-# Local MCP / OpenProject-only example:
+# Local MCP / OpenProject-only example (KC off by default when standalone):
 #   integration:
 #     setupMethod: 'oauth2'
 #   openproject:
 #     standalone: true
 #   xwiki:
 #     enabled: false
+# Standalone + Keycloak SSO (no Nextcloud): also set keycloak.enabled: true
 
 # Squash TM (optional; off by default).
 #   squashtm:

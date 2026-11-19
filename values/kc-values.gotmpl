@@ -1,4 +1,6 @@
 fullnameOverride: {{ .Values.keycloak.fullnameOverride }}
+image:
+  tag: {{ dig "version" "26.2.5" .Values.keycloak | quote }}
 auth:
   adminUser: admin
 hostname: {{ .Values.keycloak.host | quote }}

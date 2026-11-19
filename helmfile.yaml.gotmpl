@@ -99,7 +99,7 @@ releases:
       {{- end }}
   - name: keycloak
     chart: ./charts/keycloak
-    installed: {{ and (not .Values.openproject.standalone) (ne (dig "keycloak" "enabled" true .Values) false) }}
+    installed: {{ dig "keycloak" "enabled" (not .Values.openproject.standalone) .Values }}
     values:
       - values/kc-values.gotmpl
     needs:
