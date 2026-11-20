@@ -132,7 +132,7 @@ watch_buildsource_job() {
       echo "[pullpreview helmfile] op-buildsource-job log tail:"
       kubectl logs -n "${namespace}" -l job-name=op-buildsource-job \
         --all-containers=true --tail=120 2>&1 || true
-      kill "${sync_pid}" 2>/dev/null || true
+      kill -TERM -- "-${sync_pid}" 2>/dev/null || true
       return 1
     fi
 
@@ -235,7 +235,7 @@ watch_gitlab_migrations_job() {
         dump_gitlab_migrations_logs "${mig_job}" \
           "${mig_job} failed (${term_reasons:-BackoffLimitExceeded}); dumping logs before pods are GC'd."
         echo "::error::[pullpreview helmfile] aborting Helmfile sync after GitLab migrations failure."
-        kill "${sync_pid}" 2>/dev/null || true
+        kill -TERM -- "-${sync_pid}" 2>/dev/null || true
         return 1
       fi
     fi
@@ -314,7 +314,8 @@ run_helmfile_dag_sync() {
   echo "[pullpreview helmfile] Running Helmfile DAG sync in namespace ${namespace} (concurrency=${helmfile_concurrency})."
 
   set +e
-  "${helmfile_common[@]}" "${sync_args[@]}" > >(tee "${sync_log}") 2>&1 &
+  # Own process group so watchers can kill helmfile + helm --wait children together.
+  setsid "${helmfile_common[@]}" "${sync_args[@]}" > >(tee "${sync_log}") 2>&1 &
   local sync_pid=$!
   watch_buildsource_job "${sync_pid}" &
   local watcher_pid=$!
@@ -340,7 +341,7 @@ run_helmfile_dag_sync() {
   fi
   wait "${gitlab_mig_watcher_pid}" 2>/dev/null
   local gitlab_mig_watcher_status=$?
-  set -e
+  # Keep errexit off so a non-zero sync_status returns to the caller instead of exiting here.
 
   if [[ "${watcher_status}" -eq 143 || "${watcher_status}" -eq 137 ]]; then
     watcher_status=0

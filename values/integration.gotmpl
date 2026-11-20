@@ -58,6 +58,8 @@ databases:
     size: 8Gi
     memoryRequest: 512Mi
     memoryLimit: 2Gi
+    # structure.sql loads in one transaction and locks every table/index/partition.
+    args: ["-c", "max_locks_per_transaction=1024"]
     # GitLab schema load requires these; missing them makes migrations Job crash fast.
     extensions:
       - pg_trgm

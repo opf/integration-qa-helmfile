@@ -74,6 +74,9 @@ spec:
         - name: postgresql
           image: "postgres:{{ .imageTag | default "17" }}"
           imagePullPolicy: IfNotPresent
+          {{- with .args }}
+          args: {{- toYaml . | nindent 12 }}
+          {{- end }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 999
