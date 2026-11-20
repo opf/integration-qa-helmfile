@@ -14,6 +14,7 @@ grep -q 'login: "Bob_AI"' "$SCRIPT" || fail "setup-mcp.rb must provision login B
 grep -q 'bob.ai@example.net' "$SCRIPT" || fail "setup-mcp.rb must use bob.ai@example.net"
 grep -q 'ENV.fetch("MCP_OAUTH_TOKEN")' "$SCRIPT" || fail "setup-mcp.rb must require MCP_OAUTH_TOKEN"
 grep -q 'SecureRandom.alphanumeric' "$SCRIPT" || fail "setup-mcp.rb must randomize Bob_AI password"
+grep -q 'aA1!' "$SCRIPT" || fail "setup-mcp.rb password must include OP-required character classes"
 grep -q 'Password123!' "$SCRIPT" && fail "setup-mcp.rb must not hard-code Bob_AI password" || true
 grep -q 'bob_ai_mcp_test_token_1234567890' "$SCRIPT" && fail "setup-mcp.rb must not hard-code MCP token" || true
 grep -q 'login: "brian"' "$SCRIPT" && fail "setup-mcp.rb must not create OpenProject login brian" || true

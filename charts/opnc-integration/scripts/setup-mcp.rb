@@ -31,7 +31,8 @@ bob.mail = "bob.ai@example.net"
 bob.admin = true
 bob.status = User.statuses[:active]
 # Random unused password: MCP auth uses the OAuth token, not this login.
-bob.password = SecureRandom.alphanumeric(32)
+# OP requires lower/upper/digit/special; alphanumeric alone fails validation.
+bob.password = "#{SecureRandom.alphanumeric(28)}aA1!"
 bob.force_password_change = false
 bob.save!
 puts "[INFO] Provisioned user 'Bob_AI' (ID: #{bob.id}, admin: #{bob.admin?})"
