@@ -111,6 +111,7 @@ try {
   - `resolveEnvName()` chooses the environment (`local`, `edge`, `stage`, etc.) based on `E2E_ENV` or `ENV` (default: `local`).
   - `resolveHosts(envName?)` returns OpenProject, Nextcloud, and Keycloak hosts using env vars with per-env defaults.
 - Do not duplicate host or environment resolution logic inside tests or helpers; always call the shared utilities.
+- **Credentials:** use `utils/test-users.ts` and `utils/mcp-token.ts` (never hardcode logins in specs). Local keeps `admin`/`1234` and the seeded Bob_AI MCP token. On `E2E_ENV=pullpreview`, those modules **fail closed** without secret-backed `E2E_ADMIN_PASS` / `E2E_USER_PASS` / `MCP_OAUTH_TOKEN` (or per-role `E2E_*_PASS`). Do not invent local defaults for PullPreview. GitHub secret mapping: `pullpreview/docs/README.md#secrets-required-for-every-preview-deploy`.
 - Configuration is loaded once in `utils/config.ts` and exposed as `testConfig`:
   - Service URLs and versions.
   - Setup method and environment name.
@@ -265,15 +266,17 @@ cd e2e
 # Local Helm / k3d (*.test → host via docker-compose extra_hosts)
 E2E_ENV=local ./run-tests.sh --no-open-report --project=op-integration-tests tests/path/to.spec.ts
 
-# PullPreview (hosts from deploy job / .env.local)
+# PullPreview (hosts + secret-backed passwords; no local admin/1234 fallback)
 E2E_ENV=pullpreview \
   OPENPROJECT_HOST=….my.opf.run NEXTCLOUD_HOST=nextcloud.….my.opf.run KEYCLOAK_HOST=keycloak.….my.opf.run \
+  E2E_ADMIN_PASS=… E2E_USER_PASS=… MCP_OAUTH_TOKEN=… \
   ./run-tests.sh --no-open-report --project=op-integration-tests tests/path/to.spec.ts
 ```
 
 - After `package-lock.json` / `Dockerfile` changes: add `--build`.
 - Do **not** install Playwright browsers or run host `npx playwright test` for verification.
 - Interactive locator discovery (playwright-cli / Playwright MCP) may still target a live UI; landing code and Docker verification still follow this guide.
+- PullPreview credentials come from deploy secrets (`PULLPREVIEW_*` → `E2E_*` / `MCP_OAUTH_TOKEN`); see Environment and Configuration above and `pullpreview/docs/README.md#secrets-required-for-every-preview-deploy`.
 
 ### General
 
