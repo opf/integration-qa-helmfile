@@ -1,52 +1,19 @@
-global:
-  security:
-    allowInsecureImages: true
 fullnameOverride: {{ .Values.keycloak.fullnameOverride }}
-service:
-  ports:
-    http: 8080
 image:
-  tag: {{ .Values.keycloak.version | quote  }}
-  repository: bitnamilegacy/keycloak
-command: ['/scripts/entrypoint.sh']
-usePasswordFiles: false
+  tag: {{ dig "version" "26.2.5" .Values.keycloak | quote }}
 auth:
   adminUser: admin
-  adminPassword: admin
-extraEnvVars:
-  - name: KEYCLOAK_HOSTNAME
-    value: {{ .Values.keycloak.host }}
-  - name: KC_REALM_NAME
-    value: {{ .Values.keycloak.realm.name }}
-  - name: KC_NEXTCLOUD_CLIENT_ID
-    value: {{ .Values.integration.oidcClients.nextcloud.id }}
-  - name: KC_NEXTCLOUD_CLIENT_SECRET
-    value: {{ .Values.integration.oidcClients.nextcloud.secret }}
-  - name: KC_NEXTCLOUD_CLIENT_HOST
-    value: {{ .Values.nextcloud.host }}
-  - name: KC_OPENPROJECT_CLIENT_ID
-    value: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
-  - name: KC_OPENPROJECT_CLIENT_SECRET
-    value: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
-  - name: KC_OPENPROJECT_CLIENT_HOST
-    value: {{ .Values.openproject.host }}
-extraVolumes:
-  - name: entrypoint
-    configMap:
-      name: kc-entry-configmap
-      defaultMode: 0755
-extraVolumeMounts:
-  - name: entrypoint
-    mountPath: /scripts/entrypoint.sh
-    subPath: entrypoint.sh
-cache:
-  enabled: false
+hostname: {{ .Values.keycloak.host | quote }}
+realm:
+  name: {{ .Values.keycloak.realm.name | quote }}
 postgresql:
-  fullnameOverride: {{ .Values.keycloak.postgresql.host }}
-  image:
-    repository: bitnamilegacy/postgresql
-  primary:
-    podLabels:
-      app.kubernetes.io/name: {{ .Values.keycloak.postgresql.host }}
-    persistence:
-      enabled: false
+  host: {{ dig "postgresql" "host" "kc-postgresql" .Values.keycloak | quote }}
+  username: keycloak
+  database: keycloak
+clients:
+  nextcloud:
+    id: {{ .Values.integration.oidcClients.nextcloud.id | quote }}
+    host: {{ .Values.nextcloud.host | quote }}
+  openproject:
+    id: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") | quote }}
+    host: {{ .Values.openproject.host | quote }}

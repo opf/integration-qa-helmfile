@@ -135,6 +135,9 @@ jobs:
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
           SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -146,6 +149,7 @@ jobs:
             echo "::error::Secret HETZNER_CA_KEY is not set or empty."
             exit 1
           fi
+          .github/scripts/require-preview-secrets.sh
 
           preview_name="mcpeval-${RUN_ID}-${RUN_ATTEMPT}"
           {
@@ -180,6 +184,9 @@ jobs:
           OPENPROJECT_VERSION: ${{ github.event.inputs.openproject_version }}
           XWIKI_ENABLED: "false"
           STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
 
       - name: Strip SSH lines from PullPreview summary
         if: always() && steps.pullpreview_up.outcome != 'skipped'
@@ -311,7 +318,7 @@ jobs:
         working-directory: e2e/mcp-eval
         env:
           OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
-          MCP_BEARER_TOKEN: bob_ai_mcp_test_token_1234567890
+          MCP_BEARER_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
           LLM_API_KEY: ${{ steps.llm.outputs.llm_api_key }}
           LLM_BASE_URL: ${{ steps.llm.outputs.llm_base_url }}
           LLM_MODEL: ${{ steps.llm.outputs.llm_model }}

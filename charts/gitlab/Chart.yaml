@@ -1,16 +1,10 @@
 ---
 apiVersion: v2
 name: gitlab
-description: GitLab with necessary external services
+description: GitLab with external Postgres and Redis (no Bitnami deps)
 type: application
 version: 0.1.0
 dependencies:
   - name: gitlab
     repository: https://charts.gitlab.io
     version: '10.4.1'
-  - name: postgresql
-    repository: oci://registry-1.docker.io/bitnamicharts
-    version: '18.12.1'
-  - name: redis
-    repository: oci://registry-1.docker.io/bitnamicharts
-    version: '28.2.3'

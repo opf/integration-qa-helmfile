@@ -5,3 +5,7 @@ openproject:
   railsEnv: 'development'
   version: 'dev'
   enableTestSetup: true
+
+# Explicit off; also the default when standalone and keycloak.enabled is omitted.
+keycloak:
+  enabled: false

@@ -2,25 +2,6 @@ apiVersion: v2
 name: pullpreview-stack
 description: >-
   PullPreview chart path for the integration stack. CI deploys via phased
-  helmfile (pullpreview/helmfile-sync.sh); subcharts here remain for values parity.
+  helmfile (pullpreview/helmfile-sync.sh); this chart is a path placeholder only.
 type: application
 version: 0.1.0
-dependencies:
-  - name: opnc-integration
-    version: 0.1.0
-    repository: file://../opnc-integration
-  - name: openproject
-    version: 13.10.1
-    repository: file://../openproject
-  - name: nextcloud
-    version: ~9.2.5
-    repository: https://nextcloud.github.io/helm
-  - name: xwiki
-    version: ~1.6.7
-    repository: file://../xwiki
-  - name: keycloak
-    version: ~24.7.5
-    repository: https://charts.bitnami.com/bitnami
-  - name: traefik
-    version: ~41.2.0
-    repository: https://traefik.github.io/charts

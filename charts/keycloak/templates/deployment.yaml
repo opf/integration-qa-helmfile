@@ -1,0 +1,182 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.fullnameOverride }}
+  labels:
+    app.kubernetes.io/name: keycloak
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        supplementalGroups: []
+        supplementalGroupsPolicy: Strict
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: keycloak
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            # shortcut: first `start` runs Quarkus build against the image tree; re-enable RO root with a pre-built image.
+            readOnlyRootFilesystem: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          args:
+            - start
+            - --http-enabled=true
+            - --hostname-strict=false
+            - --proxy-headers=xforwarded
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: {{ .Values.auth.adminUser | quote }}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: admin-password
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_HOSTNAME
+              value: {{ .Values.hostname | quote }}
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: {{ printf "jdbc:postgresql://%s:5432/%s" .Values.postgresql.host .Values.postgresql.database | quote }}
+            - name: KC_DB_USERNAME
+              value: {{ .Values.postgresql.username | quote }}
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.host }}
+                  key: db-password
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /opt/keycloak/data
+          # Cold start: Quarkus build + Postgres migrate can exceed 4+ minutes under load.
+          startupProbe:
+            httpGet:
+              path: /realms/master
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /realms/master
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 100m
+            limits:
+              memory: 1536Mi
+        - name: realm-setup
+          image: "{{ .Values.setupImage.repository }}:{{ .Values.setupImage.tag }}"
+          imagePullPolicy: {{ .Values.setupImage.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - /bin/sh
+            - /scripts/entrypoint.sh
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: {{ .Values.auth.adminUser | quote }}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: admin-password
+            - name: KC_REALM_NAME
+              value: {{ .Values.realm.name | quote }}
+            - name: KC_REALM_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: realm-user-password
+            - name: KC_NEXTCLOUD_CLIENT_ID
+              value: {{ .Values.clients.nextcloud.id | quote }}
+            - name: KC_NEXTCLOUD_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: oidc-nextcloud-client-secret
+            - name: KC_NEXTCLOUD_CLIENT_HOST
+              value: {{ .Values.clients.nextcloud.host | quote }}
+            - name: KC_OPENPROJECT_CLIENT_ID
+              value: {{ .Values.clients.openproject.id | quote }}
+            - name: KC_OPENPROJECT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: oidc-openproject-client-secret
+            - name: KC_OPENPROJECT_CLIENT_HOST
+              value: {{ .Values.clients.openproject.host | quote }}
+          volumeMounts:
+            - name: entrypoint
+              mountPath: /scripts/entrypoint.sh
+              subPath: entrypoint.sh
+            - name: tmp
+              mountPath: /tmp
+          # Pod Ready only after realm/users/clients/TE finish (helm --wait / dependents).
+          readinessProbe:
+            exec:
+              command: ["test", "-f", "/tmp/realm-setup-complete"]
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 120
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
+        - name: entrypoint
+          configMap:
+            name: kc-entry-configmap
+            defaultMode: 0755

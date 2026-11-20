@@ -1,7 +1,29 @@
 gitlab:
   global:
+    # Chart builds gitlab.<domain> unless hosts.gitlab.name is set. .Values.gitlab.host
+    # is already the full hostname (gitlab.<publicDns>), so pass it explicitly.
     hosts:
-      domain: {{ .Values.gitlab.host }}
+      domain: {{ .Values.gitlab.host | trimPrefix "gitlab." | quote }}
+      https: false
+      gitlab:
+        name: {{ .Values.gitlab.host | quote }}
+    initialRootPassword:
+      secret: gitlab-root-password
+      key: password
+    redis:
+      host: gitlab-redis-master
+      auth:
+        enabled: true
+        secret: gitlab-redis-password
+        key: password
+    psql:
+      host: gitlab-postgresql
+      username: gitlab
+      database: gitlab
+      # Same secret the postgres StatefulSet uses (single source of truth).
+      password:
+        secret: gitlab-postgresql
+        key: db-password
     image:
       tag: {{ .Values.gitlab.version }}
   gitlab:
@@ -20,12 +42,10 @@ gitlab:
     migrations:
       image:
         tag: {{ .Values.gitlab.version }}
-postgresql:
-  global:
-    postgresql:
-      auth:
-        password: {{ .Values.gitlab.postgresql.password }}
-redis:
-  global:
-    redis:
-      password: {{ .Values.gitlab.redis.password }}
+      # Fresh GitLab schema load needs far more than the chart's 200Mi on a busy preview node.
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          memory: 4Gi

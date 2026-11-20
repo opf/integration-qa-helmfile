@@ -1,7 +1,14 @@
 {{- $openprojectXwiki := .Values.openproject.xwiki | default dict -}}
 {{- $mcp := dig "mcp" dict .Values -}}
+{{- $adminPassword := .Values.adminPassword | default "admin" -}}
+{{- $userPassword := .Values.userPassword | default "1234" -}}
+{{- $standalone := .Values.openproject.standalone | default false -}}
+{{- /* Missing keycloak.enabled → on for full stack, off for standalone; explicit true wins (op-keycloak). */ -}}
+{{- $keycloakEnabled := dig "keycloak" "enabled" (not $standalone) .Values -}}
 integrationSetupMethod: {{ .Values.integration.setupMethod }}
 previewMode: {{ dig "previewMode" false .Values }}
+adminPassword: {{ $adminPassword | quote }}
+userPassword: {{ $userPassword | quote }}
 
 mcp:
   enabled: {{ dig "enabled" true $mcp }}
@@ -19,6 +26,56 @@ xwikiHost: {{ .Values.xwiki.host }}
 gitlabHost: {{ .Values.gitlab.host }}
 squashtmHost: {{ .Values.squashtm.host }}
 
+databases:
+  - name: {{ .Values.openproject.postgresql.host | quote }}
+    username: {{ .Values.openproject.postgresql.username | quote }}
+    database: {{ printf "%s%s" .Values.openproject.postgresql.database (ternary "_dev" "" (eq .Values.openproject.railsEnv "development")) | quote }}
+    password: {{ .Values.openproject.postgresql.password | quote }}
+    size: 8Gi
+    memoryRequest: 256Mi
+    memoryLimit: 1Gi
+  {{- if not $standalone }}
+  - name: {{ .Values.nextcloud.postgresql.host | quote }}
+    username: {{ .Values.nextcloud.postgresql.username | quote }}
+    database: {{ .Values.nextcloud.postgresql.database | quote }}
+    password: {{ .Values.nextcloud.postgresql.password | quote }}
+    size: 8Gi
+  {{- end }}
+  {{- if $keycloakEnabled }}
+  - name: {{ dig "postgresql" "host" "kc-postgresql" .Values.keycloak | quote }}
+    username: keycloak
+    database: keycloak
+    password: {{ dig "postgresql" "password" "keycloak" .Values.keycloak | quote }}
+    size: 8Gi
+    memoryRequest: 256Mi
+    memoryLimit: 1Gi
+  {{- end }}
+  {{- if .Values.gitlab.enabled }}
+  - name: gitlab-postgresql
+    username: gitlab
+    database: gitlab
+    password: {{ .Values.gitlab.postgresql.password | quote }}
+    size: 8Gi
+    memoryRequest: 512Mi
+    memoryLimit: 2Gi
+    # structure.sql loads in one transaction and locks every table/index/partition.
+    args: ["-c", "max_locks_per_transaction=1024"]
+    # GitLab schema load requires these; missing them makes migrations Job crash fast.
+    extensions:
+      - pg_trgm
+      - btree_gist
+      - amcheck
+  {{- end }}
+  {{- if .Values.xwiki.enabled }}
+  - name: xwiki-postgresql
+    username: xwiki
+    database: xwiki
+    password: {{ dig "postgresql" "password" "xwiki" .Values.xwiki | quote }}
+    size: 8Gi
+    memoryRequest: 256Mi
+    memoryLimit: 1Gi
+  {{- end }}
+
 nextcloud:
   gitSourceBranch: {{ .Values.nextcloud.gitSourceBranch | quote }}
   enableApps:
@@ -29,7 +86,7 @@ openproject:
   gitSourceBranch: {{ .Values.openproject.gitSourceBranch | quote }}
   localSourcePath: {{ .Values.openproject.localSourcePath | quote }}
   customSourceMountPath: {{ .Values.openproject.customSourceMountPath | quote }}
-  standalone: {{ .Values.openproject.standalone | default false }}
+  standalone: {{ $standalone }}
   enableTestSetup: {{ .Values.openproject.enableTestSetup | default false }}
   railsEnv: {{ .Values.openproject.railsEnv | quote }}
   xwiki:
@@ -58,6 +115,7 @@ oidcProvider:
   name: {{ .Values.keycloak.providerName }}
   openprojectClientId: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
   openprojectClientSecret: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
+  nextcloudClientSecret: {{ .Values.integration.oidcClients.nextcloud.secret | quote }}
 
 ingress:
   ingressClassName: {{ .Values.ingress.ingressClassName }}

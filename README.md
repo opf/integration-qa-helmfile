@@ -56,7 +56,7 @@ setup-job-5nwlm                               0/1     Error       0          17m
 setup-job-mkgrf                               0/1     Completed   0          12m
 ```
 
-Access the services via the following URLs:
+Access the services via the following URLs (local defaults `admin` / `admin`; Keycloak users alice/brian use `1234`):
 
 - OpenProject: [https://openproject.test](https://openproject.test)
 - Nextcloud: [https://nextcloud.test](https://nextcloud.test)
@@ -66,11 +66,13 @@ Access the services via the following URLs:
 - Squash TM: [https://squashtm.test/squash](https://squashtm.test/squash) (enable with `squashtm.enabled: true` in `environments/override.yaml`)
 
 > [!NOTE]
-> XWiki will take good amount of time to install the standard flavor.
+> XWiki will take good amount of time to install the standard flavor (PostgreSQL image tag `*-postgres-tomcat`).
 >
 > You can check the installation logs: `kubectl logs -n opnc-integration -f xwiki-0`
 >
 > Squash TM is optional and off by default (same as GitLab). Image tag defaults to `charts/squashtm/values.yaml`; pin with `squashtm.version` (see [Docker Hub tags](https://hub.docker.com/r/squashtest/squash/tags)). Local login defaults to Squash's `admin` / `admin`; set `squashtm.adminPassword` in `environments/override.yaml` to replace it at deploy (PullPreview always sets this from the `SQUASHTM_ADMIN_PASSWORD` GitHub secret). The image is amd64-only, so on Apple Silicon it runs under emulation and the first start is slow. After chart changes that replace Bitnami Postgres, destroy and delete the PVC before redeploy (`helmfile destroy -l name=squashtm`, then `kubectl -n opnc-integration delete pvc data-squashtm-postgresql-0`).
+>
+> **PullPreview** never uses these local defaults. It requires GitHub secrets `PULLPREVIEW_ADMIN_PASSWORD`, `PULLPREVIEW_USER_PASSWORD`, and `PULLPREVIEW_MCP_TOKEN` (see [pullpreview/docs/README.md](pullpreview/docs/README.md#secrets-required-for-every-preview-deploy)).
 
 To uninstall the deployment, run:
 

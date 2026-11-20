@@ -219,6 +219,14 @@ if sq.get("version"):
 if sq.get("adminPassword"):
     values["SQUASHTM_ADMIN_PASSWORD"] = str(sq["adminPassword"])
 
+if opnc.get("adminPassword"):
+    values["PULLPREVIEW_ADMIN_PASSWORD"] = str(opnc["adminPassword"])
+if opnc.get("userPassword"):
+    values["PULLPREVIEW_USER_PASSWORD"] = str(opnc["userPassword"])
+mcp_token = (opnc.get("mcp") or {}).get("oauthToken")
+if mcp_token:
+    values["PULLPREVIEW_MCP_TOKEN"] = str(mcp_token)
+
 stack_profile = opnc.get("stackProfile")
 if stack_profile:
     values["STACK_PROFILE"] = str(stack_profile)

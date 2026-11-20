@@ -12,7 +12,7 @@ From `e2e/` (no host browsers):
 E2E_ENV=local ./run-tests.sh --no-open-report --project=op-integration-tests tests/…
 ```
 
-PullPreview: set `E2E_ENV=pullpreview` plus `OPENPROJECT_HOST` / `NEXTCLOUD_HOST` / `KEYCLOAK_HOST`, then `./run-tests.sh --no-open-report …`.
+PullPreview: set `E2E_ENV=pullpreview` plus `OPENPROJECT_HOST` / `NEXTCLOUD_HOST` / `KEYCLOAK_HOST`, and secret-backed `E2E_ADMIN_PASS` / `E2E_USER_PASS` / `MCP_OAUTH_TOKEN` (or the per-role `E2E_*_PASS` vars). PullPreview refuses local `admin`/`1234` fallbacks when those env vars are missing. Then `./run-tests.sh --no-open-report …`.
 
 Optional `.env.local`; local TLS uses repo-root `opnc-root-ca.crt` when present. Agents: always Docker + `--no-open-report`.
 

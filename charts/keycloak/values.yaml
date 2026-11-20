@@ -1,0 +1,37 @@
+fullnameOverride: keycloak
+
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: "26.2.5"
+  pullPolicy: IfNotPresent
+
+# curl-capable image for realm bootstrap (official Keycloak has no curl).
+setupImage:
+  repository: curlimages/curl
+  tag: "8.12.1"
+  pullPolicy: IfNotPresent
+
+auth:
+  adminUser: admin
+
+hostname: keycloak.test
+
+realm:
+  name: opnc
+
+postgresql:
+  host: kc-postgresql
+  username: keycloak
+  database: keycloak
+
+clients:
+  nextcloud:
+    id: nextcloud
+    host: nextcloud.test
+  openproject:
+    id: openproject
+    host: openproject.test
+
+service:
+  ports:
+    http: 8080

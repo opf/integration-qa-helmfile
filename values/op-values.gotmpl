@@ -1,6 +1,3 @@
-global:
-  security:
-    allowInsecureImages: true
 fullnameOverride: {{ .Values.openproject.fullnameOverride }}
 previewMode: {{ .Values.previewMode | default false }}
 {{- if and (.Values.previewMode | default false) (.Values.xwiki.enabled | default false) }}
@@ -23,6 +20,7 @@ openproject:
   https: true
   host: {{ .Values.openproject.host }}
   admin_user:
+    password: {{ .Values.adminPassword | default "admin" | quote }}
     password_reset: 'false'
   tmpVolumesStorageClassName: {{ .Values.persistence.storageClassName | quote }}
   oidc:
@@ -122,19 +120,19 @@ extraVolumeMounts:
     mountPath: /app
   {{ end }}
 postgresql:
-  fullnameOverride: {{ .Values.openproject.postgresql.host }}
-  image:
-    repository: bitnamilegacy/postgresql
-    tag: '17.5.0-debian-12-r16'
+  bundled: false
+  connection:
+    host: {{ .Values.openproject.postgresql.host }}
+    port: 5432
   auth:
     database: {{ .Values.openproject.postgresql.database }}{{ if eq .Values.openproject.railsEnv "development" }}_dev{{ end }}
     username: {{ .Values.openproject.postgresql.username }}
     password: {{ .Values.openproject.postgresql.password }}
-  primary:
-    podLabels:
-      app.kubernetes.io/name: {{ .Values.openproject.postgresql.host }}
-    persistence:
-      enabled: false
+    existingSecret: {{ .Values.openproject.postgresql.host }}
+    secretKeys:
+      userPasswordKey: db-password
 memcached:
-  image:
-    repository: bitnamilegacy/memcached
+  bundled: false
+  connection:
+    host: openproject-memcached
+    port: 11211

@@ -117,12 +117,12 @@ export INTEGRATION_SETUP_DEBUG="${INTEGRATION_SETUP_DEBUG:-false}"
 export SETUP_PROJECT_FOLDER='true'
 export NC_HOST="https://$NEXTCLOUD_HOST"
 export NC_ADMIN_USERNAME='admin'
-export NC_ADMIN_PASSWORD='admin'
+export NC_ADMIN_PASSWORD="${NC_ADMIN_PASSWORD:-admin}"
 export NC_INTEGRATION_ENABLE_NAVIGATION='false'
 export NC_INTEGRATION_ENABLE_SEARCH='false'
 export OP_HOST="https://$OPENPROJECT_HOST"
 export OP_ADMIN_USERNAME='admin'
-export OP_ADMIN_PASSWORD='admin'
+export OP_ADMIN_PASSWORD="${OP_ADMIN_PASSWORD:-admin}"
 export OP_STORAGE_NAME='nextcloud'
 USE_INCLUSTER_API=false
 
@@ -284,3 +284,35 @@ elif [[ "$INTEGRATION_APP_SETUP_METHOD" == "sso-external" ]]; then
     OP_STORAGE_SCOPE=add-nc-aud \
     bash integration_oidc_setup.sh 2>&1 | tee "$INTEGRATION_SETUP_LOG" || _handle_integration_script_failure
 fi
+
+# AMPF sync adds project members to the OpenProject group via the OpenProject app
+# password. On NC 35, group-subadmin alone still returns OCS 104 for that call —
+# membership in the admin group is what makes AMPF health go Healthy.
+ensure_openproject_ampf_privileges() {
+    local code
+    code=$(curl -sS -o /tmp/op-subadmin.ocs -w "%{http_code}" --connect-timeout 5 --max-time 15 \
+        -u "$NC_ADMIN_USERNAME:$NC_ADMIN_PASSWORD" \
+        -H 'OCS-APIRequest: true' \
+        -X POST "$NC_HOST/ocs/v1.php/cloud/users/OpenProject/subadmins" \
+        -d 'groupid=OpenProject' || echo "000")
+    if grep -q '<statuscode>100</statuscode>\|<statuscode>102</statuscode>' /tmp/op-subadmin.ocs 2>/dev/null; then
+        echo "[INFO] Ensured OpenProject is subadmin of OpenProject group (HTTP $code)."
+    else
+        echo "[WARN] Could not ensure OpenProject group subadmin (HTTP $code)." >&2
+        cat /tmp/op-subadmin.ocs >&2 || true
+    fi
+
+    code=$(curl -sS -o /tmp/op-admin-group.ocs -w "%{http_code}" --connect-timeout 5 --max-time 15 \
+        -u "$NC_ADMIN_USERNAME:$NC_ADMIN_PASSWORD" \
+        -H 'OCS-APIRequest: true' \
+        -X POST "$NC_HOST/ocs/v1.php/cloud/users/OpenProject/groups" \
+        -d 'groupid=admin' || echo "000")
+    if grep -q '<statuscode>100</statuscode>\|<statuscode>102</statuscode>' /tmp/op-admin-group.ocs 2>/dev/null; then
+        echo "[INFO] Ensured OpenProject is in Nextcloud admin group (HTTP $code)."
+        return 0
+    fi
+    echo "[WARN] Could not add OpenProject to admin group (HTTP $code); AMPF may stay unhealthy." >&2
+    cat /tmp/op-admin-group.ocs >&2 || true
+}
+
+ensure_openproject_ampf_privileges

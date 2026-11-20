@@ -2,7 +2,7 @@ name: E2E Manual Run
 run-name: >-
   ${{
     format(
-      'E2E · {0} · {1} · {2} · {3} · {4} · {5} · {6}',
+      'E2E · {0} · {1} · {2} · {3} · {4} · {5} · {6} · {7}',
       github.event.inputs.suite,
       github.event.inputs.setup_method,
       format(
@@ -19,7 +19,7 @@ run-name: >-
       github.event.inputs.xwiki_enabled == 'true'
         && format(
           'XWiki {0} + ext {1}',
-          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.10',
+          github.event.inputs.xwiki_version != '' && github.event.inputs.xwiki_version || '17.10.15',
           github.event.inputs.xwiki_extension_version != '' && github.event.inputs.xwiki_extension_version || '1.2.0'
         )
         || 'XWiki off',
@@ -28,7 +28,13 @@ run-name: >-
           'GitLab {0}',
           github.event.inputs.gitlab_version != '' && github.event.inputs.gitlab_version || 'v19.4.1'
         )
-        || 'GitLab off'
+        || 'GitLab off',
+      github.event.inputs.squashtm_enabled == 'true'
+        && format(
+          'SquashTM {0}',
+          github.event.inputs.squashtm_version != '' && github.event.inputs.squashtm_version || '15.0.3'
+        )
+        || 'SquashTM off'
     )
   }}
 
@@ -117,7 +123,7 @@ on:
       xwiki_version:
         description: "[XWiki] Image tag (used only when XWiki is checked)"
         required: false
-        default: "17.10.10"
+        default: "17.10.15"
         type: string
       xwiki_extension_version:
         description: "[XWiki] OpenProject extension version (used only when XWiki is checked)"
@@ -133,6 +139,16 @@ on:
         description: "[GitLab] Image tag (used only when GitLab is checked)"
         required: false
         default: "v19.4.1"
+        type: string
+      squashtm_enabled:
+        description: "[Squash TM] Deploy Squash TM (version below ignored when unchecked)"
+        required: false
+        default: false
+        type: boolean
+      squashtm_version:
+        description: "[Squash TM] Image tag (used only when Squash TM is checked)"
+        required: false
+        default: "15.0.3"
         type: string
 
 permissions:
@@ -180,6 +196,7 @@ jobs:
       effective_xwiki_version: ${{ steps.validate.outputs.effective_xwiki_version }}
       effective_xwiki_extension_version: ${{ steps.validate.outputs.effective_xwiki_extension_version }}
       effective_gitlab_version: ${{ steps.validate.outputs.effective_gitlab_version }}
+      effective_squashtm_version: ${{ steps.validate.outputs.effective_squashtm_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -195,6 +212,8 @@ jobs:
           IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_version }}
           IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
           IN_GITLAB_VER: ${{ github.event.inputs.gitlab_version }}
+          IN_SQUASHTM_ENABLED: ${{ github.event.inputs.squashtm_enabled }}
+          IN_SQUASHTM_VER: ${{ github.event.inputs.squashtm_version }}
           IN_OP_BRANCH: ${{ github.event.inputs.openproject_branch }}
           IN_NC_BRANCH: ${{ github.event.inputs.nextcloud_branch }}
           IN_IO_BRANCH: ${{ github.event.inputs.integration_app_branch }}
@@ -221,6 +240,7 @@ jobs:
       keycloak_host: ${{ steps.publish.outputs.keycloak_host }}
       xwiki_host: ${{ steps.publish.outputs.xwiki_host }}
       gitlab_host: ${{ steps.publish.outputs.gitlab_host }}
+      squashtm_host: ${{ steps.publish.outputs.squashtm_host }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -255,10 +275,15 @@ jobs:
           IN_CUSTOM_GREP: ${{ github.event.inputs.custom_grep }}
           IN_XWIKI_ENABLED: ${{ github.event.inputs.xwiki_enabled }}
           IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
+          IN_SQUASHTM_ENABLED: ${{ github.event.inputs.squashtm_enabled }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SECRET_HCLOUD: ${{ secrets.HCLOUD_TOKEN }}
           SECRET_HETZNER_CA: ${{ secrets.HETZNER_CA_KEY }}
+          SECRET_SQUASHTM_ADMIN_PASSWORD: ${{ secrets.SQUASHTM_ADMIN_PASSWORD }}
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -268,6 +293,11 @@ jobs:
           fi
           if [[ -z "${SECRET_HETZNER_CA:-}" ]]; then
             echo "::error::Secret HETZNER_CA_KEY is not set or empty."
+            exit 1
+          fi
+          .github/scripts/require-preview-secrets.sh
+          if [[ "${IN_SQUASHTM_ENABLED:-false}" == "true" && -z "${SECRET_SQUASHTM_ADMIN_PASSWORD:-}" ]]; then
+            echo "::error::Secret SQUASHTM_ADMIN_PASSWORD is required when Squash TM is enabled."
             exit 1
           fi
 
@@ -335,8 +365,14 @@ jobs:
           XWIKI_EXTENSION_OPENPROJECT_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_xwiki_extension_version }}
           OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS: ${{ github.event.inputs.openproject_wiki_enhancements }}
           XWIKI_ENABLED: ${{ steps.resolve.outputs.xwiki_enabled }}
+          PULLPREVIEW_ADMIN_PASSWORD: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+          PULLPREVIEW_USER_PASSWORD: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+          PULLPREVIEW_MCP_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
           GITLAB_ENABLED: ${{ steps.resolve.outputs.gitlab_enabled }}
           GITLAB_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_gitlab_version }}
+          SQUASHTM_ENABLED: ${{ steps.resolve.outputs.squashtm_enabled }}
+          SQUASHTM_VERSION: ${{ needs.resolve_deploy_inputs.outputs.effective_squashtm_version }}
+          SQUASHTM_ADMIN_PASSWORD: ${{ secrets.SQUASHTM_ADMIN_PASSWORD }}
           STACK_PROFILE: ${{ steps.resolve.outputs.stack_profile }}
 
       - name: Strip SSH lines from PullPreview summary
@@ -359,6 +395,7 @@ jobs:
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
           SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
+          SKIP_SQUASHTM: ${{ steps.resolve.outputs.skip_squashtm }}
         run: .github/scripts/deploy-preview-summary.sh
 
       - name: Report Let's Encrypt rate limit
@@ -378,6 +415,7 @@ jobs:
           skip-nextcloud: ${{ steps.resolve.outputs.skip_nextcloud }}
           skip-keycloak: ${{ steps.resolve.outputs.skip_keycloak }}
           skip-gitlab: ${{ steps.resolve.outputs.skip_gitlab }}
+          skip-squashtm: ${{ steps.resolve.outputs.skip_squashtm }}
 
       - name: Diagnostics (on URL validation failure)
         if: always() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome != 'success'
@@ -385,6 +423,7 @@ jobs:
           PREVIEW_URL: ${{ steps.pullpreview_up.outputs.url }}
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
           SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
+          SKIP_SQUASHTM: ${{ steps.resolve.outputs.skip_squashtm }}
           IN_SUITE: ${{ github.event.inputs.suite }}
         run: |
           set -euo pipefail
@@ -431,6 +470,10 @@ jobs:
             dump "https://gitlab.${preview_host}/users/sign_in"
           fi
 
+          if [[ "${SKIP_SQUASHTM}" != "true" ]]; then
+            dump "https://squashtm.${preview_host}/squash/isSquashAlive"
+          fi
+
       - name: Export hosts for Playwright
         id: export_hosts
         if: success() && steps.pullpreview_up.outputs.live == 'true' && steps.validate_urls.outcome == 'success'
@@ -441,6 +484,7 @@ jobs:
           SKIP_XWIKI: ${{ steps.resolve.outputs.skip_xwiki }}
           SKIP_KEYCLOAK: ${{ steps.resolve.outputs.skip_keycloak }}
           SKIP_GITLAB: ${{ steps.resolve.outputs.skip_gitlab }}
+          SKIP_SQUASHTM: ${{ steps.resolve.outputs.skip_squashtm }}
         run: |
           set -euo pipefail
           preview_url="${PREVIEW_URL}"
@@ -467,6 +511,9 @@ jobs:
           if [[ "${SKIP_GITLAB:-false}" != "true" ]]; then
             echo "GITLAB_HOST=gitlab.${preview_host}" >> "$GITHUB_ENV"
           fi
+          if [[ "${SKIP_SQUASHTM:-false}" != "true" ]]; then
+            echo "SQUASHTM_HOST=squashtm.${preview_host}" >> "$GITHUB_ENV"
+          fi
 
           {
             echo "### PullPreview endpoints"
@@ -484,6 +531,9 @@ jobs:
             fi
             if [[ "${SKIP_GITLAB:-false}" != "true" ]]; then
               echo "- GitLab: https://gitlab.${preview_host}"
+            fi
+            if [[ "${SKIP_SQUASHTM:-false}" != "true" ]]; then
+              echo "- Squash TM: https://squashtm.${preview_host}/squash"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -513,6 +563,7 @@ jobs:
             echo "keycloak_host=${KEYCLOAK_HOST:-}"
             echo "xwiki_host=${XWIKI_HOST:-}"
             echo "gitlab_host=${GITLAB_HOST:-}"
+            echo "squashtm_host=${SQUASHTM_HOST:-}"
           } >> "$GITHUB_OUTPUT"
 
   running_tests:
@@ -536,8 +587,21 @@ jobs:
       KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
       XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
       GITLAB_HOST: ${{ needs.deploy.outputs.gitlab_host }}
+      SQUASHTM_HOST: ${{ needs.deploy.outputs.squashtm_host }}
       OPENPROJECT_URL: ${{ needs.deploy.outputs.openproject_url }}
       E2E_ENV: pullpreview
+      E2E_ADMIN_PASS: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+      E2E_USER_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_OP_ADMIN_PASS: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+      E2E_NC_ADMIN_PASS: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+      E2E_KC_ADMIN_PASS: ${{ secrets.PULLPREVIEW_ADMIN_PASSWORD }}
+      E2E_ALICE_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_BRIAN_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_OLIVER_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_BOB_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_FILES_AUTH_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      E2E_OP_NC_SERVICE_PASS: ${{ secrets.PULLPREVIEW_USER_PASSWORD }}
+      MCP_OAUTH_TOKEN: ${{ secrets.PULLPREVIEW_MCP_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -613,7 +677,7 @@ jobs:
             fi
           fi
           echo "Running: ${args[*]}"
-          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST} GL=${GITLAB_HOST}"
+          echo "Hosts: OP=${OPENPROJECT_HOST} NC=${NEXTCLOUD_HOST} KC=${KEYCLOAK_HOST} XW=${XWIKI_HOST} GL=${GITLAB_HOST} SQ=${SQUASHTM_HOST}"
           _test_start=$(date +%s)
           set +e
           "${args[@]}"
@@ -661,6 +725,8 @@ jobs:
           IN_XWIKI_EXT: ${{ github.event.inputs.xwiki_extension_version }}
           IN_GITLAB_ENABLED: ${{ github.event.inputs.gitlab_enabled }}
           IN_GITLAB_VER: ${{ github.event.inputs.gitlab_version }}
+          IN_SQUASHTM_ENABLED: ${{ github.event.inputs.squashtm_enabled }}
+          IN_SQUASHTM_VER: ${{ github.event.inputs.squashtm_version }}
         run: |
           set -euo pipefail
 
@@ -723,7 +789,7 @@ jobs:
             if [[ -n "${IN_XWIKI_VER:-}" ]]; then
               echo "- XWiki image tag: \`${IN_XWIKI_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
             else
-              echo "- XWiki image tag: \`17.10.10\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+              echo "- XWiki image tag: \`17.10.15\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
             fi
             if [[ -n "${IN_XWIKI_EXT:-}" ]]; then
               echo "- XWiki OpenProject extension version: \`${IN_XWIKI_EXT}\`" >> "${GITHUB_STEP_SUMMARY}"
@@ -736,6 +802,13 @@ jobs:
               echo "- GitLab image tag: \`${IN_GITLAB_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
             else
               echo "- GitLab image tag: \`v19.4.1\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          fi
+          if [[ "${IN_SQUASHTM_ENABLED}" == "true" ]]; then
+            if [[ -n "${IN_SQUASHTM_VER:-}" ]]; then
+              echo "- Squash TM image tag: \`${IN_SQUASHTM_VER}\`" >> "${GITHUB_STEP_SUMMARY}"
+            else
+              echo "- Squash TM image tag: \`15.0.3\` (default when empty)" >> "${GITHUB_STEP_SUMMARY}"
             fi
           fi
           echo "" >> "${GITHUB_STEP_SUMMARY}"
@@ -802,6 +875,7 @@ jobs:
           NEXTCLOUD_HOST: ${{ needs.deploy.outputs.nextcloud_host }}
           KEYCLOAK_HOST: ${{ needs.deploy.outputs.keycloak_host }}
           XWIKI_HOST: ${{ needs.deploy.outputs.xwiki_host }}
+          SQUASHTM_HOST: ${{ needs.deploy.outputs.squashtm_host }}
           TESTS_SHOULD_RUN: ${{ needs.deploy.outputs.tests_should_run }}
         run: |
           set -euo pipefail
@@ -827,6 +901,9 @@ jobs:
             fi
             if [[ -n "${XWIKI_HOST}" ]]; then
               echo "- XWiki: https://${XWIKI_HOST}"
+            fi
+            if [[ -n "${SQUASHTM_HOST}" ]]; then
+              echo "- Squash TM: https://${SQUASHTM_HOST}/squash"
             fi
             echo ""
             echo "To tear down later, run workflow **PullPreview Cleanup**:"

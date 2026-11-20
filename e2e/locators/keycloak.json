@@ -57,12 +57,12 @@
       "value": "nav-item-clients"
     },
     "nextcloudClientLink": {
-      "by": "locator",
-      "value": "a[href='#/opnc/clients/d97b00f4-c4eb-41f0-ad9e-0c6674d13348/settings']"
+      "by": "getByRole",
+      "value": { "role": "link", "name": "nextcloud", "options": { "exact": true } }
     },
     "openprojectClientLink": {
-      "by": "locator",
-      "value": "a[href='#/opnc/clients/2a721a37-e840-49d1-8715-ab36cfc56dcf/settings']"
+      "by": "getByRole",
+      "value": { "role": "link", "name": "openproject", "options": { "exact": true } }
     }
   }
 }
