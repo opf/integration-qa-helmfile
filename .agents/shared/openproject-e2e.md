@@ -111,7 +111,7 @@ try {
   - `resolveEnvName()` chooses the environment (`local`, `edge`, `stage`, etc.) based on `E2E_ENV` or `ENV` (default: `local`).
   - `resolveHosts(envName?)` returns OpenProject, Nextcloud, and Keycloak hosts using env vars with per-env defaults.
 - Do not duplicate host or environment resolution logic inside tests or helpers; always call the shared utilities.
-- **Credentials:** use `utils/test-users.ts` and `utils/mcp-token.ts` (never hardcode logins in specs). Local keeps `admin`/`1234` and the seeded Bob_AI MCP token. On `E2E_ENV=pullpreview`, those modules **fail closed** without secret-backed `E2E_ADMIN_PASS` / `E2E_USER_PASS` / `MCP_OAUTH_TOKEN` (or per-role `E2E_*_PASS`). Do not invent local defaults for PullPreview. GitHub secret mapping: `pullpreview/docs/README.md#secrets-required-for-every-preview-deploy`.
+- **Credentials:** use `utils/test-users.ts` and `utils/mcp-token.ts` (never hardcode logins in specs). Local keeps `admin`/`1234`; the Bob_AI MCP token comes from `opnc-secrets` (`run-tests.sh` reads it into `MCP_OAUTH_TOKEN`). On `E2E_ENV=pullpreview`, those modules **fail closed** without secret-backed `E2E_ADMIN_PASS` / `E2E_USER_PASS` / `MCP_OAUTH_TOKEN` (or per-role `E2E_*_PASS`). Do not invent local defaults for PullPreview. GitHub secret mapping: `pullpreview/docs/README.md#secrets-required-for-every-preview-deploy`.
 - Configuration is loaded once in `utils/config.ts` and exposed as `testConfig`:
   - Service URLs and versions.
   - Setup method and environment name.

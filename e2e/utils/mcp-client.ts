@@ -49,7 +49,7 @@ export async function createMcpClient(options: McpClientOptions = {}): Promise<C
     throw new Error(
       `[MCP Client] Failed to connect to ${mcpUrl.toString()}: ${detail}. ` +
         'Check that setup-job mcp-setup ran (mcp.enabled=true), seeded Bob_AI, ' +
-        'and that MCP_OAUTH_TOKEN matches charts/opnc-integration mcp.oauthToken.',
+        'and that MCP_OAUTH_TOKEN matches opnc-secrets mcp-oauth-token.',
     );
   }
   logInfo(`[MCP Client] Connected to ${mcpUrl.toString()}`);

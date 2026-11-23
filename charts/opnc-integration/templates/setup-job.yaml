@@ -1,5 +1,5 @@
 {{- if include "opnc.renderSetupJob" . }}
-{{- $mcp := .Values.mcp | default (dict "enabled" true "oauthToken" "bob_ai_mcp_test_token_1234567890") }}
+{{- $mcp := .Values.mcp | default (dict "enabled" true) }}
 {{- $standalone := .Values.openproject.standalone | default false }}
 {{- $integrationAppGitBranch := "" }}
 {{- range .Values.nextcloud.enableApps }}

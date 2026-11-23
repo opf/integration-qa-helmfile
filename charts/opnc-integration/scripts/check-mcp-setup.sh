@@ -16,7 +16,6 @@ grep -q 'ENV.fetch("MCP_OAUTH_TOKEN")' "$SCRIPT" || fail "setup-mcp.rb must requ
 grep -q 'SecureRandom.alphanumeric' "$SCRIPT" || fail "setup-mcp.rb must randomize Bob_AI password"
 grep -q 'aA1!' "$SCRIPT" || fail "setup-mcp.rb password must include OP-required character classes"
 grep -q 'Password123!' "$SCRIPT" && fail "setup-mcp.rb must not hard-code Bob_AI password" || true
-grep -q 'bob_ai_mcp_test_token_1234567890' "$SCRIPT" && fail "setup-mcp.rb must not hard-code MCP token" || true
 grep -q 'login: "brian"' "$SCRIPT" && fail "setup-mcp.rb must not create OpenProject login brian" || true
 grep -q 'brian@example.net' "$SCRIPT" && fail "setup-mcp.rb must not use brian@example.net" || true
 grep -q 'brian_mcp_test_token' "$SCRIPT" && fail "setup-mcp.rb must not use old brian_mcp token" || true
@@ -26,6 +25,22 @@ grep -q 'application_id' "$SCRIPT" || fail "setup-mcp.rb must set application_id
 grep -q 'update_column' "$SCRIPT" || fail "setup-mcp.rb must update_column the hashed token (bypass token= hashing)"
 grep -E '\.token[[:space:]]*=' "$SCRIPT" && fail "setup-mcp.rb must not assign to token= (Doorkeeper hashes the setter)" || true
 pass "setup-mcp.rb Bob_AI contract"
+
+# No hard-coded Bob_AI MCP token in chart defaults, templates, values, scripts, or e2e helpers.
+HARDCODED_TOKEN='bob_ai_mcp_test_token_1234567890'
+for path in \
+  "$CHART/templates" \
+  "$CHART/values.yaml" \
+  "$CHART/scripts" \
+  "$ROOT/values" \
+  "$ROOT/e2e/utils"
+do
+  # Exclude this check script: it stores the forbidden string as HARDCODED_TOKEN.
+  if grep -rq --exclude='check-mcp-setup.sh' "$HARDCODED_TOKEN" "$path" 2>/dev/null; then
+    fail "hard-coded MCP token still present under $path"
+  fi
+done
+pass "no hard-coded Bob_AI MCP token in chart/e2e sources"
 
 grep -q 'ocs/v2.php/cloud/apps/integration_openproject' "$INTEGRATION_SCRIPT" ||
   fail "setup-integration.sh must detect the installed integration app version"
@@ -64,6 +79,31 @@ grep -q 'name: INTEGRATION_APP_GIT_BRANCH' "$RENDER" || fail "rendered setup-job
 grep -A2 'image: ddev/ddev-utilities' "$RENDER" | grep -q 'imagePullPolicy: IfNotPresent' ||
   fail "setup-integration image must not be pulled again for every retry"
 pass "helm template wires MCP_OAUTH_TOKEN and mcp-setup"
+
+# Empty oauthToken → chart still renders a non-empty mcp-oauth-token (randAlphaNum).
+helm template mcp-check-random "$CHART" \
+  --set openproject.standalone=false \
+  --set setupJob.enabled=true \
+  --set setupJob.defer=false \
+  --set mcp.enabled=true \
+  --set mcp.oauthToken= \
+  --set adminPassword=admin \
+  --set environment.DATABASE_URL=postgres://op:op@db/op \
+  --set environment.DATABASE_HOST=db \
+  --set xwiki.enabled=false \
+  >"$RENDER"
+token_value="$(awk '/mcp-oauth-token:/ {gsub(/[" ]/, "", $2); print $2; exit}' "$RENDER")"
+[ -n "$token_value" ] || fail "empty oauthToken must render a non-empty mcp-oauth-token"
+[ "$token_value" != "$HARDCODED_TOKEN" ] || fail "empty oauthToken must not fall back to hard-coded token"
+pass "empty oauthToken renders a generated mcp-oauth-token"
+
+# helm template cannot exercise lookup; require the upgrade-stable reuse path in source.
+SECRETS_TPL="$CHART/templates/secrets.yaml"
+grep -q 'lookup "v1" "Secret"' "$SECRETS_TPL" || fail "secrets.yaml must lookup existing Secret for MCP token reuse"
+grep -q 'opnc-secrets' "$SECRETS_TPL" || fail "secrets.yaml lookup must target opnc-secrets"
+grep -q 'mcp-oauth-token' "$SECRETS_TPL" || fail "secrets.yaml must reuse mcp-oauth-token from existing Secret"
+grep -q 'randAlphaNum' "$SECRETS_TPL" || fail "secrets.yaml must generate mcp-oauth-token with randAlphaNum when missing"
+pass "secrets.yaml keeps lookup + randAlphaNum MCP token path"
 
 helm template mcp-check-off "$CHART" \
   --set openproject.standalone=false \
