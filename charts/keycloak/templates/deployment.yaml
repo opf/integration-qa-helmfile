@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.fullnameOverride }}
+  name: {{ .Values.fullnameOverride | quote }}
   labels:
     app.kubernetes.io/name: keycloak
 spec:
@@ -19,21 +19,22 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
         supplementalGroups: []
         supplementalGroupsPolicy: Strict
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: keycloak
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: {{ printf "%s:%s" .Values.image.repository .Values.image.tag | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsUser: 1001
+            # Image ships /opt/keycloak as 1000:0 g+rwX (arbitrary-UID support); GID 0 lets the Quarkus build write.
+            runAsGroup: 0
             allowPrivilegeEscalation: false
             # shortcut: first `start` runs Quarkus build against the image tree; re-enable RO root with a pre-built image.
             readOnlyRootFilesystem: false
@@ -68,7 +69,8 @@ spec:
             - name: KC_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.postgresql.host }}
+                  # opnc-integration postgres.yaml names each DB Secret after its Service host.
+                  name: {{ .Values.postgresql.host | quote }}
                   key: db-password
           ports:
             - name: http
@@ -109,12 +111,12 @@ spec:
             limits:
               memory: 1536Mi
         - name: realm-setup
-          image: "{{ .Values.setupImage.repository }}:{{ .Values.setupImage.tag }}"
-          imagePullPolicy: {{ .Values.setupImage.pullPolicy }}
+          image: {{ printf "%s:%s" .Values.setupImage.repository .Values.setupImage.tag | quote }}
+          imagePullPolicy: {{ .Values.setupImage.pullPolicy | quote }}
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsUser: 1001
+            runAsGroup: 1001
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             seccompProfile:

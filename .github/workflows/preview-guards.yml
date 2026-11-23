@@ -5,7 +5,6 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 concurrency:
   group: preview-guards-${{ github.workflow }}-${{ github.ref }}

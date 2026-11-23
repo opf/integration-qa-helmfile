@@ -185,22 +185,24 @@ dump_gitlab_migrations_logs() {
   local mig_job="${1:-}"
   local reason="${2:-migrations failure}"
   echo "::error::[pullpreview helmfile] ${reason}"
-  if [[ -n "${mig_job}" ]]; then
-    echo "[pullpreview helmfile] ${mig_job} describe:"
-    kubectl describe job "${mig_job}" -n "${namespace}" 2>&1 || true
-    echo "[pullpreview helmfile] ${mig_job} pods describe:"
-    kubectl describe pods -n "${namespace}" -l "job-name=${mig_job}" 2>&1 || true
-  fi
-  echo "[pullpreview helmfile] migrations container logs:"
-  kubectl logs -n "${namespace}" -l "app=migrations,release=gitlab" \
-    -c migrations --tail=-1 2>&1 || true
-  echo "[pullpreview helmfile] migrations container previous logs:"
-  kubectl logs -n "${namespace}" -l "app=migrations,release=gitlab" \
-    -c migrations --previous --tail=-1 2>&1 || true
-  echo "[pullpreview helmfile] gitlab-postgresql log tail:"
-  kubectl logs -n "${namespace}" gitlab-postgresql-0 -c postgresql --tail=80 2>&1 || true
-  echo "[pullpreview helmfile] gitlab-redis log tail:"
-  kubectl logs -n "${namespace}" gitlab-redis-0 -c redis --tail=40 2>&1 || true
+  {
+    if [[ -n "${mig_job}" ]]; then
+      echo "[pullpreview helmfile] ${mig_job} describe:"
+      kubectl describe job "${mig_job}" -n "${namespace}" 2>&1 || true
+      echo "[pullpreview helmfile] ${mig_job} pods describe:"
+      kubectl describe pods -n "${namespace}" -l "job-name=${mig_job}" 2>&1 || true
+    fi
+    echo "[pullpreview helmfile] migrations container logs:"
+    kubectl logs -n "${namespace}" -l "app=migrations,release=gitlab" \
+      -c migrations --tail=-1 2>&1 || true
+    echo "[pullpreview helmfile] migrations container previous logs:"
+    kubectl logs -n "${namespace}" -l "app=migrations,release=gitlab" \
+      -c migrations --previous --tail=-1 2>&1 || true
+    echo "[pullpreview helmfile] gitlab-postgresql log tail:"
+    kubectl logs -n "${namespace}" gitlab-postgresql-0 -c postgresql --tail=80 2>&1 || true
+    echo "[pullpreview helmfile] gitlab-redis log tail:"
+    kubectl logs -n "${namespace}" gitlab-redis-0 -c redis --tail=40 2>&1 || true
+  } 2>&1 | redact_stream
 }
 
 # Migrations pods are deleted on BackoffLimitExceeded; dump logs on first failure

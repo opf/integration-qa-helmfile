@@ -16,7 +16,8 @@ mcp:
 
 setupJob:
   enabled: true
-  defer: {{ dig "previewMode" false .Values }}
+  # Always defer: bootstrap must not race OP seeder; opnc-setup-job waits on openproject/nextcloud/keycloak.
+  defer: true
 
 openprojectHost: {{ .Values.openproject.host }}
 openprojectAssetHost: {{ .Values.openproject.assetHost }}
@@ -113,8 +114,8 @@ extraEnv:
 
 oidcProvider:
   name: {{ .Values.keycloak.providerName }}
-  openprojectClientId: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") }}
-  openprojectClientSecret: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") }}
+  openprojectClientId: {{ ternary .Values.integration.oidcClients.openprojectNC.id .Values.integration.oidcClients.openprojectKC.id (eq .Values.integration.setupMethod "sso-nextcloud") | quote }}
+  openprojectClientSecret: {{ ternary .Values.integration.oidcClients.openprojectNC.secret .Values.integration.oidcClients.openprojectKC.secret (eq .Values.integration.setupMethod "sso-nextcloud") | quote }}
   nextcloudClientSecret: {{ .Values.integration.oidcClients.nextcloud.secret | quote }}
 
 ingress:
@@ -132,11 +133,11 @@ xwiki:
 
 gitlab:
   enabled: {{ .Values.gitlab.enabled }}
-  initialRootPassword: {{ .Values.gitlab.initialRootPassword }}
+  initialRootPassword: {{ .Values.gitlab.initialRootPassword | quote }}
   postgresql:
-    password: {{ .Values.gitlab.postgresql.password }}
+    password: {{ .Values.gitlab.postgresql.password | quote }}
   redis:
-    password: {{ .Values.gitlab.redis.password }}
+    password: {{ .Values.gitlab.redis.password | quote }}
 
 squashtm:
   enabled: {{ .Values.squashtm.enabled }}

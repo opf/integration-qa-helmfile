@@ -67,7 +67,7 @@ spec:
             - sh
             - -c
             # GitLab requires noeviction; without it Sidekiq/migrate can fail under pressure.
-            - redis-server --bind 0.0.0.0 --protected-mode yes --requirepass "$REDIS_PASSWORD" --dir /data --maxmemory-policy noeviction
+            - exec redis-server --bind 0.0.0.0 --protected-mode yes --requirepass "$REDIS_PASSWORD" --dir /data --maxmemory-policy noeviction
           env:
             - name: REDIS_PASSWORD
               valueFrom:
@@ -84,7 +84,7 @@ spec:
               command:
                 - sh
                 - -c
-                - REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG
+                - REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli -t 2 ping | grep -q PONG
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 6

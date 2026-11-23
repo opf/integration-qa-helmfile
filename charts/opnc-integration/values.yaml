@@ -17,7 +17,7 @@ mcp:
   oauthToken: ''
 
 # When defer is true, setup-job is not created by the bootstrap release; install it via a
-# follow-up release with renderScope: setupJob (PullPreview phased deploy).
+# follow-up release with renderScope: setupJob (local + PullPreview: after OP/NC/KC Ready).
 renderScope: bootstrap
 setupJob:
   enabled: true
