@@ -62,7 +62,7 @@ Access the services via the following URLs (local defaults `admin` / `admin`; Ke
 - Nextcloud: [https://nextcloud.test](https://nextcloud.test)
 - Keycloak: [https://keycloak.test](https://keycloak.test)
 - XWiki: [https://xwiki.test](https://xwiki.test)
-- GitLab: [https://gitlab.test](https://gitlab.test)
+- GitLab: [https://gitlab.test](https://gitlab.test) (enable with `gitlab.enabled: true` in `environments/override.yaml`)
 - Squash TM: [https://squashtm.test/squash](https://squashtm.test/squash) (enable with `squashtm.enabled: true` in `environments/override.yaml`)
 
 > [!NOTE]
@@ -70,7 +70,7 @@ Access the services via the following URLs (local defaults `admin` / `admin`; Ke
 >
 > You can check the installation logs: `kubectl logs -n opnc-integration -f xwiki-0`
 >
-> Squash TM is optional and off by default (same as GitLab). Image tag defaults to `charts/squashtm/values.yaml`; pin with `squashtm.version` (see [Docker Hub tags](https://hub.docker.com/r/squashtest/squash/tags)). Local login defaults to Squash's `admin` / `admin`; set `squashtm.adminPassword` in `environments/override.yaml` to replace it at deploy (PullPreview always sets this from the `SQUASHTM_ADMIN_PASSWORD` GitHub secret). The image is amd64-only, so on Apple Silicon it runs under emulation and the first start is slow. After chart changes that replace Bitnami Postgres, destroy and delete the PVC before redeploy (`helmfile destroy -l name=squashtm`, then `kubectl -n opnc-integration delete pvc data-squashtm-postgresql-0`).
+> GitLab and Squash TM are optional and off by default. Squash image tag defaults to `charts/squashtm/values.yaml`; pin with `squashtm.version` (see [Docker Hub tags](https://hub.docker.com/r/squashtest/squash/tags)). Local Squash login defaults to `admin` / `admin`; set `squashtm.adminPassword` in `environments/override.yaml` to replace it at deploy (PullPreview always sets this from the `SQUASHTM_ADMIN_PASSWORD` GitHub secret). The Squash image is amd64-only, so on Apple Silicon it runs under emulation and the first start is slow. Chart Postgres is stock `postgres` now; if an older local deploy left a Bitnami Squash PVC, destroy and delete it before redeploy (`helmfile destroy -l name=squashtm`, then `kubectl -n opnc-integration delete pvc data-squashtm-postgresql-0`).
 >
 > **PullPreview** never uses these local defaults. It requires GitHub secrets `PULLPREVIEW_ADMIN_PASSWORD`, `PULLPREVIEW_USER_PASSWORD`, and `PULLPREVIEW_MCP_TOKEN` (see [pullpreview/docs/README.md](pullpreview/docs/README.md#secrets-required-for-every-preview-deploy)).
 
