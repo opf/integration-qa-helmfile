@@ -1,5 +1,5 @@
 {{- if include "opnc.renderSetupJob" . }}
-{{- $mcp := .Values.mcp | default (dict "enabled" true "oauthToken" "bob_ai_mcp_test_token_1234567890") }}
+{{- $mcp := .Values.mcp | default (dict "enabled" true) }}
 {{- $standalone := .Values.openproject.standalone | default false }}
 {{- $integrationAppGitBranch := "" }}
 {{- range .Values.nextcloud.enableApps }}
@@ -59,13 +59,19 @@ spec:
             - name: RAILS_ENV
               value: "production"
             - name: DATABASE_URL
-              value: {{ required "environment.DATABASE_URL is required for MCP setup" .Values.environment.DATABASE_URL | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: op-environment
+                  key: DATABASE_URL
             - name: DATABASE_HOST
               value: {{ .Values.environment.DATABASE_HOST | quote }}
             - name: OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK
               value: "true"
             - name: MCP_OAUTH_TOKEN
-              value: {{ ($mcp.oauthToken | default "bob_ai_mcp_test_token_1234567890") | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: mcp-oauth-token
             {{- if $opFromSource }}
             # Match seeder/web: run rails from the built source so migrations match the DB.
             - name: APP_PATH
@@ -127,14 +133,20 @@ spec:
             - name: XWIKI_OAUTH_CLIENT_ID
               value: {{ index .Values.openproject.xwiki "clientId" | default "xwiki-client-id" | quote }}
             - name: XWIKI_OAUTH_CLIENT_SECRET
-              value: {{ index .Values.openproject.xwiki "clientSecret" | default "xwiki-client-secret" | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: xwiki-oauth-client-secret
             - name: XWIKI_HOST
               value: {{ include "opnc.xwikiHost" . | quote }}
             - name: RAILS_ENV
               # OAuth setup uses rails runner from the image; development boot needs the listen gem.
               value: "production"
             - name: DATABASE_URL
-              value: {{ required "environment.DATABASE_URL is required for XWiki OAuth setup" .Values.environment.DATABASE_URL | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: op-environment
+                  key: DATABASE_URL
             - name: DATABASE_HOST
               value: {{ .Values.environment.DATABASE_HOST | quote }}
             - name: OPENPROJECT_DISABLE__SECRET_KEY_BASE__CHECK
@@ -193,7 +205,20 @@ spec:
             - name: OIDC_OPENPROJECT_CLIENT_ID
               value: '{{ include "opnc.oidc.openprojectClientId" . }}'
             - name: OIDC_OPENPROJECT_CLIENT_SECRET
-              value: '{{ include "opnc.oidc.openprojectClientSecret" . }}'
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: oidc-openproject-client-secret
+            - name: NC_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: admin-password
+            - name: OP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opnc-secrets
+                  key: admin-password
             # In-cluster waits avoid ingress hairpin (k3d local and PullPreview).
             # Public hosts (NEXTCLOUD_HOST / OPENPROJECT_HOST) remain for app config.
             - name: NEXTCLOUD_WAIT_URL

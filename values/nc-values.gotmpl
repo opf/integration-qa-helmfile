@@ -7,21 +7,27 @@
 {{- end -}}
 {{- $useNcGitPvc := ne $ncGitSourceBranch "" -}}
 {{- $useNcGitVolume := or $useNcGitPvc $hasGitApps -}}
-global:
-  security:
-    allowInsecureImages: true
 fullnameOverride: {{ .Values.nextcloud.fullnameOverride }}
 image:
   # Nextcloud version image tag
   tag: {{ .Values.nextcloud.version | default "latest" | quote }}
 persistence:
+  # Chart default is emptyDir; pod restarts (e.g. securityContext) wipe the install.
+  enabled: true
   storageClassName: {{ .Values.persistence.storageClassName | quote }}
+  accessMode: {{ .Values.persistence.accessMode | default "ReadWriteOnce" | quote }}
+  size: 8Gi
 service:
   port: 80
 nextcloud:
   host: {{ .Values.nextcloud.host }}
   username: admin
-  password: admin
+  password: {{ .Values.adminPassword | default "admin" | quote }}
+  # shortcut: Apache needs root + CAP_CHOWN; drop ALL when non-root is feasible.
+  securityContext:
+    allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
   # Tracing JIT (image default) corrupts the PHP heap after an app enable
   # (zend_mm_heap corrupted, then every Apache child segfaults with 502).
   phpConfigs:
@@ -137,19 +143,7 @@ externalDatabase:
   password: {{ .Values.nextcloud.postgresql.password }}
   database: {{ .Values.nextcloud.postgresql.database }}
 postgresql:
-  enabled: true
-  fullnameOverride: {{ .Values.nextcloud.postgresql.host }}
-  image:
-    repository: bitnamilegacy/postgresql
-  global:
-    postgresql:
-      auth:
-        username: {{ .Values.nextcloud.postgresql.username }}
-        password: {{ .Values.nextcloud.postgresql.password }}
-        database: {{ .Values.nextcloud.postgresql.database }}
-  primary:
-    podLabels:
-      app.kubernetes.io/name: {{ .Values.nextcloud.postgresql.host }}
+  enabled: false
 livenessProbe:
   enabled: false
 readinessProbe:

@@ -28,6 +28,19 @@ for arg in "$@"; do
   esac
 done
 
+# Local: chart generates a per-cluster MCP token; Secret wins over a stale shell export.
+if [ "${E2E_ENV:-local}" = "local" ] && command -v kubectl >/dev/null 2>&1; then
+  from_secret="$(kubectl get secret opnc-secrets -n opnc-integration -o jsonpath='{.data.mcp-oauth-token}' 2>/dev/null | base64 --decode || true)"
+  if [ -n "$from_secret" ]; then
+    MCP_OAUTH_TOKEN="$from_secret"
+    export MCP_OAUTH_TOKEN
+  fi
+fi
+if [ "${E2E_ENV:-local}" = "local" ] && [ -z "${MCP_OAUTH_TOKEN:-}" ]; then
+  echo "Missing MCP_OAUTH_TOKEN for local. Deploy the stack, or: kubectl get secret opnc-secrets -n opnc-integration -o jsonpath='{.data.mcp-oauth-token}' | base64 --decode" >&2
+  exit 1
+fi
+
 mkdir -p test-results playwright-report
 
 EXTRA_MOUNTS=()

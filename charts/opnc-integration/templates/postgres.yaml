@@ -1,0 +1,187 @@
+{{- if include "opnc.renderBootstrapResources" . }}
+{{- range .Values.databases | default list }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .name }}
+  labels:
+    app.kubernetes.io/name: {{ .name }}
+  annotations:
+    helm.sh/resource-policy: keep
+type: Opaque
+stringData:
+  db-password: {{ .password | quote }}
+{{- if .extensions }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .name }}-initdb
+  labels:
+    app.kubernetes.io/name: {{ .name }}
+data:
+  01-extensions.sql: |
+{{- range .extensions }}
+    CREATE EXTENSION IF NOT EXISTS {{ . }};
+{{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .name }}
+  labels:
+    app.kubernetes.io/name: {{ .name }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: tcp-postgresql
+      port: 5432
+      targetPort: tcp-postgresql
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: {{ .name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .name }}
+  labels:
+    app.kubernetes.io/name: {{ .name }}
+spec:
+  serviceName: {{ .name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .name }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        supplementalGroups: []
+        supplementalGroupsPolicy: Strict
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgresql
+          image: "postgres:{{ .imageTag | default "17" }}"
+          imagePullPolicy: IfNotPresent
+          {{- with .args }}
+          args: {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: tcp-postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ .username | quote }}
+            - name: POSTGRES_DB
+              value: {{ .database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: db-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: tmp
+              mountPath: /tmp
+            - name: run
+              mountPath: /var/run/postgresql
+            {{- if .extensions }}
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            {{- end }}
+          resources:
+            requests:
+              memory: {{ .memoryRequest | default "256Mi" | quote }}
+              cpu: "100m"
+            limits:
+              memory: {{ .memoryLimit | default "512Mi" | quote }}
+          {{- if .extensions }}
+          # initdb.d only runs on empty PGDATA; postStart covers upgrades/restarts too.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    for i in $(seq 1 60); do
+                      pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1 && break
+                      sleep 1
+                    done
+                    {{- range .extensions }}
+                    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE EXTENSION IF NOT EXISTS {{ . }};" || true
+                    {{- end }}
+          {{- end }}
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .username | quote }}
+                - -d
+                - {{ .database | quote }}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .username | quote }}
+                - -d
+                - {{ .database | quote }}
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        {{- if .extensions }}
+        - name: initdb
+          configMap:
+            name: {{ .name }}-initdb
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if $.Values.persistence.storageClassName }}
+        storageClassName: {{ $.Values.persistence.storageClassName | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .size | default "8Gi" | quote }}
+{{- end }}
+{{- end }}

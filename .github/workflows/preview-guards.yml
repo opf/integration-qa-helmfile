@@ -1,0 +1,41 @@
+name: Preview guards
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-guards-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Cache openproject chart deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0 (Node 24)
+        with:
+          path: charts/openproject/charts
+          key: openproject-chart-deps-${{ hashFiles('charts/openproject/Chart.lock') }}
+
+      - name: Install helmfile and helm
+        run: |
+          set -euo pipefail
+          # ubuntu-latest may ship Helm 4; helmfile <1.8 still calls `helm version --client`.
+          HF_VERSION="1.8.4"
+          HF_SHA256="1f19ced8adb0cdf2350e94ca598cf64e390d8c21d0d9b4bdc1c9f246d4591c9d"
+          curl -fsSL -o /tmp/helmfile.tar.gz \
+            "https://github.com/helmfile/helmfile/releases/download/v${HF_VERSION}/helmfile_${HF_VERSION}_linux_amd64.tar.gz"
+          echo "${HF_SHA256}  /tmp/helmfile.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/helmfile.tar.gz -C /tmp helmfile
+          sudo install -m 0755 /tmp/helmfile /usr/local/bin/helmfile
+          helm version
+          helmfile version
+
+      - name: Check preview credential and helmfile guards
+        run: make check-preview-guards

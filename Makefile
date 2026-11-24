@@ -15,6 +15,7 @@ help:
 	@echo "  teardown              - Delete the integration deployment from the K8s cluster"
 	@echo "  teardown-all          - Delete the K8s cluster"
 	@echo "  validate-pullpreview-helmfile - Render PullPreview helmfile (path/env guard)"
+	@echo "  check-preview-guards          - Secret assert scripts + PullPreview helmfile validate"
 
 PLATFORM := $(shell uname)
 ifeq ($(PLATFORM),Darwin)
@@ -66,6 +67,13 @@ run-rake-task:
 
 .PHONY: validate-pullpreview-helmfile
 validate-pullpreview-helmfile:
+	@./pullpreview/validate-helmfile.sh
+
+.PHONY: check-preview-guards
+check-preview-guards:
+	@.github/scripts/require-preview-secrets.test.sh
+	@e2e/utils/test-users.assert.sh
+	@charts/opnc-integration/scripts/keycloak-te.test.sh
 	@./pullpreview/validate-helmfile.sh
 
 .PHONY: teardown

@@ -193,6 +193,31 @@ collect_diagnostics() {
     kubectl logs "${xwiki_pod}" -n "${namespace}" -c xwiki --previous --tail=200 2>&1 | redact_stream || true
   fi
 
+  # Migrations Job often deletes pods after BackoffLimitExceeded; describe Job + any leftovers.
+  local gitlab_mig_jobs=""
+  gitlab_mig_jobs="$(kubectl get jobs -n "${namespace}" -l app=migrations \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
+  if [[ -z "${gitlab_mig_jobs}" ]]; then
+    gitlab_mig_jobs="$(kubectl get jobs -n "${namespace}" -o name 2>/dev/null \
+      | sed -n 's#^job.batch/##p' \
+      | grep -E 'gitlab-migrations|migrations-' || true)"
+  fi
+  if [[ -n "${gitlab_mig_jobs}" ]]; then
+    while IFS= read -r mig_job; do
+      [[ -n "${mig_job}" ]] || continue
+      echo "[pullpreview] ${mig_job} describe:"
+      kubectl describe job "${mig_job}" -n "${namespace}" 2>&1 | redact_stream || true
+      echo "[pullpreview] ${mig_job} pods describe:"
+      kubectl describe pods -n "${namespace}" -l "job-name=${mig_job}" 2>&1 | redact_stream || true
+      echo "[pullpreview] ${mig_job} migrations container logs:"
+      kubectl logs -n "${namespace}" -l "job-name=${mig_job}" -c migrations \
+        --tail=-1 2>&1 | redact_stream || true
+      echo "[pullpreview] ${mig_job} migrations container previous logs:"
+      kubectl logs -n "${namespace}" -l "job-name=${mig_job}" -c migrations \
+        --previous --tail=-1 2>&1 | redact_stream || true
+    done <<< "${gitlab_mig_jobs}"
+  fi
+
   if kubectl get pods -n "${namespace}" -l "app=webservice,release=gitlab" >/dev/null 2>&1; then
     echo "[pullpreview] GitLab webservice dependencies init container log tail:"
     kubectl logs -n "${namespace}" -l "app=webservice,release=gitlab" \

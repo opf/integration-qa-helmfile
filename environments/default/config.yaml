@@ -1,5 +1,9 @@
 previewMode: false
 
+# Local-only defaults. PullPreview overrides via GitHub secrets (never printed).
+adminPassword: admin
+userPassword: '1234'
+
 integration:
   ############################################
   # Integration setup                        #
@@ -26,10 +30,11 @@ openproject:
   host: openproject.test
   assetHost: openproject-assets.test
   #####################################################
-  # Run OpenProject in standalone mode                #
-  # (without Nextcloud and Keycloak integration)      #
-  # For local MCP tests set standalone: true (and     #
-  # xwiki.enabled: false) in environments/override.yaml
+  # Standalone = no Nextcloud. Keycloak follows        #
+  # keycloak.enabled when set; if omitted, KC is on   #
+  # for full stack and off when standalone: true.     #
+  # SSO-only (no NC): standalone: true and            #
+  # keycloak.enabled: true (PullPreview op-keycloak). #
   #####################################################
   standalone: false
   #####################################################
@@ -125,6 +130,8 @@ nextcloud:
     password: nextcloud
 
 keycloak:
+  # Omit enabled to derive from standalone (see openproject.standalone comment).
+  # Set enabled: true|false to force (e.g. standalone SSO / explicit off).
   version: '26.2.5'
   fullnameOverride: keycloak
   host: keycloak.test
@@ -133,6 +140,7 @@ keycloak:
     name: opnc
   postgresql:
     host: kc-postgresql
+    password: keycloak
 
 ingress:
   ingressClassName: 'traefik'
@@ -150,7 +158,9 @@ xwiki:
   # Full integration default. Local MCP: override with enabled: false.
   enabled: true
   host: xwiki.test
-  version: '17.10.10'
+  version: '17.10.15'
+  postgresql:
+    password: xwiki
   extensions:
     openproject:
       version: '1.2.0'
@@ -159,7 +169,8 @@ gitlab:
   enabled: false
   host: gitlab.test
   version: v19.4.1
-  initialRootPassword: r00t#dev
+  # Local default matches adminPassword; PullPreview overrides via secrets.
+  initialRootPassword: admin
   postgresql:
     password: gitlab
   redis:

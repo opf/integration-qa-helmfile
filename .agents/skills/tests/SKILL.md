@@ -19,7 +19,7 @@ When this skill triggers, read `.agents/shared/openproject-e2e.md` before writin
 Bootstrap rules:
 
 - The Playwright project lives under `e2e/`.
-- **Run / re-run tests only via Docker:** from `e2e/`, `./run-tests.sh --no-open-report …` (local stack or PullPreview env vars). Do not `npm install`, `playwright install`, or `npx playwright test` on the host when verifying changes.
+- **Run / re-run tests only via Docker:** from `e2e/`, `./run-tests.sh --no-open-report …` (local stack or PullPreview env vars). Do not `npm install`, `playwright install`, or `npx playwright test` on the host when verifying changes. PullPreview also needs secret-backed `E2E_ADMIN_PASS` / `E2E_USER_PASS` / `MCP_OAUTH_TOKEN` (fail-closed; see openproject-e2e.md).
 - Keep selectors in `locators/*.json`, not in spec files.
 - Put UI flows in page objects and API/data orchestration in `utils/`.
 - For Squash TM-mapped tests, use `squashTestCase(...)` from `utils/squash-metadata.ts`; follow the canonical guide for reference format (`folder#file#title`), numeric Squash IDs, prerequisites-vs-steps, and `test.step()` alignment.

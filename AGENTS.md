@@ -16,7 +16,7 @@ This file is the canonical always-on project guidance for AI coding agents. Code
 - Teardown: `make teardown`; delete the k3d cluster with `make teardown-all`.
 - OpenProject RSpec inside the cluster: `make run-rspec-test SPEC=spec/path/to_spec.rb`.
 - E2E tests (agents and preferred local path): from `e2e/`, use Docker only — `./run-tests.sh` (see `.agents/shared/openproject-e2e.md` Running Tests). Do **not** `npm install` / `playwright install` / `npx playwright test` on the host for verification.
-- Examples: `E2E_ENV=local ./run-tests.sh --no-open-report --project=op-integration-tests tests/path/to.spec.ts`; PullPreview: set `E2E_ENV=pullpreview` plus `OPENPROJECT_HOST` / `NEXTCLOUD_HOST` / `KEYCLOAK_HOST` (and URLs as needed) then `./run-tests.sh --no-open-report …`. Rebuild image after lockfile changes: `./run-tests.sh --build …`.
+- Examples: `E2E_ENV=local ./run-tests.sh --no-open-report --project=op-integration-tests tests/path/to.spec.ts`; PullPreview: set `E2E_ENV=pullpreview` plus `OPENPROJECT_HOST` / `NEXTCLOUD_HOST` / `KEYCLOAK_HOST`, and secret-backed `E2E_ADMIN_PASS` / `E2E_USER_PASS` / `MCP_OAUTH_TOKEN` (or per-role `E2E_*_PASS`); local default passwords (`admin` for admins, `1234` for alice/brian) are refused when those are missing — see `pullpreview/docs/README.md#secrets-required-for-every-preview-deploy`. Then `./run-tests.sh --no-open-report …`. Rebuild image after lockfile changes: `./run-tests.sh --build …`.
 
 ## E2E Conventions
 

@@ -7,7 +7,7 @@
 {{- $kcVersion := env "KEYCLOAK_VERSION" | default "26.2.5" -}}
 {{- $ioVersion := env "INTEGRATION_OPENPROJECT_VERSION" -}}
 {{- $ioBranch := env "INTEGRATION_OPENPROJECT_GIT_BRANCH" -}}
-{{- $xwikiVersion := env "XWIKI_VERSION" | default "17.10.10" -}}
+{{- $xwikiVersion := env "XWIKI_VERSION" | default "17.10.15" -}}
 {{- $xwikiExtVersion := env "XWIKI_EXTENSION_OPENPROJECT_VERSION" | default "1.2.0" -}}
 {{- $wikiEnhancements := env "OPENPROJECT_FEATURE_WIKI_ENHANCEMENTS" | default "true" -}}
 {{- $xwikiEnabled := env "XWIKI_ENABLED" | default "true" -}}
@@ -15,24 +15,44 @@
 {{- $gitlabVersion := env "GITLAB_VERSION" | default "v19.4.1" -}}
 {{- $squashtmEnabled := env "SQUASHTM_ENABLED" | default "false" -}}
 {{- $squashtmVersion := env "SQUASHTM_VERSION" | default "" -}}
+{{- $adminPassword := requiredEnv "PULLPREVIEW_ADMIN_PASSWORD" -}}
+{{- $userPassword := requiredEnv "PULLPREVIEW_USER_PASSWORD" -}}
+{{- $mcpToken := requiredEnv "PULLPREVIEW_MCP_TOKEN" -}}
+{{- $opDbPassword := requiredEnv "PULLPREVIEW_OP_DB_PASSWORD" -}}
+{{- $ncDbPassword := requiredEnv "PULLPREVIEW_NC_DB_PASSWORD" -}}
+{{- $gitlabDbPassword := requiredEnv "PULLPREVIEW_GITLAB_DB_PASSWORD" -}}
+{{- $gitlabRedisPassword := requiredEnv "PULLPREVIEW_GITLAB_REDIS_PASSWORD" -}}
+{{- $ncOidcSecret := requiredEnv "PULLPREVIEW_NC_OIDC_SECRET" -}}
+{{- $opNcOidcSecret := requiredEnv "PULLPREVIEW_OP_NC_OIDC_SECRET" -}}
+{{- $opKcOidcSecret := requiredEnv "PULLPREVIEW_OP_KC_OIDC_SECRET" -}}
+{{- $xwikiOauthSecret := requiredEnv "PULLPREVIEW_XWIKI_OAUTH_SECRET" -}}
+{{- $xwikiDbPassword := requiredEnv "PULLPREVIEW_XWIKI_DB_PASSWORD" -}}
+{{- $kcDbPassword := requiredEnv "PULLPREVIEW_KC_DB_PASSWORD" -}}
 
 {{- $profile := env "STACK_PROFILE" | default "full" -}}
 {{- $standalone := ne $profile "full" -}}
 {{- $keycloakEnabled := or (eq $profile "full") (eq $profile "op-keycloak") -}}
 previewMode: true
 
+adminPassword: {{ $adminPassword | quote }}
+userPassword: {{ $userPassword | quote }}
+
+mcp:
+  enabled: true
+  oauthToken: {{ $mcpToken | quote }}
+
 integration:
   setupMethod: {{ $setupMethod | quote }}
   oidcClients:
     nextcloud:
       id: nextcloud
-      secret: nextcloud-secret
+      secret: {{ $ncOidcSecret | quote }}
     openprojectNC:
       id: 4xMOWGYBXhSMNBcSwpgPW1B3Q7TPuP3S
-      secret: 7V5AJR9TtNNaGtnZROSYp6N9oCTvxbbi
+      secret: {{ $opNcOidcSecret | quote }}
     openprojectKC:
       id: openproject
-      secret: openproject-secret
+      secret: {{ $opKcOidcSecret | quote }}
 
 openproject:
   fullnameOverride: openproject
@@ -52,10 +72,10 @@ openproject:
     host: op-postgresql
     database: openproject
     username: openproject
-    password: openproject
+    password: {{ $opDbPassword | quote }}
   xwiki:
     clientId: xwiki-client-id
-    clientSecret: xwiki-client-secret
+    clientSecret: {{ $xwikiOauthSecret | quote }}
   features:
     wikiEnhancements: {{ eq $wikiEnhancements "true" }}
 
@@ -81,7 +101,7 @@ nextcloud:
     host: nc-postgresql
     database: nextcloud
     username: nextcloud
-    password: nextcloud
+    password: {{ $ncDbPassword | quote }}
 
 keycloak:
   enabled: {{ $keycloakEnabled }}
@@ -93,6 +113,7 @@ keycloak:
     name: opnc
   postgresql:
     host: kc-postgresql
+    password: {{ $kcDbPassword | quote }}
 
 ingress:
   ingressClassName: traefik
@@ -108,6 +129,8 @@ xwiki:
   enabled: {{ eq $xwikiEnabled "true" }}
   host: {{ printf "xwiki.%s" $publicDns | quote }}
   version: {{ $xwikiVersion | quote }}
+  postgresql:
+    password: {{ $xwikiDbPassword | quote }}
   extensions:
     openproject:
       version: {{ $xwikiExtVersion | quote }}
@@ -116,11 +139,11 @@ gitlab:
   enabled: {{ eq $gitlabEnabled "true" }}
   host: {{ printf "gitlab.%s" $publicDns | quote }}
   version: {{ $gitlabVersion | quote }}
-  initialRootPassword: r00t#dev
+  initialRootPassword: {{ $adminPassword | quote }}
   postgresql:
-    password: gitlab
+    password: {{ $gitlabDbPassword | quote }}
   redis:
-    password: gitlab
+    password: {{ $gitlabRedisPassword | quote }}
 
 squashtm:
   enabled: {{ eq $squashtmEnabled "true" }}

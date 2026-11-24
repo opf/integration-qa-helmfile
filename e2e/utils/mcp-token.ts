@@ -12,7 +12,7 @@ export interface McpAuthOptions {
  * Priority:
  * 1. MCP_API_TOKEN env var → Bearer token (preferred for CI)
  * 2. OPENPROJECT_API_KEY env var → Basic apikey:<token>
- * 3. Fallback to seeded Bob_AI OAuth token (setup-mcp.rb / mcp.oauthToken)
+ * 3. MCP_OAUTH_TOKEN (setup-mcp.rb / opnc-secrets mcp-oauth-token)
  */
 export function getAdminMcpAuth(): McpAuthOptions {
   const apiToken = process.env.MCP_API_TOKEN;
@@ -27,8 +27,16 @@ export function getAdminMcpAuth(): McpAuthOptions {
     return { username: 'apikey', password: apiKey };
   }
 
-  logInfo('[MCP Auth] Falling back to seeded Bob_AI OAuth token');
-  return {
-    token: process.env.MCP_OAUTH_TOKEN || 'bob_ai_mcp_test_token_1234567890',
-  };
+  const oauthToken = process.env.MCP_OAUTH_TOKEN;
+  if (oauthToken && oauthToken.trim()) {
+    logInfo('[MCP Auth] Using seeded Bob_AI OAuth token from MCP_OAUTH_TOKEN');
+    return { token: oauthToken };
+  }
+
+  throw new Error(
+    'Missing MCP_OAUTH_TOKEN (or MCP_API_TOKEN / OPENPROJECT_API_KEY). ' +
+      'Local: run-tests.sh reads opnc-secrets, or export MCP_OAUTH_TOKEN from ' +
+      "`kubectl get secret opnc-secrets -n opnc-integration -o jsonpath='{.data.mcp-oauth-token}' | base64 --decode`. " +
+      'PullPreview: set MCP_OAUTH_TOKEN from PULLPREVIEW_MCP_TOKEN.',
+  );
 }

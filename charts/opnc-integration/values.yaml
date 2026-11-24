@@ -4,14 +4,20 @@ integrationSetupMethod: 'sso-external'
 
 previewMode: false
 
+# Local-only defaults. PullPreview overrides via environments/pullpreview.
+adminPassword: admin
+userPassword: '1234'
+
 # MCP test harness provisioning (setup-mcp.rb initContainer on setup-job).
 # Use mcp.enabled: false to skip MCP seed on public previews without disabling CI.
+# Empty oauthToken → chart generates a random token (stable across upgrades via Secret lookup).
+# PullPreview requires PULLPREVIEW_MCP_TOKEN.
 mcp:
   enabled: true
-  oauthToken: 'bob_ai_mcp_test_token_1234567890'
+  oauthToken: ''
 
 # When defer is true, setup-job is not created by the bootstrap release; install it via a
-# follow-up release with renderScope: setupJob (PullPreview phased deploy).
+# follow-up release with renderScope: setupJob (local + PullPreview: after OP/NC/KC Ready).
 renderScope: bootstrap
 setupJob:
   enabled: true
@@ -34,6 +40,7 @@ oidcProvider:
   name: keycloak
   openprojectClientId: openproject
   openprojectClientSecret: openproject-secret
+  nextcloudClientSecret: nextcloud-secret
 
 nextcloud:
   enableApps:

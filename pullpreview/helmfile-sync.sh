@@ -10,6 +10,62 @@ values_file="${PULLPREVIEW_VALUES_FILE:-}"
 source pullpreview/collect-diagnostics.sh
 source pullpreview/resolve-pullpreview-env.sh "${values_file}"
 
+# Machine secrets stay in-cluster across redeploys; humans use GitHub secrets.
+ensure_pullpreview_generated_secrets() {
+  local secret_name="pullpreview-generated"
+  local -a keys=(
+    PULLPREVIEW_OP_DB_PASSWORD
+    PULLPREVIEW_NC_DB_PASSWORD
+    PULLPREVIEW_GITLAB_DB_PASSWORD
+    PULLPREVIEW_GITLAB_REDIS_PASSWORD
+    PULLPREVIEW_NC_OIDC_SECRET
+    PULLPREVIEW_OP_NC_OIDC_SECRET
+    PULLPREVIEW_OP_KC_OIDC_SECRET
+    PULLPREVIEW_XWIKI_OAUTH_SECRET
+    PULLPREVIEW_XWIKI_DB_PASSWORD
+    PULLPREVIEW_KC_DB_PASSWORD
+  )
+  local key existing value args=()
+  local secret_err secret_json=""
+  secret_err="$(mktemp)"
+
+  # Fail on API errors; only treat NotFound as "generate fresh keys".
+  if kubectl get secret "${secret_name}" -n "${namespace}" -o json >"${secret_err}.json" 2>"${secret_err}"; then
+    secret_json="$(cat "${secret_err}.json")"
+  elif ! grep -qiE 'NotFound|not found' "${secret_err}"; then
+    echo "::error::[pullpreview helmfile] failed to read secret ${secret_name} in ${namespace}:" >&2
+    cat "${secret_err}" >&2
+    rm -f "${secret_err}" "${secret_err}.json"
+    exit 1
+  fi
+  rm -f "${secret_err}" "${secret_err}.json"
+
+  for key in "${keys[@]}"; do
+    existing=""
+    if [[ -n "${secret_json}" ]]; then
+      existing="$(printf '%s' "${secret_json}" | python3 -c \
+        'import json,sys; print(json.load(sys.stdin).get("data",{}).get(sys.argv[1],""))' \
+        "${key}")"
+    fi
+    if [[ -n "${existing}" ]]; then
+      value="$(printf '%s' "${existing}" | base64 -d)"
+    else
+      value="$(openssl rand -hex 24)"
+    fi
+    export "${key}=${value}"
+    args+=(--from-literal="${key}=${value}")
+  done
+
+  kubectl get namespace "${namespace}" >/dev/null 2>&1 || \
+    kubectl create namespace "${namespace}" >/dev/null
+  kubectl create secret generic "${secret_name}" -n "${namespace}" \
+    "${args[@]}" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "[pullpreview helmfile] Ensured ${secret_name} (${#keys[@]} keys) in ${namespace}"
+}
+
+ensure_pullpreview_generated_secrets
+
 echo "[pullpreview helmfile] namespace=${namespace} values_file=${values_file:-<none>} public_dns=${PULLPREVIEW_PUBLIC_DNS:-<unset>}"
 
 helmfile_path="pullpreview/helmfile.yaml.gotmpl"
@@ -76,7 +132,7 @@ watch_buildsource_job() {
       echo "[pullpreview helmfile] op-buildsource-job log tail:"
       kubectl logs -n "${namespace}" -l job-name=op-buildsource-job \
         --all-containers=true --tail=120 2>&1 || true
-      kill "${sync_pid}" 2>/dev/null || true
+      kill -TERM -- "-${sync_pid}" 2>/dev/null || true
       return 1
     fi
 
@@ -123,6 +179,73 @@ dump_openproject_seeder_logs() {
   printf '%s\n' "${seeder_log}" \
     | grep -nE 'rake aborted|Error|Exception|Caused by|seed failed|Initializing|Executing database' \
     || true
+}
+
+dump_gitlab_migrations_logs() {
+  local mig_job="${1:-}"
+  local reason="${2:-migrations failure}"
+  echo "::error::[pullpreview helmfile] ${reason}"
+  {
+    if [[ -n "${mig_job}" ]]; then
+      echo "[pullpreview helmfile] ${mig_job} describe:"
+      kubectl describe job "${mig_job}" -n "${namespace}" 2>&1 || true
+      echo "[pullpreview helmfile] ${mig_job} pods describe:"
+      kubectl describe pods -n "${namespace}" -l "job-name=${mig_job}" 2>&1 || true
+    fi
+    echo "[pullpreview helmfile] migrations container logs:"
+    kubectl logs -n "${namespace}" -l "app=migrations,release=gitlab" \
+      -c migrations --tail=-1 2>&1 || true
+    echo "[pullpreview helmfile] migrations container previous logs:"
+    kubectl logs -n "${namespace}" -l "app=migrations,release=gitlab" \
+      -c migrations --previous --tail=-1 2>&1 || true
+    echo "[pullpreview helmfile] gitlab-postgresql log tail:"
+    kubectl logs -n "${namespace}" gitlab-postgresql-0 -c postgresql --tail=80 2>&1 || true
+    echo "[pullpreview helmfile] gitlab-redis log tail:"
+    kubectl logs -n "${namespace}" gitlab-redis-0 -c redis --tail=40 2>&1 || true
+  } 2>&1 | redact_stream
+}
+
+# Migrations pods are deleted on BackoffLimitExceeded; dump logs on first failure
+# and abort Helm sync so we do not burn the full 45m gitlab --wait.
+watch_gitlab_migrations_job() {
+  local sync_pid="$1"
+  local poll_interval=15
+  local dumped=0
+
+  sleep "${poll_interval}"
+
+  while kill -0 "${sync_pid}" 2>/dev/null; do
+    local mig_job=""
+    mig_job="$(kubectl get jobs -n "${namespace}" -l "app=migrations,release=gitlab" \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+    if [[ -z "${mig_job}" ]]; then
+      sleep "${poll_interval}"
+      continue
+    fi
+
+    local term_reasons=""
+    term_reasons="$(kubectl get pods -n "${namespace}" -l "job-name=${mig_job}" \
+      -o jsonpath='{range .items[*]}{.status.containerStatuses[?(@.name=="migrations")].lastState.terminated.reason}{"\n"}{.status.containerStatuses[?(@.name=="migrations")].state.terminated.reason}{"\n"}{end}' \
+      2>/dev/null || true)"
+    local job_failed=""
+    job_failed="$(kubectl get job "${mig_job}" -n "${namespace}" \
+      -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)"
+
+    if [[ "${dumped}" -eq 0 ]]; then
+      if [[ "${term_reasons}" == *Error* || "${term_reasons}" == *OOMKilled* || "${job_failed}" == "True" ]]; then
+        dumped=1
+        dump_gitlab_migrations_logs "${mig_job}" \
+          "${mig_job} failed (${term_reasons:-BackoffLimitExceeded}); dumping logs before pods are GC'd."
+        echo "::error::[pullpreview helmfile] aborting Helmfile sync after GitLab migrations failure."
+        kill -TERM -- "-${sync_pid}" 2>/dev/null || true
+        return 1
+      fi
+    fi
+
+    sleep "${poll_interval}"
+  done
+
+  return 0
 }
 
 # Seeder pods are deleted on BackoffLimitExceeded (restartPolicy OnFailure); dump
@@ -193,12 +316,15 @@ run_helmfile_dag_sync() {
   echo "[pullpreview helmfile] Running Helmfile DAG sync in namespace ${namespace} (concurrency=${helmfile_concurrency})."
 
   set +e
-  "${helmfile_common[@]}" "${sync_args[@]}" > >(tee "${sync_log}") 2>&1 &
+  # Own process group so watchers can kill helmfile + helm --wait children together.
+  setsid "${helmfile_common[@]}" "${sync_args[@]}" > >(tee "${sync_log}") 2>&1 &
   local sync_pid=$!
   watch_buildsource_job "${sync_pid}" &
   local watcher_pid=$!
   watch_openproject_seeder_job "${sync_pid}" &
   local seeder_watcher_pid=$!
+  watch_gitlab_migrations_job "${sync_pid}" &
+  local gitlab_mig_watcher_pid=$!
 
   wait "${sync_pid}"
   local sync_status=$?
@@ -212,16 +338,27 @@ run_helmfile_dag_sync() {
     kill "${seeder_watcher_pid}" 2>/dev/null || true
   fi
   wait "${seeder_watcher_pid}" 2>/dev/null || true
-  set -e
+  if kill -0 "${gitlab_mig_watcher_pid}" 2>/dev/null; then
+    kill "${gitlab_mig_watcher_pid}" 2>/dev/null || true
+  fi
+  wait "${gitlab_mig_watcher_pid}" 2>/dev/null
+  local gitlab_mig_watcher_status=$?
+  # Keep errexit off so a non-zero sync_status returns to the caller instead of exiting here.
 
   if [[ "${watcher_status}" -eq 143 || "${watcher_status}" -eq 137 ]]; then
     watcher_status=0
+  fi
+  if [[ "${gitlab_mig_watcher_status}" -eq 143 || "${gitlab_mig_watcher_status}" -eq 137 ]]; then
+    gitlab_mig_watcher_status=0
   fi
 
   if [[ "${watcher_status}" -ne 0 && "${sync_status}" -eq 0 ]]; then
     sync_status="${watcher_status}"
   fi
-
+  # Watcher returns 1 after dumping migrate logs and killing helmfile; keep that failure.
+  if [[ "${gitlab_mig_watcher_status}" -ne 0 ]]; then
+    sync_status="${gitlab_mig_watcher_status}"
+  fi
   if [[ "${sync_status}" -eq 0 ]] && kubectl get job op-buildsource-job -n "${namespace}" >/dev/null 2>&1 && buildsource_job_failed; then
     if buildsource_job_oomkilled; then
       echo "::error::[pullpreview helmfile] op-buildsource-job was OOMKilled after Helmfile sync completed (node memory pressure during OpenProject source build)."
