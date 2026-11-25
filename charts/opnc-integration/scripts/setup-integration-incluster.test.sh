@@ -47,4 +47,11 @@ grep -Fq '"openproject_instance_url":"https://op.example"' "${tmp}" || fail "oau
 grep -Fq '"href": "urn:openproject-org:api:v3:storages:Nextcloud"' "${tmp}" || fail "non-identity href was rewritten"
 pass "identity rewrite to public HTTPS"
 
+# NC 35 AMPF: OpenProject must join admin group (subadmin alone → OCS 104).
+grep -Fq "users/OpenProject/groups" "${ROOT}/setup-integration.sh" \
+  || fail "setup-integration.sh missing OpenProject → admin group grant"
+grep -Fq "groupid=admin" "${ROOT}/setup-integration.sh" \
+  || fail "setup-integration.sh missing groupid=admin for AMPF privileges"
+pass "AMPF admin-group privilege grant present"
+
 echo "[PASS] setup-integration in-cluster helpers"
