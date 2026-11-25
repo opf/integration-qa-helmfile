@@ -3,6 +3,7 @@ import {
   ALICE_USER,
   BOB_OAUTH_USER,
   BRIAN_USER,
+  NC_ADMIN_USER,
   OLIVER_OAUTH_USER,
   OP_ADMIN_USER,
   type TestUser,
@@ -10,8 +11,14 @@ import {
 import { logInfo, logWarn } from '../../utils/logger';
 import { testConfig } from '../../utils/config';
 import { resolveEnvName, resolveHosts } from '../../utils/env-hosts';
-import { hostUrlPattern } from '../../utils/url-helpers';
+import { hostUrlPattern, resolveServiceOrigin } from '../../utils/url-helpers';
 import { squashTestCase } from '../../utils/squash-metadata';
+import {
+  ensureWithRecovery,
+  savePersona,
+  type AuthPersona,
+  type SessionOptions,
+} from '../../utils/auth-session';
 import {
   deleteUploadedTestFile,
   ensureProjectHasNextcloudStorage,
@@ -40,10 +47,13 @@ import {
   OpenProjectWorkPackageFilesTab,
 } from '../../pageobjects/openproject';
 import {
+  NextcloudDashboardPage,
   NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
 } from '../../pageobjects/nextcloud';
 import { runAutomaticallyManagedStorageSync } from '../../utils/openproject-oauth-tokens';
+
+export type { SessionOptions } from '../../utils/auth-session';
 
 export const ALICE_IDENTIFIERS = [
   ALICE_USER.username,
@@ -205,12 +215,13 @@ export function dualSetupSquashCase(
   return { title, details: squashTestCase(id, { stepCount }) };
 }
 
-/**
- * Admin session for project-storage specs: OP admin on oauth2, Alice+admin elevation on SSO.
- */
-export async function loginOpenProjectAsStorageAdmin(
-  page: Page,
-): Promise<OpenProjectHomePage> {
+async function probeOpenProjectLoggedIn(page: Page): Promise<boolean> {
+  const homePage = new OpenProjectHomePage(page);
+  await homePage.navigateTo();
+  return homePage.isLoggedIn();
+}
+
+async function uiLoginOpenProjectAsStorageAdmin(page: Page): Promise<OpenProjectHomePage> {
   const loginPage = new OpenProjectLoginPage(page);
 
   if (isOauth2Setup()) {
@@ -225,6 +236,125 @@ export async function loginOpenProjectAsStorageAdmin(
   const homePage = new OpenProjectHomePage(page);
   await homePage.waitForReady();
   await ensureAliceAdminForCurrentSession(page, homePage);
+  return homePage;
+}
+
+async function uiLoginOpenProjectAsIntegrationUser(page: Page): Promise<OpenProjectHomePage> {
+  const loginPage = new OpenProjectLoginPage(page);
+  const homePage = new OpenProjectHomePage(page);
+
+  if (isOauth2Setup()) {
+    await ensureOpenProjectLocalUser(OLIVER_OAUTH_USER);
+    await ensureNextcloudLocalUser(OLIVER_OAUTH_USER);
+    await loginPage.login(OLIVER_OAUTH_USER.username, OLIVER_OAUTH_USER.password);
+    await homePage.waitForReady();
+    return homePage;
+  }
+
+  await loginPage.navigateTo();
+  const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
+  await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
+  await homePage.waitForReady();
+  return homePage;
+}
+
+async function uiLoginOpenProjectAsSecondaryUser(page: Page): Promise<OpenProjectHomePage> {
+  const user = secondaryIntegrationUser();
+  const loginPage = new OpenProjectLoginPage(page);
+  const homePage = new OpenProjectHomePage(page);
+
+  if (isOauth2Setup()) {
+    await ensureOpenProjectLocalUser(user);
+    await ensureNextcloudLocalUser(user);
+    await loginPage.login(user.username, user.password);
+    await homePage.waitForReady();
+    return homePage;
+  }
+
+  await loginPage.navigateTo();
+  const keycloak = await loginPage.clickKeycloakAuthButton();
+  await keycloak.loginAsUser(user.username, user.password);
+  await homePage.waitForReady();
+  return homePage;
+}
+
+function nextcloudOrigin(): string {
+  return resolveServiceOrigin(
+    process.env.NEXTCLOUD_URL,
+    process.env.NEXTCLOUD_HOST,
+    testConfig.nextcloud.host,
+    'https://nextcloud.test',
+  ).replace(/\/$/, '');
+}
+
+async function probeNextcloudLoggedIn(page: Page, redirectPath?: string): Promise<boolean> {
+  const raw = redirectPath?.trim() || '/index.php/apps/files/files';
+  const path = raw.startsWith('/') ? raw : `/${raw}`;
+  await page.goto(`${nextcloudOrigin()}${path}`, { waitUntil: 'domcontentloaded' });
+  if (page.url().includes('/login')) {
+    return false;
+  }
+  return new NextcloudDashboardPage(page).isLoggedIn();
+}
+
+async function uiLoginNextcloud(
+  page: Page,
+  user: TestUser,
+  options?: { redirectPath?: string },
+): Promise<void> {
+  const ncLogin = new NextcloudLoginPage(page);
+  await ncLogin.login(user.username, user.password, options);
+}
+
+/** After OP login, ensure NC cookies land in the same persona storageState. */
+async function captureNextcloudIntoContext(
+  page: Page,
+  user: TestUser,
+): Promise<void> {
+  if (await probeNextcloudLoggedIn(page)) {
+    return;
+  }
+  await uiLoginNextcloud(page, user, {
+    redirectPath: '/index.php/apps/files/files',
+  });
+}
+
+/** After NC login, ensure OP cookies land in the same persona storageState. */
+async function captureOpenProjectIntoContext(
+  page: Page,
+  user: TestUser,
+  loginOp: () => Promise<void>,
+): Promise<void> {
+  const opLogin = new OpenProjectLoginPage(page);
+  await opLogin.navigateTo();
+  await opLogin.loginIfPrompted(user.username, user.password, 10000);
+  if (await new OpenProjectHomePage(page).isLoggedIn()) {
+    return;
+  }
+  await loginOp();
+}
+
+/**
+ * Admin session for project-storage specs: OP admin on oauth2, Alice+admin elevation on SSO.
+ * Restores `storage-admin` storageState unless `{ cold: true }`.
+ */
+export async function loginOpenProjectAsStorageAdmin(
+  page: Page,
+  options: SessionOptions = {},
+): Promise<OpenProjectHomePage> {
+  const homePage = new OpenProjectHomePage(page);
+  await ensureWithRecovery(page, 'storage-admin', {
+    cold: options.cold,
+    probe: () => probeOpenProjectLoggedIn(page),
+    login: async () => {
+      await uiLoginOpenProjectAsStorageAdmin(page);
+    },
+  });
+  if (!options.cold && !isOauth2Setup()) {
+    // Admin flag may change after setup; elevate + reload when needed.
+    await ensureAliceAdminForCurrentSession(page, homePage);
+  }
+  await homePage.waitForReady({ dismissOnboarding: false });
   return homePage;
 }
 
@@ -283,26 +413,148 @@ export async function ensureOliverConnectedViaNextcloudPersonalSettings(
 
 /**
  * Log in to OpenProject as the dual-setup integration user for the current SETUP_METHOD.
+ * Restores `integration` storageState unless `{ cold: true }`.
  */
 export async function loginOpenProjectAsIntegrationUser(
   page: Page,
+  options: SessionOptions = {},
 ): Promise<OpenProjectHomePage> {
-  const loginPage = new OpenProjectLoginPage(page);
   const homePage = new OpenProjectHomePage(page);
+  await ensureWithRecovery(page, 'integration', {
+    cold: options.cold,
+    probe: () => probeOpenProjectLoggedIn(page),
+    login: async () => {
+      await uiLoginOpenProjectAsIntegrationUser(page);
+      if (!options.cold) {
+        await captureNextcloudIntoContext(page, integrationBrowserUser());
+        // storageState save needs both hosts; leave the page on OP for callers.
+        await homePage.navigateTo();
+        await homePage.waitForReady({ dismissOnboarding: false });
+      }
+    },
+  });
+  await homePage.waitForReady({ dismissOnboarding: false });
+  return homePage;
+}
 
-  if (isOauth2Setup()) {
-    await ensureOpenProjectLocalUser(OLIVER_OAUTH_USER);
-    await ensureNextcloudLocalUser(OLIVER_OAUTH_USER);
-    await loginPage.login(OLIVER_OAUTH_USER.username, OLIVER_OAUTH_USER.password);
-    await homePage.waitForReady();
-    return homePage;
+/**
+ * OpenProject session as secondary dual-setup user (Brian / Bob).
+ */
+export async function loginOpenProjectAsSecondaryUser(
+  page: Page,
+  options: SessionOptions = {},
+): Promise<OpenProjectHomePage> {
+  const homePage = new OpenProjectHomePage(page);
+  await ensureWithRecovery(page, 'secondary', {
+    cold: options.cold,
+    probe: () => probeOpenProjectLoggedIn(page),
+    login: async () => {
+      await uiLoginOpenProjectAsSecondaryUser(page);
+      if (!options.cold) {
+        await captureNextcloudIntoContext(page, secondaryIntegrationUser());
+        await homePage.navigateTo();
+        await homePage.waitForReady({ dismissOnboarding: false });
+      }
+    },
+  });
+  await homePage.waitForReady({ dismissOnboarding: false });
+  return homePage;
+}
+
+/**
+ * Nextcloud as integration browser user (Alice / Oliver). Prefer over clearCookies + login.
+ */
+export async function loginNextcloudAsIntegrationUser(
+  page: Page,
+  options: SessionOptions & { redirectPath?: string } = {},
+): Promise<void> {
+  const user = integrationBrowserUser();
+  await ensureWithRecovery(page, 'integration', {
+    cold: options.cold,
+    probe: () => probeNextcloudLoggedIn(page, options.redirectPath),
+    login: async () => {
+      await uiLoginNextcloud(page, user, { redirectPath: options.redirectPath });
+      if (!options.cold) {
+        await captureOpenProjectIntoContext(page, user, async () => {
+          await uiLoginOpenProjectAsIntegrationUser(page);
+        });
+      }
+    },
+  });
+}
+
+/**
+ * Nextcloud as secondary user (Brian / Bob).
+ */
+export async function loginNextcloudAsSecondaryUser(
+  page: Page,
+  options: SessionOptions & { redirectPath?: string } = {},
+): Promise<void> {
+  const user = secondaryIntegrationUser();
+  await ensureWithRecovery(page, 'secondary', {
+    cold: options.cold,
+    probe: () => probeNextcloudLoggedIn(page, options.redirectPath),
+    login: async () => {
+      await uiLoginNextcloud(page, user, { redirectPath: options.redirectPath });
+      if (!options.cold) {
+        await captureOpenProjectIntoContext(page, user, async () => {
+          await uiLoginOpenProjectAsSecondaryUser(page);
+        });
+      }
+    },
+  });
+}
+
+/**
+ * Nextcloud local admin. Restores `nc-admin` unless `{ cold: true }`.
+ */
+export async function loginNextcloudAsAdmin(
+  page: Page,
+  options: SessionOptions & { redirectPath?: string } = {},
+): Promise<void> {
+  await ensureWithRecovery(page, 'nc-admin', {
+    cold: options.cold,
+    probe: () => probeNextcloudLoggedIn(page, options.redirectPath),
+    login: async () => {
+      await uiLoginNextcloud(page, NC_ADMIN_USER, { redirectPath: options.redirectPath });
+    },
+  });
+}
+
+/**
+ * Fast switch: restore another persona (or UI-login + save on miss).
+ * Replaces clearCookies() + full login for role hops when a persona file exists.
+ */
+export async function switchBrowserPersona(
+  page: Page,
+  persona: AuthPersona,
+  options: SessionOptions & {
+    app: 'openproject' | 'nextcloud';
+    redirectPath?: string;
+  },
+): Promise<void> {
+  if (options.app === 'openproject') {
+    if (persona === 'storage-admin') {
+      await loginOpenProjectAsStorageAdmin(page, options);
+      return;
+    }
+    if (persona === 'secondary') {
+      await loginOpenProjectAsSecondaryUser(page, options);
+      return;
+    }
+    await loginOpenProjectAsIntegrationUser(page, options);
+    return;
   }
 
-  await loginPage.navigateTo();
-  const keycloakLoginPage = await loginPage.clickKeycloakAuthButton();
-  await keycloakLoginPage.loginAsUser(ALICE_USER.username, ALICE_USER.password);
-  await homePage.waitForReady();
-  return homePage;
+  if (persona === 'nc-admin') {
+    await loginNextcloudAsAdmin(page, options);
+    return;
+  }
+  if (persona === 'secondary') {
+    await loginNextcloudAsSecondaryUser(page, options);
+    return;
+  }
+  await loginNextcloudAsIntegrationUser(page, options);
 }
 
 /**
@@ -320,21 +572,11 @@ export async function ensureSecondaryIntegrationUserProvisioned(
     return user;
   }
 
-  const loginPage = new OpenProjectLoginPage(page);
-  const homePage = new OpenProjectHomePage(page);
-  logInfo('Provisioning SSO secondary user %s via Keycloak → OpenProject', user.username);
-  await loginPage.navigateTo();
-  const keycloak = await loginPage.clickKeycloakAuthButton();
-  await keycloak.loginAsUser(user.username, user.password);
-  await homePage.waitForReady();
-  await page.context().clearCookies();
-
-  // NC JIT so AMPF Sync now can grant groupfolder ACL before WebDAV probes.
-  logInfo('Provisioning SSO secondary user %s via Keycloak → Nextcloud', user.username);
-  const ncLogin = new NextcloudLoginPage(page);
-  await ncLogin.login(user.username, user.password, {
-    redirectPath: '/index.php/apps/files/files',
-  });
+  // JIT via Keycloak on both apps; warm `secondary` storageState for later restores.
+  logInfo('Provisioning SSO secondary user %s via Keycloak → OpenProject + Nextcloud', user.username);
+  await uiLoginOpenProjectAsSecondaryUser(page);
+  await captureNextcloudIntoContext(page, user);
+  await savePersona(page.context(), 'secondary');
   await page.context().clearCookies();
   return user;
 }
@@ -408,16 +650,14 @@ export async function prepareIntegrationUserForDemoStorage(
 
     const storageLinked = await isProjectNextcloudStorageLinked('demo-project');
     if (!storageLinked) {
-      await page.context().clearCookies();
-      const opLogin = new OpenProjectLoginPage(page);
-      const adminHome = await opLogin.login(OP_ADMIN_USER.username, OP_ADMIN_USER.password);
-      await adminHome.waitForReady();
+      await loginOpenProjectAsStorageAdmin(page);
       await ensureProjectHasNextcloudStorage('demo-project', page);
     } else {
       logInfo('Demo project Nextcloud storage already linked (API); skipping admin UI');
     }
 
     // NC→OP personal OAuth (API probe short-circuits when already connected).
+    // Cold browser: do not write storageState from the OAuth consent context.
     await page.context().clearCookies();
     await ensureOliverConnectedViaNextcloudPersonalSettings(page);
 
@@ -432,13 +672,7 @@ export async function prepareIntegrationUserForDemoStorage(
       return { homePage: new OpenProjectHomePage(page), user };
     }
 
-    await page.context().clearCookies();
-    const opLogin = new OpenProjectLoginPage(page);
-    const oliverHome = await opLogin.login(
-      OLIVER_OAUTH_USER.username,
-      OLIVER_OAUTH_USER.password,
-    );
-    await oliverHome.waitForReady();
+    const oliverHome = await loginOpenProjectAsIntegrationUser(page);
     return { homePage: oliverHome, user };
   }
 

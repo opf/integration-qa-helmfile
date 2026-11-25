@@ -69,6 +69,13 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'auth-setup',
+      use: { ...devices['Desktop Chrome'], screen: undefined },
+      fullyParallel: false,
+      workers: 1,
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
       name: 'keycloak-tests',
       // Playwright 1.64 forwards device `screen`; keep pre-1.64 window.screen / media-query behavior.
       use: { ...devices['Desktop Chrome'], screen: undefined },
@@ -85,11 +92,17 @@ export default defineConfig({
     },
     {
       name: 'op-integration-tests',
+      dependencies: ['auth-setup'],
       use: { ...devices['Desktop Chrome'], screen: undefined },
       fullyParallel: false,
       workers: 1,
       testMatch: '**/*.spec.ts',
-      testIgnore: ['**/kc-integration.spec.ts', '**/nc-integration.spec.ts', '**/mcp/**/*.spec.ts'],
+      testIgnore: [
+        '**/kc-integration.spec.ts',
+        '**/nc-integration.spec.ts',
+        '**/mcp/**/*.spec.ts',
+        '**/auth.setup.ts',
+      ],
     },
     {
       name: 'mcp-tests',

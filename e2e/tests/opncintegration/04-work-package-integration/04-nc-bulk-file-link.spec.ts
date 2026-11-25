@@ -1,7 +1,6 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
   NextcloudFilesPage,
 } from '../../../pageobjects/nextcloud';
 import {
@@ -19,6 +18,7 @@ import { getErrorMessage } from '../../../utils/error-utils';
 import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
+  loginNextcloudAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
@@ -56,7 +56,6 @@ test.describe('Work Package Integration - Nextcloud Bulk File Link', dualSetupTa
     'Bulk Link Multiple Nextcloud Files to Work Package',
     squashTestCase(2245, { stepCount: 4 }),
     async ({ page }) => {
-      const ncLoginPage = new NextcloudLoginPage(page);
       const filesPage = new NextcloudFilesPage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const user = integrationBrowserUser();
@@ -67,7 +66,6 @@ test.describe('Work Package Integration - Nextcloud Bulk File Link', dualSetupTa
         for (const fileName of BULK_FILES) {
           await uploadNextcloudFile(fileName, `Content for ${fileName}\n`, user);
         }
-        await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2245', 'Setup failed:', getErrorMessage(error));
         throw error;
@@ -77,7 +75,7 @@ test.describe('Work Package Integration - Nextcloud Bulk File Link', dualSetupTa
         'In Nextcloud Files list, select checkboxes for multiple files',
         async () => {
           logInfo('TC-2245', 'Step 1: Logging in to Nextcloud and selecting bulk files');
-          await ncLoginPage.login(user.username, user.password, {
+          await loginNextcloudAsIntegrationUser(page, {
             redirectPath: '/index.php/apps/files/files',
           });
           await filesPage.waitForReady();

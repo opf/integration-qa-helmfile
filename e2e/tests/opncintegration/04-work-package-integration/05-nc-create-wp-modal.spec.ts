@@ -1,7 +1,6 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
   NextcloudFilesPage,
 } from '../../../pageobjects/nextcloud';
 import {
@@ -19,6 +18,7 @@ import { getErrorMessage } from '../../../utils/error-utils';
 import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
+  loginNextcloudAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
@@ -61,7 +61,6 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
       const timestamp = Date.now();
       testFileName = `nc-create-wp-${timestamp}.txt`;
       createdWpSubject = `Created from Nextcloud ${timestamp}`;
-      const ncLoginPage = new NextcloudLoginPage(page);
       const filesPage = new NextcloudFilesPage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const user = integrationBrowserUser();
@@ -70,7 +69,6 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
       try {
         await prepareIntegrationUserForDemoStorage(page);
         await uploadNextcloudFile(testFileName, TEST_FILE_CONTENT, user);
-        await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2246', 'Setup failed:', getErrorMessage(error));
         throw error;
@@ -80,7 +78,7 @@ test.describe('Work Package Integration - Create WP from Nextcloud', dualSetupTa
         'Open File Details sidebar for target file -> click OpenProject tab',
         async () => {
           logInfo('TC-2246', 'Step 1: Logging in to Nextcloud and opening details sidebar');
-          await ncLoginPage.login(user.username, user.password, {
+          await loginNextcloudAsIntegrationUser(page, {
             redirectPath: '/index.php/apps/files/files',
           });
           await filesPage.waitForReady();

@@ -1,6 +1,6 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { NextcloudFilesPage, NextcloudLoginPage } from '../../../pageobjects/nextcloud';
+import { NextcloudFilesPage } from '../../../pageobjects/nextcloud';
 import {
   denyAmpfProjectFolderAccess,
   ensureAmpfWebDavAccess,
@@ -18,6 +18,7 @@ import {
   ampProjectFolder,
   ensureAmpfStorageSynced,
   ensureSecondaryIntegrationUserProvisioned,
+  loginNextcloudAsSecondaryUser,
   secondaryIntegrationUser,
 } from '../shared';
 
@@ -35,7 +36,6 @@ test.describe('AMPF Folder Permission Sync on Member Removal', dualSetupTags, ()
     squashTestCase(2270, { stepCount: 3 }),
     async ({ page }) => {
       const bob = secondaryIntegrationUser();
-      const ncLogin = new NextcloudLoginPage(page);
       const filesPage = new NextcloudFilesPage(page);
 
       logInfo(
@@ -89,8 +89,7 @@ test.describe('AMPF Folder Permission Sync on Member Removal', dualSetupTags, ()
         'Log in to Nextcloud as Bob and verify the Demo Project AMPF folder is no longer visible or accessible',
         async () => {
           logInfo('TC-2270', 'Step 3: Verifying AMPF folder hidden in NC UI for %s', bob.username);
-          await page.context().clearCookies();
-          await ncLogin.login(bob.username, bob.password, {
+          await loginNextcloudAsSecondaryUser(page, {
             redirectPath: '/index.php/apps/files/files',
           });
           await filesPage.waitForReady();

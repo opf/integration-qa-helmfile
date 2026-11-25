@@ -1,13 +1,13 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
   NextcloudHeaderPage,
   NextcloudFilesPage,
 } from '../../../pageobjects/nextcloud';
 import {
   integrationBrowserUser,
+  loginNextcloudAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 import { logInfo, logError } from '../../../utils/logger';
@@ -24,7 +24,6 @@ test.describe('Work Package Integration - Nextcloud Header OpenProject Link', du
     'Top Header Navigation Icon Link from Nextcloud to OpenProject',
     squashTestCase(2250, { stepCount: 4 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       const personalSettings = new NextcloudPersonalSettingsPage(page);
       const header = new NextcloudHeaderPage(page);
       const filesPage = new NextcloudFilesPage(page);
@@ -33,7 +32,6 @@ test.describe('Work Package Integration - Nextcloud Header OpenProject Link', du
       logInfo('TC-2250', 'Setup: preparing integration user %s', user.username);
       try {
         await prepareIntegrationUserForDemoStorage(page);
-        await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2250', 'Setup failed:', getErrorMessage(error));
         throw error;
@@ -41,7 +39,7 @@ test.describe('Work Package Integration - Nextcloud Header OpenProject Link', du
 
       await test.step('Navigate to Nextcloud Personal Settings -> OpenProject', async () => {
         logInfo('TC-2250', 'Step 1: Login and open personal OpenProject settings');
-        await loginPage.login(user.username, user.password, {
+        await loginNextcloudAsIntegrationUser(page, {
           redirectPath: '/index.php/settings/user/openproject',
         });
         await personalSettings.waitForReady();

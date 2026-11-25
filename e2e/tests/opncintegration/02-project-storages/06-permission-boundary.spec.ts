@@ -1,8 +1,6 @@
 import { test, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  OpenProjectHomePage,
-  OpenProjectLoginPage,
   OpenProjectWorkPackageFilesTab,
 } from '../../../pageobjects/openproject';
 import { ensureUserIsProjectMember } from '../../../utils/openproject-api';
@@ -17,7 +15,7 @@ import {
   DEMO_WORK_PACKAGE_ID,
   ensureFilesTabNextcloudConnected,
   ensureSecondaryIntegrationUserProvisioned,
-  isOauth2Setup,
+  loginOpenProjectAsSecondaryUser,
   secondaryIntegrationUser,
 } from '../shared';
 
@@ -35,20 +33,7 @@ test.describe('Permission Boundary Enforcement in Files Tab', dualSetupTags, () 
     squashTestCase(2266, { stepCount: 4 }),
     async ({ page }) => {
       const user = secondaryIntegrationUser();
-      const opLogin = new OpenProjectLoginPage(page);
-      const homePage = new OpenProjectHomePage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
-
-      async function loginAsRestrictedUser(): Promise<void> {
-        if (isOauth2Setup()) {
-          await opLogin.login(user.username, user.password);
-        } else {
-          await opLogin.navigateTo();
-          const keycloak = await opLogin.clickKeycloakAuthButton();
-          await keycloak.loginAsUser(user.username, user.password);
-        }
-        await homePage.waitForReady();
-      }
 
       if (!(await isKubectlAvailable())) {
         test.skip(
@@ -66,7 +51,7 @@ test.describe('Permission Boundary Enforcement in Files Tab', dualSetupTags, () 
         await ensureSecondaryIntegrationUserProvisioned(page);
         await ensureProjectHasNextcloudStorage(DEMO_PROJECT, undefined);
         await ensureUserIsProjectMember(user.username, DEMO_PROJECT, 'Member');
-        await loginAsRestrictedUser();
+        await loginOpenProjectAsSecondaryUser(page);
         await filesTab.navigateToDemoProjectWorkPackage(DEMO_WORK_PACKAGE_ID);
         await filesTab.openWorkPackageFilesTabIfNeeded();
         await ensureFilesTabNextcloudConnected(page, filesTab, DEMO_WORK_PACKAGE_ID, user);
@@ -82,7 +67,7 @@ test.describe('Permission Boundary Enforcement in Files Tab', dualSetupTags, () 
         'Log in as a user who has OP work package access but lacks Nextcloud folder permissions',
         async () => {
           logInfo('TC-2266', 'Step 1: Logging in as %s', user.username);
-          await loginAsRestrictedUser();
+          await loginOpenProjectAsSecondaryUser(page);
         },
       );
 

@@ -1,5 +1,5 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
-import { NextcloudLoginPage, NextcloudActiveAppsPage } from '../../../pageobjects/nextcloud';
+import { NextcloudActiveAppsPage, NextcloudDashboardPage } from '../../../pageobjects/nextcloud';
 import { OpenProjectWorkPackageFilesTab } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { NC_ADMIN_USER } from '../../../utils/test-users';
@@ -11,6 +11,7 @@ import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
   isOauth2Setup,
+  loginNextcloudAsAdmin,
   loginOpenProjectAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
@@ -28,7 +29,6 @@ test.describe('Installation & Upgrade - Marketplace', dualSetupTags, () => {
     'Install Integration App via Marketplace',
     squashTestCase(2145, { stepCount: 3 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       const activeAppsPage = new NextcloudActiveAppsPage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const user = integrationBrowserUser();
@@ -47,11 +47,8 @@ test.describe('Installation & Upgrade - Marketplace', dualSetupTags, () => {
 
       await test.step('Login to Nextcloud as an administrator', async () => {
         logInfo('TC-2145', 'Step 1: Logging in to Nextcloud as administrator');
-        await page.context().clearCookies();
-        const dashboardPage = await loginPage.login(
-          NC_ADMIN_USER.username,
-          NC_ADMIN_USER.password,
-        );
+        await loginNextcloudAsAdmin(page);
+        const dashboardPage = new NextcloudDashboardPage(page);
         await dashboardPage.waitForReady();
         expect(await dashboardPage.isLoggedIn()).toBe(true);
       });
@@ -140,7 +137,6 @@ test.describe('Installation & Upgrade - Marketplace', dualSetupTags, () => {
       // so the existing integration must still work without any restore.
       logInfo('TC-2145', 'Post: Verifying Demo project storage and Files tab as %s', user.username);
       await waitForNextcloudStorageHealthy('demo-project', { timeoutMs: 120_000 });
-      await page.context().clearCookies();
       homePage = await loginOpenProjectAsIntegrationUser(page);
       await homePage.waitForReady();
       await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);

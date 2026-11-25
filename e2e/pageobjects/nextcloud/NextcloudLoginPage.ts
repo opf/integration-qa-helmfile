@@ -70,16 +70,23 @@ export class NextcloudLoginPage extends NextcloudBasePage {
     if (candidate) {
       const href = await candidate.getAttribute('href');
       if (href) {
-        await this.page.goto(new URL(href, this.page.url()).toString());
+        await this.page.goto(new URL(href, this.page.url()).toString(), {
+          waitUntil: 'domcontentloaded',
+        });
       } else {
-        await candidate.click({ timeout: 5000 });
+        await candidate.click({ timeout: 5000, noWaitAfter: true });
       }
     } else {
       const origin = this.resolveNavigationUrl().replace(/\/$/, '');
-      await this.page.goto(`${origin}/apps/user_oidc/login/keycloak`);
+      await this.page.goto(`${origin}/apps/user_oidc/login/keycloak`, {
+        waitUntil: 'domcontentloaded',
+      });
     }
 
-    await this.page.waitForURL(keycloakHostPattern, { timeout: 15000 });
+    await this.page.waitForURL(keycloakHostPattern, {
+      timeout: 15000,
+      waitUntil: 'domcontentloaded',
+    });
     const keycloakPage = new KeycloakLoginPage(this.page);
     await keycloakPage.waitForReady().catch(() => {});
     return keycloakPage;

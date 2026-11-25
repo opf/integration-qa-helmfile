@@ -1,9 +1,9 @@
 
 import { test, expect, ssoExternalTags, skipUnlessSetupMethod } from '../../base-test';
-import { NextcloudLoginPage, NextcloudActiveAppsPage } from '../../../pageobjects/nextcloud';
+import { NextcloudActiveAppsPage, NextcloudDashboardPage } from '../../../pageobjects/nextcloud';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { NC_ADMIN_USER } from '../../../utils/test-users';
 import { logInfo } from '../../../utils/logger';
+import { loginNextcloudAsAdmin } from '../shared';
 
 test.describe('SSO External - App Health', ssoExternalTags, () => {
   test.beforeEach(() => {
@@ -13,16 +13,13 @@ test.describe('SSO External - App Health', ssoExternalTags, () => {
     'should login to Nextcloud and verify OpenProject Integration app',
     squashTestCase(2167, { stepCount: 5 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       let activeAppsPage: NextcloudActiveAppsPage;
 
       await test.step(
         'Open Nextcloud login page (/login) and log in as administrator',
         async () => {
-          const dashboardPage = await loginPage.login(
-            NC_ADMIN_USER.username,
-            NC_ADMIN_USER.password,
-          );
+          await loginNextcloudAsAdmin(page);
+          const dashboardPage = new NextcloudDashboardPage(page);
           await dashboardPage.waitForReady();
           expect(await dashboardPage.isLoggedIn()).toBe(true);
         },

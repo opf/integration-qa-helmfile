@@ -1,11 +1,11 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
 } from '../../../pageobjects/nextcloud';
 import {
   integrationBrowserUser,
+  loginNextcloudAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 import { logInfo, logError } from '../../../utils/logger';
@@ -22,14 +22,12 @@ test.describe('Connection & Auth - Nextcloud Personal OpenProject Settings', dua
     'Nextcloud Personal Settings for OpenProject Preferences',
     squashTestCase(2256, { stepCount: 3 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       const personalSettings = new NextcloudPersonalSettingsPage(page);
       const user = integrationBrowserUser();
 
       logInfo('TC-2256', 'Setup: preparing integration user %s', user.username);
       try {
         await prepareIntegrationUserForDemoStorage(page);
-        await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2256', 'Setup failed:', getErrorMessage(error));
         throw error;
@@ -44,7 +42,7 @@ test.describe('Connection & Auth - Nextcloud Personal OpenProject Settings', dua
         'In Nextcloud, navigate to Personal Settings -> OpenProject',
         async () => {
           logInfo('TC-2256', 'Step 1: Login and open personal OpenProject settings');
-          await loginPage.login(user.username, user.password, {
+          await loginNextcloudAsIntegrationUser(page, {
             redirectPath: '/index.php/settings/user/openproject',
           });
           await personalSettings.waitForReady();

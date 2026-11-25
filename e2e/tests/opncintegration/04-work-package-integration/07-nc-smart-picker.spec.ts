@@ -1,12 +1,12 @@
 import { test, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
   NextcloudTextPage,
   NextcloudTalkPage,
 } from '../../../pageobjects/nextcloud';
 import {
   integrationBrowserUser,
+  loginNextcloudAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 import { uploadNextcloudFile, deleteNextcloudFile } from '../../../utils/nextcloud-api';
@@ -42,7 +42,6 @@ test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSe
     'Work Package Smart Picker and Card Previews in Nextcloud Text and Talk',
     squashTestCase(2248, { stepCount: 4 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       const textPage = new NextcloudTextPage(page);
       const talkPage = new NextcloudTalkPage(page);
       const user = integrationBrowserUser();
@@ -52,7 +51,6 @@ test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSe
       try {
         await prepareIntegrationUserForDemoStorage(page);
         await uploadNextcloudFile(docName, DOC_BODY, user);
-        await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2248', 'Setup failed:', getErrorMessage(error));
         throw error;
@@ -60,7 +58,7 @@ test.describe('Work Package Integration - Smart Picker in Text and Talk', dualSe
 
       await test.step('Open a document in Nextcloud Text', async () => {
         logInfo('TC-2248', 'Step 1: Login and open markdown in Text');
-        await loginPage.login(user.username, user.password, {
+        await loginNextcloudAsIntegrationUser(page, {
           redirectPath: '/index.php/apps/files/files',
         });
         await textPage.openMarkdownFile(docName);

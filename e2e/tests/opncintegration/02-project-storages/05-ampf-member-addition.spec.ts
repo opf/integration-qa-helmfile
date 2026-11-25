@@ -1,6 +1,6 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
-import { NextcloudFilesPage, NextcloudLoginPage } from '../../../pageobjects/nextcloud';
+import { NextcloudFilesPage } from '../../../pageobjects/nextcloud';
 import {
   ensureAmpfWebDavAccess,
   waitForAmpfFolderVisibleToUser,
@@ -16,6 +16,7 @@ import {
   ampProjectFolder,
   ensureAmpfStorageSynced,
   ensureSecondaryIntegrationUserProvisioned,
+  loginNextcloudAsSecondaryUser,
   secondaryIntegrationUser,
 } from '../shared';
 
@@ -33,7 +34,6 @@ test.describe('AMPF Folder Permission Sync on Member Addition', dualSetupTags, (
     squashTestCase(2262, { stepCount: 5 }),
     async ({ page }) => {
       const bob = secondaryIntegrationUser();
-      const ncLogin = new NextcloudLoginPage(page);
       const filesPage = new NextcloudFilesPage(page);
 
       logInfo('TC-2262', 'Setup: provision %s and ensure not a Demo member', bob.username);
@@ -79,8 +79,7 @@ test.describe('AMPF Folder Permission Sync on Member Addition', dualSetupTags, (
 
       await test.step('Log in to Nextcloud as Bob and navigate to Files app', async () => {
         logInfo('TC-2262', 'Step 4: Logging into Nextcloud as %s', bob.username);
-        await page.context().clearCookies();
-        await ncLogin.login(bob.username, bob.password, {
+        await loginNextcloudAsSecondaryUser(page, {
           redirectPath: '/index.php/apps/files/files',
         });
         await filesPage.waitForReady();

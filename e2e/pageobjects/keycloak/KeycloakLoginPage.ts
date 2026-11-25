@@ -34,7 +34,8 @@ export class KeycloakLoginPage extends KeycloakBasePage {
   }
 
   async clickSignIn(): Promise<void> {
-    await this.getLocator('loginButton').click();
+    // OIDC redirect can leave a long-lived navigation pending; do not wait on it here.
+    await this.getLocator('loginButton').click({ noWaitAfter: true });
   }
 
   async login(username: string = ADMIN_USER.username, password: string = ADMIN_USER.password): Promise<void> {
@@ -42,21 +43,23 @@ export class KeycloakLoginPage extends KeycloakBasePage {
     await this.fillUsername(username);
     await this.fillPassword(password);
     await this.clickSignIn();
-    await this.page.waitForURL(/.*\/admin\/.*\/console.*/, { timeout: 10000 });
+    await this.page.waitForURL(/.*\/admin\/.*\/console.*/, {
+      timeout: 10000,
+      waitUntil: 'domcontentloaded',
+    });
   }
 
   async loginAsUser(username: string, password: string): Promise<void> {
     await this.getLocator('usernameInput').waitFor({ state: 'visible', timeout: 10000 });
     await this.fillUsername(username);
     await this.fillPassword(password);
-    
-    const currentUrl = this.page.url();
+
     await this.clickSignIn();
-    
+
     try {
       await this.page.waitForURL(
         (url) => !url.hostname.includes(keycloakHost),
-        { timeout: 15000 }
+        { timeout: 15000, waitUntil: 'domcontentloaded' },
       );
     } catch {
       await this.page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});

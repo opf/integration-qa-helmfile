@@ -1,13 +1,13 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
   NextcloudPersonalSettingsPage,
   NextcloudHeaderPage,
   NextcloudFilesPage,
 } from '../../../pageobjects/nextcloud';
 import {
   integrationBrowserUser,
+  loginNextcloudAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 import { logInfo, logError } from '../../../utils/logger';
@@ -28,7 +28,6 @@ test.describe('Work Package Integration - Nextcloud Universal Search', dualSetup
     'Universal Search for OpenProject Work Packages in Nextcloud Header',
     squashTestCase(2249, { stepCount: 4 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       const personalSettings = new NextcloudPersonalSettingsPage(page);
       const header = new NextcloudHeaderPage(page);
       const filesPage = new NextcloudFilesPage(page);
@@ -37,7 +36,6 @@ test.describe('Work Package Integration - Nextcloud Universal Search', dualSetup
       logInfo('TC-2249', 'Setup: preparing integration user %s', user.username);
       try {
         await prepareIntegrationUserForDemoStorage(page);
-        await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2249', 'Setup failed:', getErrorMessage(error));
         throw error;
@@ -47,7 +45,7 @@ test.describe('Work Package Integration - Nextcloud Universal Search', dualSetup
         'Ensure Enable unified search for tickets is enabled in personal settings',
         async () => {
           logInfo('TC-2249', 'Step 1: Enabling unified search preference');
-          await loginPage.login(user.username, user.password, {
+          await loginNextcloudAsIntegrationUser(page, {
             redirectPath: '/index.php/settings/user/openproject',
           });
           await personalSettings.waitForReady();

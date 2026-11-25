@@ -1,5 +1,5 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
-import { NextcloudLoginPage, NextcloudActiveAppsPage } from '../../../pageobjects/nextcloud';
+import { NextcloudActiveAppsPage, NextcloudDashboardPage } from '../../../pageobjects/nextcloud';
 import { OpenProjectWorkPackageFilesTab } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { NC_ADMIN_USER } from '../../../utils/test-users';
@@ -10,6 +10,7 @@ import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
   isOauth2Setup,
+  loginNextcloudAsAdmin,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
@@ -25,15 +26,12 @@ test.describe('Installation & Upgrade - Enable App', dualSetupTags, () => {
     'Enable Integration App via Nextcloud UI',
     squashTestCase(2147, { stepCount: 4 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       const activeAppsPage = new NextcloudActiveAppsPage(page);
 
       await test.step('Login to Nextcloud as an administrator', async () => {
         logInfo('TC-2147', 'Step 1: Logging in to Nextcloud as administrator');
-        const dashboardPage = await loginPage.login(
-          NC_ADMIN_USER.username,
-          NC_ADMIN_USER.password,
-        );
+        await loginNextcloudAsAdmin(page);
+        const dashboardPage = new NextcloudDashboardPage(page);
         await dashboardPage.waitForReady();
         expect(await dashboardPage.isLoggedIn()).toBe(true);
       });

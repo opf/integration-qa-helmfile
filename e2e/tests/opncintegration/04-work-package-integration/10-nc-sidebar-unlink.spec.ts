@@ -1,7 +1,6 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
   NextcloudFilesPage,
 } from '../../../pageobjects/nextcloud';
 import {
@@ -19,6 +18,7 @@ import { getErrorMessage } from '../../../utils/error-utils';
 import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
+  loginNextcloudAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
 
@@ -51,7 +51,6 @@ test.describe('Work Package Integration - Nextcloud Sidebar Unlink', dualSetupTa
     'Unlink Work Package from Nextcloud File Details Sidebar',
     squashTestCase(2251, { stepCount: 4 }),
     async ({ page }) => {
-      const ncLoginPage = new NextcloudLoginPage(page);
       const filesPage = new NextcloudFilesPage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const user = integrationBrowserUser();
@@ -60,7 +59,6 @@ test.describe('Work Package Integration - Nextcloud Sidebar Unlink', dualSetupTa
       try {
         await prepareIntegrationUserForDemoStorage(page);
         await uploadNextcloudFile(TEST_FILE_NAME, TEST_FILE_CONTENT, user);
-        await page.context().clearCookies();
       } catch (error: unknown) {
         logError('TC-2251', 'Setup failed:', getErrorMessage(error));
         throw error;
@@ -70,7 +68,7 @@ test.describe('Work Package Integration - Nextcloud Sidebar Unlink', dualSetupTa
         'In Nextcloud Files, open File Details for linked file -> click OpenProject tab',
         async () => {
           logInfo('TC-2251', 'Step 1: Logging in to Nextcloud, opening details sidebar and OpenProject tab');
-          await ncLoginPage.login(user.username, user.password, {
+          await loginNextcloudAsIntegrationUser(page, {
             redirectPath: '/index.php/apps/files/files',
           });
           await filesPage.waitForReady();

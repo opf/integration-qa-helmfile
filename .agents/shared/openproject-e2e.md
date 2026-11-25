@@ -131,6 +131,11 @@ try {
   - Optionally waits for Kubernetes `setup-job` completion when `SETUP_JOB_CHECK=true` (uses `utils/pod-waiter.ts`).
   - Runs `detectAllVersions()` from `utils/version-detect.ts` to populate version-related env vars (OpenProject, Nextcloud, Keycloak, etc.) if not already set.
   - Persists resolved `SETUP_METHOD` into `test-results/e2e-env.json` for workers.
+- **Browser session reuse (`storageState`):**
+  - Project `auth-setup` (`tests/auth.setup.ts`) runs before `op-integration-tests`, wipes `e2e/.auth/`, and writes persona files (`storage-admin`, `integration`, `secondary`, `nc-admin`). That directory is gitignored — never commit it.
+  - Shared helpers in `tests/opncintegration/shared.ts` (`loginOpenProjectAs*`, `loginNextcloudAs*`, `switchBrowserPersona`) restore cookies via `utils/auth-session.ts`. On miss/stale session they UI-login once, rewrite the persona file, and continue. Pass `{ cold: true }` (or call page-object login directly) for specs that assert login UX (e.g. `sso-logins`, OAuth connect/disconnect/revoke).
+  - Prefer those helpers over `clearCookies()` + full login for role hops. Do **not** `savePersona` from a context that just logged out or revoked tokens; call `invalidatePersona(name)` if a shared file may be poisoned.
+  - Keep `E2E_WORKERS=1` — persona files are not multi-worker-safe. Auth setup includes a recovery self-check (empty cookies → re-login). For manual chaos: delete or empty a file under `e2e/.auth/` mid-suite; the next `ensure*` must re-login.
 
 ## Type Safety
 

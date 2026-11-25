@@ -1,12 +1,12 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import {
-  NextcloudLoginPage,
   NextcloudAdminSettingsPage,
+  NextcloudDashboardPage,
 } from '../../../pageobjects/nextcloud';
-import { NC_ADMIN_USER } from '../../../utils/test-users';
 import { logInfo, logError } from '../../../utils/logger';
 import { getErrorMessage } from '../../../utils/error-utils';
+import { loginNextcloudAsAdmin } from '../shared';
 
 test.describe('Installation - Nextcloud Admin OpenProject Settings', dualSetupTags, () => {
   test.describe.configure({ timeout: 300_000 });
@@ -19,7 +19,6 @@ test.describe('Installation - Nextcloud Admin OpenProject Settings', dualSetupTa
     'Nextcloud Admin Settings for OpenProject & AMPF Verification',
     squashTestCase(2253, { stepCount: 4 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       const adminSettings = new NextcloudAdminSettingsPage(page);
 
       await test.step(
@@ -27,10 +26,8 @@ test.describe('Installation - Nextcloud Admin OpenProject Settings', dualSetupTa
         async () => {
           logInfo('TC-2253', 'Step 1: Login as NC admin and open OpenProject admin settings');
           try {
-            const dashboard = await loginPage.login(
-              NC_ADMIN_USER.username,
-              NC_ADMIN_USER.password,
-            );
+            await loginNextcloudAsAdmin(page);
+            const dashboard = new NextcloudDashboardPage(page);
             await dashboard.waitForReady();
             expect(await dashboard.isLoggedIn()).toBe(true);
             await adminSettings.navigateTo();

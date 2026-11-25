@@ -62,7 +62,10 @@ export abstract class OpenProjectBasePage extends BasePage {
    * Wait for URL to match OpenProject domain pattern
    */
   async waitForOpenProjectUrl(timeout: number = 15000): Promise<void> {
-    await this.page.waitForURL(OpenProjectBasePage.URL_PATHS.OPENPROJECT_DOMAIN, { timeout });
+    await this.page.waitForURL(OpenProjectBasePage.URL_PATHS.OPENPROJECT_DOMAIN, {
+      timeout,
+      waitUntil: 'domcontentloaded',
+    });
   }
 
   /**

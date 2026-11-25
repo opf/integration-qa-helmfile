@@ -1,5 +1,5 @@
 import { test, expect, dualSetupTags, skipUnlessSetupMethod } from '../../base-test';
-import { NextcloudLoginPage, NextcloudActiveAppsPage } from '../../../pageobjects/nextcloud';
+import { NextcloudActiveAppsPage, NextcloudDashboardPage } from '../../../pageobjects/nextcloud';
 import { OpenProjectWorkPackageFilesTab } from '../../../pageobjects/openproject';
 import { squashTestCase } from '../../../utils/squash-metadata';
 import { NC_ADMIN_USER } from '../../../utils/test-users';
@@ -14,6 +14,7 @@ import {
   ensureFilesTabNextcloudConnected,
   integrationBrowserUser,
   isOauth2Setup,
+  loginNextcloudAsAdmin,
   loginOpenProjectAsIntegrationUser,
   prepareIntegrationUserForDemoStorage,
 } from '../shared';
@@ -31,7 +32,6 @@ test.describe('Installation & Upgrade - App Upgrade', dualSetupTags, () => {
     'Integration app can be upgraded to the latest version',
     squashTestCase(2146, { stepCount: 2 }),
     async ({ page }) => {
-      const loginPage = new NextcloudLoginPage(page);
       const activeAppsPage = new NextcloudActiveAppsPage(page);
       const filesTab = new OpenProjectWorkPackageFilesTab(page);
       const user = integrationBrowserUser();
@@ -55,11 +55,8 @@ test.describe('Installation & Upgrade - App Upgrade', dualSetupTags, () => {
         'Obtain and install an older release (e.g., version 2.11.2) of the integration app from GitHub releases OR install via helm setup',
         async () => {
           logInfo('TC-2146', 'Step 1: Logging in to Nextcloud and noting deployed app version');
-          await page.context().clearCookies();
-          const dashboardPage = await loginPage.login(
-            NC_ADMIN_USER.username,
-            NC_ADMIN_USER.password,
-          );
+          await loginNextcloudAsAdmin(page);
+          const dashboardPage = new NextcloudDashboardPage(page);
           await dashboardPage.waitForReady();
           expect(await dashboardPage.isLoggedIn()).toBe(true);
 
@@ -145,7 +142,6 @@ test.describe('Installation & Upgrade - App Upgrade', dualSetupTags, () => {
         // Post-Squash checks (not extra steps): storage healthy and Files tab connected.
         logInfo('TC-2146', 'Post: Verifying OpenProject storage and Files tab');
         await waitForNextcloudStorageHealthy('demo-project', { timeoutMs: 120_000 });
-        await page.context().clearCookies();
         homePage = await loginOpenProjectAsIntegrationUser(page);
         await homePage.waitForReady();
         await ensureFilesTabNextcloudConnected(page, filesTab, WORK_PACKAGE_ID, user);

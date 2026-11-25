@@ -99,19 +99,25 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
     if (candidate) {
       const href = await candidate.getAttribute('href');
       if (href) {
-        await this.page.goto(new URL(href, this.page.url()).toString());
+        await this.page.goto(new URL(href, this.page.url()).toString(), {
+          waitUntil: 'domcontentloaded',
+        });
       } else {
-        await candidate.click({ timeout: 5000 });
+        await candidate.click({ timeout: 5000, noWaitAfter: true });
       }
     } else {
       const keycloakUrl = new URL('/auth/keycloak', this.page.url()).toString();
-      await this.page.goto(keycloakUrl);
+      await this.page.goto(keycloakUrl, { waitUntil: 'domcontentloaded' });
     }
 
     const opHost = escapeForRegex(openProjectHost());
     // SSO bounce: Keycloak cookie → back on OP without a Keycloak login form.
+    // waitUntil load hangs on Keycloak asset noise; DOM is enough to fill the form.
     await Promise.race([
-      this.page.waitForURL(keycloakHostPattern, { timeout: 15000 }),
+      this.page.waitForURL(keycloakHostPattern, {
+        timeout: 15000,
+        waitUntil: 'domcontentloaded',
+      }),
       this.page.waitForURL(
         (url) => {
           const href = typeof url === 'string' ? url : url.href;
@@ -121,7 +127,7 @@ export class OpenProjectLoginPage extends OpenProjectBasePage {
             !href.includes('/auth/keycloak')
           );
         },
-        { timeout: 15000 },
+        { timeout: 15000, waitUntil: 'domcontentloaded' },
       ),
     ]);
 
