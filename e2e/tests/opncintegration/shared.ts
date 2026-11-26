@@ -593,7 +593,7 @@ export async function ensureAmpfStorageSynced(page: Page): Promise<void> {
   const adminStorages = new OpenProjectAdminStoragesPage(page);
   await adminStorages.openNextcloudStorage();
   await adminStorages.clickSyncNow();
-  await adminStorages.waitForAmpfSyncSettled();
+  // Folder waiters (waitForAmpfFolder*) are the hard gate — do not poll Last sync.
   await page.context().clearCookies();
 }
 

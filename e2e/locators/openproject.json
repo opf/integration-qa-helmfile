@@ -536,14 +536,6 @@
         "name": "Sync now"
       }
     },
-    "storageSyncQueuedMessage": {
-      "by": "getByText",
-      "value": "Synchronization queued"
-    },
-    "storageHealthSyncedAt": {
-      "by": "getByText",
-      "value": "Last sync:"
-    },
     "replaceNextcloudOAuthButton": {
       "by": "locator",
       "value": "a[href*='oauth_client/new'], a[aria-labelledby]:has(+ tool-tip:has-text('Replace Nextcloud OAuth')), turbo-frame#storage_oauth_client_section a[href*='oauth_client']"

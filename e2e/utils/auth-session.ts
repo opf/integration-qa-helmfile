@@ -96,7 +96,7 @@ export async function restorePersona(
 /**
  * Restore persona cookies when possible; otherwise run login and save (unless cold).
  * Trusts restored cookies (no probe navigation) — stale sessions fail on the first
- * real step and re-login via the caller's next cold path / retry.
+ * real step; the next cold login path / helper call re-logins.
  */
 export async function ensureWithRecovery(
   page: Page,

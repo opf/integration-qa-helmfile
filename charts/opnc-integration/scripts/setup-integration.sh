@@ -297,7 +297,8 @@ ensure_openproject_ampf_privileges() {
         -H 'OCS-APIRequest: true' \
         -X POST "$NC_HOST/ocs/v1.php/cloud/users/OpenProject/subadmins" \
         -d 'groupid=OpenProject' || echo "000")
-    if grep -q '<statuscode>100</statuscode>\|<statuscode>102</statuscode>' /tmp/op-subadmin.ocs 2>/dev/null; then
+    # OCS 102 = group missing — fail closed (do not treat as success).
+    if grep -q '<statuscode>100</statuscode>' /tmp/op-subadmin.ocs 2>/dev/null; then
         echo "[INFO] Ensured OpenProject is subadmin of OpenProject group (HTTP $code)."
     else
         echo "::error::Could not ensure OpenProject group subadmin (HTTP $code)." >&2
@@ -310,7 +311,7 @@ ensure_openproject_ampf_privileges() {
         -H 'OCS-APIRequest: true' \
         -X POST "$NC_HOST/ocs/v1.php/cloud/users/OpenProject/groups" \
         -d 'groupid=admin' || echo "000")
-    if grep -q '<statuscode>100</statuscode>\|<statuscode>102</statuscode>' /tmp/op-admin-group.ocs 2>/dev/null; then
+    if grep -q '<statuscode>100</statuscode>' /tmp/op-admin-group.ocs 2>/dev/null; then
         echo "[INFO] Ensured OpenProject is in Nextcloud admin group (HTTP $code)."
         return 0
     fi

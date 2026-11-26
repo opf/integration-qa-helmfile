@@ -248,61 +248,6 @@ export class OpenProjectAdminStoragesPage extends OpenProjectBasePage {
     logInfo('Clicked storage Sync now');
   }
 
-  /**
-   * After Sync now, turbo shows "Synchronization queued" only for that stream —
-   * reload always restores Sync now. Poll until Last sync advances (job finished).
-   * Re-click Sync now if Last sync stalls ~60s. Soft-timeout: folder waiter is the hard gate.
-   */
-  async waitForAmpfSyncSettled(timeoutMs = 90_000): Promise<void> {
-    const queued = this.getLocator('storageSyncQueuedMessage').first();
-    const syncedAt = this.getLocator('storageHealthSyncedAt').first();
-    const before = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
-    const started = Date.now();
-    let lastReclickAt = started;
-    let settled = false;
-
-    await queued.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
-
-    try {
-      await expect
-        .poll(
-          async () => {
-            await this.page.reload({ waitUntil: 'domcontentloaded' });
-            await syncedAt.waitFor({ state: 'visible', timeout: 20000 }).catch(() => undefined);
-
-            const after = (await syncedAt.textContent().catch(() => ''))?.trim() ?? '';
-            if (after && after !== before) {
-              logInfo('AMPF sync settled (Last sync: %s → %s)', before || '(none)', after);
-              settled = true;
-              return true;
-            }
-
-            // Job may have been lost / worker lag — re-queue once per ~60s while stalled.
-            if (Date.now() - lastReclickAt >= 60_000) {
-              const syncNow = this.getLocator('storageSyncNowButton').first();
-              if (await syncNow.isVisible().catch(() => false)) {
-                logInfo('AMPF Last sync unchanged; clicking Sync now again');
-                await syncNow.click();
-                await queued.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
-                lastReclickAt = Date.now();
-              }
-            }
-            return false;
-          },
-          { timeout: timeoutMs, intervals: [5000] },
-        )
-        .toBe(true);
-    } catch {
-      if (!settled) {
-        logInfo(
-          'AMPF sync wait timed out after %sms (Last sync still %s); continuing to folder waiter',
-          Date.now() - started,
-          before || '(unknown)',
-        );
-      }
-    }
-  }
-
   async runHealthChecksNow(): Promise<void> {
     const runNow = this.getLocator('storageHealthRunChecksButton').first();
     const openReport = this.getLocator('storageHealthOpenReportLink').first();

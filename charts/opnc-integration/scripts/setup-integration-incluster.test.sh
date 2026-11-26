@@ -54,6 +54,12 @@ grep -Fq "groupid=admin" "${ROOT}/setup-integration.sh" \
   || fail "setup-integration.sh missing groupid=admin for AMPF privileges"
 grep -Fxq "ensure_openproject_ampf_privileges" "${ROOT}/setup-integration.sh" \
   || fail "setup-integration.sh must call ensure_openproject_ampf_privileges"
+# OCS 102 = group missing; must not be treated as success.
+if grep -Fq '<statuscode>102</statuscode>' "${ROOT}/setup-integration.sh"; then
+  fail "setup-integration.sh must not treat OCS 102 as success"
+fi
+grep -Fq '<statuscode>100</statuscode>' "${ROOT}/setup-integration.sh" \
+  || fail "setup-integration.sh must require OCS 100 for AMPF privilege grants"
 pass "AMPF admin-group privilege grant present"
 
 echo "[PASS] setup-integration in-cluster helpers"
