@@ -15,8 +15,8 @@ import { hostUrlPattern, resolveServiceOrigin } from '../../utils/url-helpers';
 import { squashTestCase } from '../../utils/squash-metadata';
 import {
   ensureWithRecovery,
+  personaFileExists,
   savePersona,
-  type AuthPersona,
   type SessionOptions,
 } from '../../utils/auth-session';
 import {
@@ -78,7 +78,6 @@ export const replacedFileBody = Buffer.from(
 );
 
 export let aliceWasAdminBeforeSuite = false;
-export let aliceAdminElevatedBySuite = false;
 
 export async function captureAliceAdminStatus(): Promise<void> {
   for (const identifier of ALICE_IDENTIFIERS) {
@@ -155,29 +154,32 @@ export async function ensureAliceAdminForCurrentSession(
   page: Page,
   homePage: OpenProjectHomePage
 ): Promise<void> {
-  const { updated } = await ensureAliceAdmin();
-  if (updated) {
-    aliceAdminElevatedBySuite = true;
-  }
-
+  await ensureAliceAdmin();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await homePage.waitForReady({ dismissOnboarding: false });
 }
 
 export async function restoreAliceAdminStatus(): Promise<void> {
-  if (aliceAdminElevatedBySuite && !aliceWasAdminBeforeSuite) {
-    try {
-      await withAliceIdentifier(async (identifier) => {
-        const user = await findOpenProjectUser(identifier);
-        if (!user) {
-          throw new Error('OpenProject user for Alice not found via API');
-        }
-        await setUserAdmin(user.id, false);
-      });
-      logInfo('[Cleanup] Revoked admin permissions from Alice');
-    } catch (err: unknown) {
-      logWarn('[Cleanup] Failed to revoke admin permissions from Alice:', err);
-    }
+  // Always re-apply the pre-suite snapshot (not only when this process elevated).
+  // auth.setup afterAll must leave Alice non-admin so specs capture the real flag.
+  try {
+    await withAliceIdentifier(async (identifier) => {
+      const user = await findOpenProjectUser(identifier);
+      if (!user) {
+        throw new Error('OpenProject user for Alice not found via API');
+      }
+      if (user.admin === aliceWasAdminBeforeSuite) {
+        return;
+      }
+      await setUserAdmin(user.id, aliceWasAdminBeforeSuite);
+      logInfo(
+        '[Cleanup] Restored Alice admin=%s (was %s during suite)',
+        aliceWasAdminBeforeSuite,
+        user.admin,
+      );
+    });
+  } catch (err: unknown) {
+    logWarn('[Cleanup] Failed to restore Alice admin status:', err);
   }
 }
 
@@ -213,12 +215,6 @@ export function dualSetupSquashCase(
 ): { title: string; details: ReturnType<typeof squashTestCase> } {
   const { id, title } = isOauth2Setup() ? oauth2 : sso;
   return { title, details: squashTestCase(id, { stepCount }) };
-}
-
-async function probeOpenProjectLoggedIn(page: Page): Promise<boolean> {
-  const homePage = new OpenProjectHomePage(page);
-  await homePage.navigateTo();
-  return homePage.isLoggedIn();
 }
 
 async function uiLoginOpenProjectAsStorageAdmin(page: Page): Promise<OpenProjectHomePage> {
@@ -287,10 +283,14 @@ function nextcloudOrigin(): string {
   ).replace(/\/$/, '');
 }
 
-async function probeNextcloudLoggedIn(page: Page, redirectPath?: string): Promise<boolean> {
+async function gotoNextcloud(page: Page, redirectPath?: string): Promise<void> {
   const raw = redirectPath?.trim() || '/index.php/apps/files/files';
   const path = raw.startsWith('/') ? raw : `/${raw}`;
   await page.goto(`${nextcloudOrigin()}${path}`, { waitUntil: 'domcontentloaded' });
+}
+
+async function probeNextcloudLoggedIn(page: Page, redirectPath?: string): Promise<boolean> {
+  await gotoNextcloud(page, redirectPath);
   if (page.url().includes('/login')) {
     return false;
   }
@@ -345,11 +345,14 @@ export async function loginOpenProjectAsStorageAdmin(
   const homePage = new OpenProjectHomePage(page);
   await ensureWithRecovery(page, 'storage-admin', {
     cold: options.cold,
-    probe: () => probeOpenProjectLoggedIn(page),
     login: async () => {
       await uiLoginOpenProjectAsStorageAdmin(page);
     },
   });
+  // Restore only swaps cookies — land on OP before elevate/ready checks.
+  if (!options.cold) {
+    await homePage.navigateTo();
+  }
   if (!options.cold && !isOauth2Setup()) {
     // Admin flag may change after setup; elevate + reload when needed.
     await ensureAliceAdminForCurrentSession(page, homePage);
@@ -420,9 +423,8 @@ export async function loginOpenProjectAsIntegrationUser(
   options: SessionOptions = {},
 ): Promise<OpenProjectHomePage> {
   const homePage = new OpenProjectHomePage(page);
-  await ensureWithRecovery(page, 'integration', {
+  const outcome = await ensureWithRecovery(page, 'integration', {
     cold: options.cold,
-    probe: () => probeOpenProjectLoggedIn(page),
     login: async () => {
       await uiLoginOpenProjectAsIntegrationUser(page);
       if (!options.cold) {
@@ -433,6 +435,9 @@ export async function loginOpenProjectAsIntegrationUser(
       }
     },
   });
+  if (outcome === 'restored') {
+    await homePage.navigateTo();
+  }
   await homePage.waitForReady({ dismissOnboarding: false });
   return homePage;
 }
@@ -445,9 +450,8 @@ export async function loginOpenProjectAsSecondaryUser(
   options: SessionOptions = {},
 ): Promise<OpenProjectHomePage> {
   const homePage = new OpenProjectHomePage(page);
-  await ensureWithRecovery(page, 'secondary', {
+  const outcome = await ensureWithRecovery(page, 'secondary', {
     cold: options.cold,
-    probe: () => probeOpenProjectLoggedIn(page),
     login: async () => {
       await uiLoginOpenProjectAsSecondaryUser(page);
       if (!options.cold) {
@@ -457,6 +461,9 @@ export async function loginOpenProjectAsSecondaryUser(
       }
     },
   });
+  if (outcome === 'restored') {
+    await homePage.navigateTo();
+  }
   await homePage.waitForReady({ dismissOnboarding: false });
   return homePage;
 }
@@ -469,9 +476,8 @@ export async function loginNextcloudAsIntegrationUser(
   options: SessionOptions & { redirectPath?: string } = {},
 ): Promise<void> {
   const user = integrationBrowserUser();
-  await ensureWithRecovery(page, 'integration', {
+  const outcome = await ensureWithRecovery(page, 'integration', {
     cold: options.cold,
-    probe: () => probeNextcloudLoggedIn(page, options.redirectPath),
     login: async () => {
       await uiLoginNextcloud(page, user, { redirectPath: options.redirectPath });
       if (!options.cold) {
@@ -481,6 +487,9 @@ export async function loginNextcloudAsIntegrationUser(
       }
     },
   });
+  if (outcome === 'restored') {
+    await gotoNextcloud(page, options.redirectPath);
+  }
 }
 
 /**
@@ -491,9 +500,8 @@ export async function loginNextcloudAsSecondaryUser(
   options: SessionOptions & { redirectPath?: string } = {},
 ): Promise<void> {
   const user = secondaryIntegrationUser();
-  await ensureWithRecovery(page, 'secondary', {
+  const outcome = await ensureWithRecovery(page, 'secondary', {
     cold: options.cold,
-    probe: () => probeNextcloudLoggedIn(page, options.redirectPath),
     login: async () => {
       await uiLoginNextcloud(page, user, { redirectPath: options.redirectPath });
       if (!options.cold) {
@@ -503,6 +511,9 @@ export async function loginNextcloudAsSecondaryUser(
       }
     },
   });
+  if (outcome === 'restored') {
+    await gotoNextcloud(page, options.redirectPath);
+  }
 }
 
 /**
@@ -512,49 +523,15 @@ export async function loginNextcloudAsAdmin(
   page: Page,
   options: SessionOptions & { redirectPath?: string } = {},
 ): Promise<void> {
-  await ensureWithRecovery(page, 'nc-admin', {
+  const outcome = await ensureWithRecovery(page, 'nc-admin', {
     cold: options.cold,
-    probe: () => probeNextcloudLoggedIn(page, options.redirectPath),
     login: async () => {
       await uiLoginNextcloud(page, NC_ADMIN_USER, { redirectPath: options.redirectPath });
     },
   });
-}
-
-/**
- * Fast switch: restore another persona (or UI-login + save on miss).
- * Replaces clearCookies() + full login for role hops when a persona file exists.
- */
-export async function switchBrowserPersona(
-  page: Page,
-  persona: AuthPersona,
-  options: SessionOptions & {
-    app: 'openproject' | 'nextcloud';
-    redirectPath?: string;
-  },
-): Promise<void> {
-  if (options.app === 'openproject') {
-    if (persona === 'storage-admin') {
-      await loginOpenProjectAsStorageAdmin(page, options);
-      return;
-    }
-    if (persona === 'secondary') {
-      await loginOpenProjectAsSecondaryUser(page, options);
-      return;
-    }
-    await loginOpenProjectAsIntegrationUser(page, options);
-    return;
+  if (outcome === 'restored') {
+    await gotoNextcloud(page, options.redirectPath);
   }
-
-  if (persona === 'nc-admin') {
-    await loginNextcloudAsAdmin(page, options);
-    return;
-  }
-  if (persona === 'secondary') {
-    await loginNextcloudAsSecondaryUser(page, options);
-    return;
-  }
-  await loginNextcloudAsIntegrationUser(page, options);
 }
 
 /**
@@ -566,6 +543,9 @@ export async function ensureSecondaryIntegrationUserProvisioned(
   page: Page,
 ): Promise<TestUser> {
   const user = secondaryIntegrationUser();
+  if (personaFileExists('secondary')) {
+    return user;
+  }
   if (isOauth2Setup()) {
     await ensureOpenProjectLocalUser(user);
     await ensureNextcloudLocalUser(user);

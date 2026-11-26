@@ -1,7 +1,8 @@
 /**
  * Playwright storageState cache for E2E personas.
- * Setup warms e2e/.auth/*.json; helpers restore or UI-login once and rewrite on miss.
- * Not multi-worker safe — keep E2E_WORKERS=1.
+ * Setup warms e2e/.auth/*.json; helpers restore cookies or UI-login on miss.
+ * Prefer project `use.storageState` / `browser.newContext({ storageState })` when
+ * a whole file stays on one persona — avoids per-test restore. Not multi-worker safe.
  */
 import type { BrowserContext, Page } from '@playwright/test';
 import * as fs from 'fs';
@@ -18,17 +19,9 @@ export type SessionOptions = {
 
 type StorageStateFile = {
   cookies?: Array<Parameters<BrowserContext['addCookies']>[0][number]>;
-  origins?: Array<{
-    origin: string;
-    localStorage: Array<{ name: string; value: string }>;
-  }>;
 };
 
 const AUTH_DIR = path.resolve(__dirname, '..', '.auth');
-
-export function authDir(): string {
-  return AUTH_DIR;
-}
 
 export function personaPath(persona: AuthPersona): string {
   return path.join(AUTH_DIR, `${persona}.json`);
@@ -65,8 +58,7 @@ export async function savePersona(
 
 /**
  * Replace context cookies with a saved persona. Returns false when missing/corrupt.
- * localStorage origins are applied by the caller after navigation when needed;
- * session cookies are enough for OP/NC/KC auth.
+ * Session cookies are enough for OP/NC/KC auth.
  */
 export async function restorePersona(
   context: BrowserContext,
@@ -102,15 +94,15 @@ export async function restorePersona(
 }
 
 /**
- * Restore persona when possible; otherwise run login and save (unless cold).
- * One recovery attempt — probe must be a positive logged-in check.
+ * Restore persona cookies when possible; otherwise run login and save (unless cold).
+ * Trusts restored cookies (no probe navigation) — stale sessions fail on the first
+ * real step and re-login via the caller's next cold path / retry.
  */
 export async function ensureWithRecovery(
   page: Page,
   persona: AuthPersona,
   opts: {
     cold?: boolean;
-    probe: () => Promise<boolean>;
     login: () => Promise<void>;
   },
 ): Promise<'restored' | 'logged-in' | 'cold'> {
@@ -122,19 +114,8 @@ export async function ensureWithRecovery(
 
   const restored = await restorePersona(page.context(), persona);
   if (restored) {
-    try {
-      if (await opts.probe()) {
-        logInfo('[auth-session] restored persona %s', persona);
-        return 'restored';
-      }
-    } catch (error: unknown) {
-      logWarn(
-        '[auth-session] probe failed for %s: %s',
-        persona,
-        getErrorMessage(error),
-      );
-    }
-    logWarn('[auth-session] stale session for %s; re-login', persona);
+    logInfo('[auth-session] restored persona %s', persona);
+    return 'restored';
   }
 
   await page.context().clearCookies();

@@ -288,6 +288,8 @@ fi
 # AMPF sync adds project members to the OpenProject group via the OpenProject app
 # password. On NC 35, group-subadmin alone still returns OCS 104 for that call —
 # membership in the admin group is what makes AMPF health go Healthy.
+# shortcut: admin-group grant may hide an NC 35 product bug if customers are only
+# told to use subadmin — confirm with integration-app / file upstream if undocumented.
 ensure_openproject_ampf_privileges() {
     local code
     code=$(curl -sS -o /tmp/op-subadmin.ocs -w "%{http_code}" --connect-timeout 5 --max-time 15 \
@@ -298,8 +300,9 @@ ensure_openproject_ampf_privileges() {
     if grep -q '<statuscode>100</statuscode>\|<statuscode>102</statuscode>' /tmp/op-subadmin.ocs 2>/dev/null; then
         echo "[INFO] Ensured OpenProject is subadmin of OpenProject group (HTTP $code)."
     else
-        echo "[WARN] Could not ensure OpenProject group subadmin (HTTP $code)." >&2
+        echo "::error::Could not ensure OpenProject group subadmin (HTTP $code)." >&2
         cat /tmp/op-subadmin.ocs >&2 || true
+        return 1
     fi
 
     code=$(curl -sS -o /tmp/op-admin-group.ocs -w "%{http_code}" --connect-timeout 5 --max-time 15 \
@@ -311,8 +314,9 @@ ensure_openproject_ampf_privileges() {
         echo "[INFO] Ensured OpenProject is in Nextcloud admin group (HTTP $code)."
         return 0
     fi
-    echo "[WARN] Could not add OpenProject to admin group (HTTP $code); AMPF may stay unhealthy." >&2
+    echo "::error::Could not add OpenProject to admin group (HTTP $code); AMPF stays unhealthy." >&2
     cat /tmp/op-admin-group.ocs >&2 || true
+    return 1
 }
 
 ensure_openproject_ampf_privileges

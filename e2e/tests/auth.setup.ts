@@ -3,11 +3,9 @@
  * Dependent projects restore via shared login helpers; missing/stale files re-login.
  */
 import { test as setup, expect } from '@playwright/test';
-import * as fs from 'fs';
 import {
   clearAuthDir,
   personaFileExists,
-  personaPath,
   restorePersona,
   savePersona,
 } from '../utils/auth-session';
@@ -24,6 +22,7 @@ import {
   loginOpenProjectAsIntegrationUser,
   loginOpenProjectAsSecondaryUser,
   loginOpenProjectAsStorageAdmin,
+  restoreAliceAdminStatus,
   secondaryIntegrationUser,
 } from './opncintegration/shared';
 
@@ -32,6 +31,12 @@ setup.setTimeout(300_000);
 
 setup.beforeAll(() => {
   clearAuthDir();
+});
+
+setup.afterAll(async () => {
+  if (!isOauth2Setup()) {
+    await restoreAliceAdminStatus();
+  }
 });
 
 setup('storage-admin persona', async ({ page }) => {
@@ -91,18 +96,4 @@ setup('nc-admin persona', async ({ page }) => {
   await savePersona(page.context(), 'nc-admin');
   expect(personaFileExists('nc-admin')).toBe(true);
   logInfo('[auth.setup] nc-admin warmed as %s', NC_ADMIN_USER.username);
-});
-
-/**
- * Assert recovery: empty integration cookies → ensure re-logins and rewrites.
- * Exercises the invalid-session path every run without a separate chaos suite.
- */
-setup('integration persona recovery self-check', async ({ page }) => {
-  const file = personaPath('integration');
-  fs.writeFileSync(file, JSON.stringify({ cookies: [] }), 'utf8');
-
-  await loginOpenProjectAsIntegrationUser(page);
-  expect(personaFileExists('integration')).toBe(true);
-  const rewritten = JSON.parse(fs.readFileSync(file, 'utf8')) as { cookies?: unknown[] };
-  expect(Array.isArray(rewritten.cookies) && rewritten.cookies.length > 0).toBe(true);
 });

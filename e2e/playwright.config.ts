@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig } from './utils/config';
 import { logInfo, logWarn } from './utils/logger';
+import { personaPath } from './utils/auth-session';
 
 const projectRoot = path.resolve(__dirname, '..');
 const caPathFromEnv = process.env.OPENPROJECT_CA_CERT_PATH || process.env.NODE_EXTRA_CA_CERTS;
@@ -93,7 +94,12 @@ export default defineConfig({
     {
       name: 'op-integration-tests',
       dependencies: ['auth-setup'],
-      use: { ...devices['Desktop Chrome'], screen: undefined },
+      use: {
+        ...devices['Desktop Chrome'],
+        screen: undefined,
+        // Default Alice/Oliver session from auth-setup; role hops use login helpers.
+        storageState: personaPath('integration'),
+      },
       fullyParallel: false,
       workers: 1,
       testMatch: '**/*.spec.ts',

@@ -52,6 +52,8 @@ grep -Fq "users/OpenProject/groups" "${ROOT}/setup-integration.sh" \
   || fail "setup-integration.sh missing OpenProject → admin group grant"
 grep -Fq "groupid=admin" "${ROOT}/setup-integration.sh" \
   || fail "setup-integration.sh missing groupid=admin for AMPF privileges"
+grep -Fxq "ensure_openproject_ampf_privileges" "${ROOT}/setup-integration.sh" \
+  || fail "setup-integration.sh must call ensure_openproject_ampf_privileges"
 pass "AMPF admin-group privilege grant present"
 
 echo "[PASS] setup-integration in-cluster helpers"
